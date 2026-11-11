@@ -9,6 +9,7 @@ name: build dependency archives
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths:
       - "runtimes/**/requirements.txt"
       - "scripts/create-python-dependency-archive.py"
@@ -23,7 +24,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # head_ref makes a fork/same-repo PR run and its branch push share a group,
+  # so superseded builds cancel each other instead of piling up.
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
