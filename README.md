@@ -2,6 +2,9 @@
 
 FAIR geospatial foundation models, ready to use in openEO.
 
+> [!NOTE]
+> Access the website at https://danlooo.github.io/fair-geo-fm
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for process, file naming, versioning,
