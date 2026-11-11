@@ -1,0 +1,104 @@
+name: build dependency archives
+
+# Builds every runtimes/*/requirements.txt into a deterministic
+# dependencies.zip and smoke-tests it on the target Python version.
+# Publishing is deliberately not automated: per CONTRIBUTING.md the archive is
+# served from object storage, not from GitHub (release assets redirect to
+# objects.githubusercontent.com, which backends often cannot reach).
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "runtimes/**/requirements.txt"
+      - "scripts/create-python-dependency-archive.py"
+      - ".github/workflows/build-dependency-archives.yml"
+  pull_request:
+    paths:
+      - "runtimes/**/requirements.txt"
+      - "scripts/create-python-dependency-archive.py"
+      - ".github/workflows/build-dependency-archives.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "runtimes/*/requirements.txt"
+
+      - name: Build archives
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          requirements=(runtimes/*/requirements.txt)
+          if [ ${#requirements[@]} -eq 0 ]; then
+            echo "no runtimes/*/requirements.txt found" >&2
+            exit 1
+          fi
+          for req in "${requirements[@]}"; do
+            uv run scripts/create-python-dependency-archive.py \
+              --requirements "$req" \
+              --output-file "$(dirname "$req")/dependencies.zip"
+          done
+
+      - name: Smoke-test on the pinned Python version
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libgomp1  # torch CPU
+          for zip in runtimes/*/dependencies.zip; do
+            runtime="$(basename "$(dirname "$zip")")"
+            version="$(sed -E 's/^py([0-9])([0-9]+).*/\1.\2/' <<<"$runtime")"
+            uv python install "$version"
+            python="$(uv python find "$version")"
+
+            workdir="$(mktemp -d)"
+            unzip -q "$zip" -d "$workdir"
+
+            "$python" - "$workdir" <<'PY'
+          import importlib
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          sys.path.insert(0, str(root))
+          modules = sorted(
+              path.name
+              for path in root.iterdir()
+              if path.is_dir() and (path / "__init__.py").is_file()
+          )
+          if not modules:
+              raise SystemExit(f"archive root has no importable packages: {root}")
+          for module in modules:
+              importlib.import_module(module)
+          print(f"imported {len(modules)} packages: {', '.join(modules)}")
+          PY
+
+            rm -rf "$workdir"
+          done
+
+      - name: Record checksums
+        run: sha256sum runtimes/*/dependencies.zip | tee checksums.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependency-archives
+          path: |
+            runtimes/*/dependencies.zip
+            runtimes/*/requirements.txt
+            checksums.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
