@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+
+# Built UDF dependency archives are served from object storage, not git.
+runtimes/*/dependencies.zip

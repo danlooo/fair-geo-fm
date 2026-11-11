@@ -48,8 +48,14 @@ Conventions for the processes and runtimes in this repository.
 
 - Shared dependency archives live in `runtimes/`, never inside a process
   directory, and are reused across processes.
-- Name archives after the stack and its versions, and never overwrite them:
-  `runtimes/py311-torch2.4.1.zip`.
+- One directory per interpreter/stack combination, named after both, containing
+  only `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
+  is encoded in the name (`py311` -> 3.11) and the file may pin an index via
+  `--extra-index-url`.
+- `uv run scripts/create-python-dependency-archive.py --requirements
+  runtimes/py311-torch231/requirements.txt --output-file
+  runtimes/py311-torch231/dependencies.zip` writes that file; upload it to
+  object storage and never overwrite a published archive.
 - Pin `runtime` and `version` in `run_udf` and reference the archive from the
   process's `default_job_options` via `udf-dependency-archives`, so interpreter
   and archive move together.

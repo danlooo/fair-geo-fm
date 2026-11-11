@@ -1,0 +1,208 @@
+name: publish runtime
+
+# Builds one runtime's dependency archive, verifies it, and attaches it to a
+# content-addressed GitHub Release: tag and asset both carry the zip's sha256,
+# so the same bytes always map to the same release and no release is ever
+# overwritten.
+#
+# Note: CONTRIBUTING.md currently says archives should be served from object
+# storage rather than GitHub releases, because release downloads redirect to
+# objects.githubusercontent.com. Confirm the target backend can fetch the URL
+# before pointing a process at it.
+#
+# Manual only: publishing is a deliberate act.
+#
+# Setting `tag` publishes a mutable prerelease under that tag instead (e.g.
+# `staging`), overwriting its single `<runtime>.zip` asset on each run. Use it
+# to check that a backend can fetch the URL; leave `tag` empty for the
+# immutable, content-addressed release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runtime:
+        description: "Runtime directory under runtimes/"
+        required: true
+        default: py311-torch231
+        type: string
+      tag:
+        description: "Mutable prerelease tag, e.g. staging (empty = content-addressed)"
+        required: false
+        default: ""
+        type: string
+      dry_run:
+        description: "Build and verify only; do not create a release"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.runtime }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: publish
+    env:
+      RUNTIME: ${{ inputs.runtime }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "runtimes/*/requirements.txt"
+
+      - name: Build archive
+        run: |
+          set -euo pipefail
+          if [[ ! "$RUNTIME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "invalid runtime name: $RUNTIME" >&2
+            exit 1
+          fi
+          requirements="runtimes/$RUNTIME/requirements.txt"
+          if [ ! -f "$requirements" ]; then
+            echo "no such runtime: $requirements" >&2
+            exit 1
+          fi
+          uv run scripts/create-python-dependency-archive.py \
+            --requirements "$requirements" \
+            --output-file "runtimes/$RUNTIME/dependencies.zip"
+
+      - name: Verify on the pinned Python version
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libgomp1  # torch CPU
+          version="$(sed -E 's/^py([0-9])([0-9]+).*/\1.\2/' <<<"$RUNTIME")"
+          uv python install "$version"
+          python="$(uv python find "$version")"
+
+          workdir="$(mktemp -d)"
+          unzip -q "runtimes/$RUNTIME/dependencies.zip" -d "$workdir"
+
+          "$python" - "$workdir" <<'PY'
+          import importlib
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1])
+          sys.path.insert(0, str(root))
+          modules = sorted(
+              path.name
+              for path in root.iterdir()
+              if path.is_dir() and (path / "__init__.py").is_file()
+          )
+          if not modules:
+              raise SystemExit(f"archive root has no importable packages: {root}")
+          for module in modules:
+              importlib.import_module(module)
+          print(f"imported {len(modules)} packages: {', '.join(modules)}")
+          PY
+
+          rm -rf "$workdir"
+
+      - name: Compute release name
+        id: artifact
+        run: |
+          set -euo pipefail
+          digest="$(sha256sum "runtimes/$RUNTIME/dependencies.zip" | cut -d' ' -f1)"
+          short="${digest:0:16}"
+          if [ -n "$RELEASE_TAG" ]; then
+            if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "invalid tag: $RELEASE_TAG" >&2
+              exit 1
+            fi
+            tag="$RELEASE_TAG"
+            asset="$RUNTIME.zip"
+            mutable=true
+          else
+            tag="$RUNTIME-$short"
+            asset="$RUNTIME-$short.zip"
+            mutable=false
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "mutable=$mutable" >> "$GITHUB_OUTPUT"
+          cp "runtimes/$RUNTIME/dependencies.zip" "$RUNNER_TEMP/$asset"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          DIGEST: ${{ steps.artifact.outputs.digest }}
+          TAG: ${{ steps.artifact.outputs.tag }}
+          ASSET: ${{ steps.artifact.outputs.asset }}
+          MUTABLE: ${{ steps.artifact.outputs.mutable }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
+
+          {
+            echo "### dependency archive"
+            echo
+            echo "- runtime: \`$RUNTIME\`"
+            echo "- sha256: \`$DIGEST\`"
+            echo "- release: \`$TAG\`"
+            echo "- mutable: $MUTABLE"
+            echo "- url: $url#feature_deps"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "dry run: would publish $TAG with $ASSET (mutable=$MUTABLE)"
+            exit 0
+          fi
+
+          if [ "$MUTABLE" = "true" ]; then
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "mutable release $TAG exists; replacing $ASSET"
+              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET" --clobber
+            else
+              gh release create "$TAG" \
+                --title "$TAG" \
+                --prerelease \
+                --latest=false \
+                --notes "Mutable staging release for \`runtimes/$RUNTIME\`; the asset is replaced on each publish.
+
+          sha256: \`$DIGEST\`
+          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`" \
+                "$RUNNER_TEMP/$ASSET"
+            fi
+            exit 0
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG exists; not overwriting"
+            mkdir -p "$RUNNER_TEMP/existing"
+            if gh release download "$TAG" --pattern "$ASSET" --dir "$RUNNER_TEMP/existing"; then
+              echo "$DIGEST  $RUNNER_TEMP/existing/$ASSET" | sha256sum -c -
+            else
+              echo "asset missing from existing release; uploading it"
+              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET"
+            fi
+            exit 0
+          fi
+
+          notes="Content-addressed dependency archive for \`runtimes/$RUNTIME\`.
+
+          sha256: \`$DIGEST\`
+          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`
+
+          Use as a job option:
+
+          \`\`\`
+          \"udf-dependency-archives\": [\"$url#feature_deps\"]
+          \`\`\`"
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$notes" \
+            --latest=false \
+            "$RUNNER_TEMP/$ASSET"
