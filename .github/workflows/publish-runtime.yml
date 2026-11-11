@@ -11,6 +11,11 @@ name: publish runtime
 # before pointing a process at it.
 #
 # Manual only: publishing is a deliberate act.
+#
+# Setting `tag` publishes a mutable prerelease under that tag instead (e.g.
+# `staging`), overwriting its single `<runtime>.zip` asset on each run. Use it
+# to check that a backend can fetch the URL; leave `tag` empty for the
+# immutable, content-addressed release.
 
 on:
   workflow_dispatch:
@@ -19,6 +24,11 @@ on:
         description: "Runtime directory under runtimes/"
         required: true
         default: py311-torch231
+        type: string
+      tag:
+        description: "Mutable prerelease tag, e.g. staging (empty = content-addressed)"
+        required: false
+        default: ""
         type: string
       dry_run:
         description: "Build and verify only; do not create a release"
@@ -40,6 +50,7 @@ jobs:
     environment: publish
     env:
       RUNTIME: ${{ inputs.runtime }}
+      RELEASE_TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -97,16 +108,30 @@ jobs:
 
           rm -rf "$workdir"
 
-      - name: Compute content-addressed name
+      - name: Compute release name
         id: artifact
         run: |
           set -euo pipefail
           digest="$(sha256sum "runtimes/$RUNTIME/dependencies.zip" | cut -d' ' -f1)"
           short="${digest:0:16}"
+          if [ -n "$RELEASE_TAG" ]; then
+            if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "invalid tag: $RELEASE_TAG" >&2
+              exit 1
+            fi
+            tag="$RELEASE_TAG"
+            asset="$RUNTIME.zip"
+            mutable=true
+          else
+            tag="$RUNTIME-$short"
+            asset="$RUNTIME-$short.zip"
+            mutable=false
+          fi
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "tag=$RUNTIME-$short" >> "$GITHUB_OUTPUT"
-          echo "asset=$RUNTIME-$short.zip" >> "$GITHUB_OUTPUT"
-          cp "runtimes/$RUNTIME/dependencies.zip" "$RUNNER_TEMP/$RUNTIME-$short.zip"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+          echo "mutable=$mutable" >> "$GITHUB_OUTPUT"
+          cp "runtimes/$RUNTIME/dependencies.zip" "$RUNNER_TEMP/$asset"
 
       - name: Publish release
         env:
@@ -115,6 +140,7 @@ jobs:
           DIGEST: ${{ steps.artifact.outputs.digest }}
           TAG: ${{ steps.artifact.outputs.tag }}
           ASSET: ${{ steps.artifact.outputs.asset }}
+          MUTABLE: ${{ steps.artifact.outputs.mutable }}
         run: |
           set -euo pipefail
           url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
@@ -125,11 +151,30 @@ jobs:
             echo "- runtime: \`$RUNTIME\`"
             echo "- sha256: \`$DIGEST\`"
             echo "- release: \`$TAG\`"
+            echo "- mutable: $MUTABLE"
             echo "- url: $url#feature_deps"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$DRY_RUN" = "true" ]; then
-            echo "dry run: would publish $TAG with $ASSET"
+            echo "dry run: would publish $TAG with $ASSET (mutable=$MUTABLE)"
+            exit 0
+          fi
+
+          if [ "$MUTABLE" = "true" ]; then
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "mutable release $TAG exists; replacing $ASSET"
+              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET" --clobber
+            else
+              gh release create "$TAG" \
+                --title "$TAG" \
+                --prerelease \
+                --latest=false \
+                --notes "Mutable staging release for \`runtimes/$RUNTIME\`; the asset is replaced on each publish.
+
+          sha256: \`$DIGEST\`
+          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`" \
+                "$RUNNER_TEMP/$ASSET"
+            fi
             exit 0
           fi
 
