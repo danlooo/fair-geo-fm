@@ -26,10 +26,10 @@ Reference it by URL as the `namespace`; the node id follows the web editor's
       "description": "Documentation: https://danlooo.github.io/fair-geo-fm/processes/tessera_v2",
       "arguments": {
         "spatial_extent": {
-          "west": 9.534772984343126,
-          "south": 53.39708986505127,
-          "east": 10.60516399310338,
-          "north": 54.15712581092683
+          "west": 11.55,
+          "south": 50.88,
+          "east": 11.65,
+          "north": 50.96
         },
         "temporal_extent": ["2023-08-01", "2023-09-30"]
       }
