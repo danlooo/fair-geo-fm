@@ -62,3 +62,42 @@ Conventions for the processes and runtimes in this repository.
 - Do not serve archives from GitHub raw, releases, or LFS: raw is capped at
   100 MiB, releases and LFS redirect to hosts that are often not allowlisted,
   and LFS is bandwidth-metered. Use object storage.
+
+## Releases
+
+Archives are published by the `publish runtime` workflow, never by hand and
+never by committing the zip.
+
+```sh
+# dry run first: builds and verifies, publishes nothing
+gh workflow run "publish runtime" \
+  -f runtime=py311-torch231 -F dry_run=true
+
+# immutable, content-addressed release
+gh workflow run "publish runtime" \
+  -f runtime=py311-torch231 -F dry_run=false
+
+# mutable staging release, for checking that a backend can fetch the URL
+gh workflow run "publish runtime" \
+  -f runtime=py311-torch231 -f tag=staging -F dry_run=false
+```
+
+- `workflow_dispatch` only fires once the workflow file is on the default
+  branch, and the job waits for approval by the `publish` environment.
+- `dry_run` defaults to `true`. It runs the whole build and import check and
+  writes the planned release name and URL to the run summary.
+- With `tag` empty the release is **immutable and content-addressed**: tag and
+  asset are `<runtime>-<sha256[:16]>`. Rerunning with identical bytes verifies
+  the existing asset instead of overwriting it, and changed bytes produce a new
+  release, so a published URL always resolves to the same zip.
+- With `tag: staging` the workflow maintains a **mutable prerelease** under
+  that tag with a single `<runtime>.zip` asset, replaced on every run. It is
+  meant to unblock a backend that cannot be allowlisted for object storage yet;
+  do not reference it from a process you want reproducible.
+- Release downloads redirect to `objects.githubusercontent.com`. Confirm the
+  target backend can follow that before pointing a process at the URL; the
+  object-storage rule above still applies to production.
+- After publishing, set the content-addressed URL in the process's
+  `default_job_options["udf-dependency-archives"]` and update the sha256 quoted
+  in its README. The URL must contain the name from `runtime.txt`;
+  `scripts/build-process-graph.py --check` enforces that in CI.
