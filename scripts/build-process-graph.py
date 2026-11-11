@@ -93,7 +93,8 @@ def build(process_dir: Path, check: bool) -> int:
     text = json.dumps(graph, indent=2, ensure_ascii=False) + "\n"
 
     if check:
-        if graph_path.read_text(encoding="utf-8") != text:
+        # Tolerate a missing or extra trailing newline in the file on disk.
+        if graph_path.read_text(encoding="utf-8").rstrip("\n") != text.rstrip("\n"):
             print(
                 f"{graph_path} is out of date; run "
                 f"uv run {Path(sys.argv[0]).name} {process_dir}",
