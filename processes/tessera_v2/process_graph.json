@@ -160,7 +160,7 @@
     "python-memory": "6g",
     "soft-errors": 0.1,
     "udf-dependency-archives": [
-      "https://s3.waw3-1.cloudferro.com/project_dependencies/torch_deps_python311.zip#feature_deps"
+      "https://example.com/py311-torch231/dependencies.zip#feature_deps"
     ]
   },
   "process_graph": {
