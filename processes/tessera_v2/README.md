@@ -70,12 +70,19 @@ internally.
 ## Runtime
 
 `run_udf` is pinned to Python 3.11. PyTorch comes from the
-`udf-dependency-archives` job option in `default_job_options`, currently the
-shared CDSE archive `torch_deps_python311.zip` (extracted as `feature_deps`,
-sha256 `8e278fb8900511bcdf2e01c5c4f4654fd743ff47d21bb84ec2d8eba42ee00f00`).
-Per [CONTRIBUTING.md](../../CONTRIBUTING.md) this archive belongs in `runtimes/`
-and still needs to move there. The checkpoint is downloaded at runtime from the
-`weights_url` in the UDF context.
+`udf-dependency-archives` job option in `default_job_options`, which points at
+the archive built from [`runtimes/py311-torch231`](../../runtimes/py311-torch231)
+and published by the `publish runtime` workflow:
+
+```
+https://github.com/danlooo/fair-geo-fm/releases/download/staging/py311-torch231.zip#feature_deps
+```
+
+This is the **mutable `staging` prerelease** (sha256
+`84c33b6a11c407ad61f6cb48e937dd843daf17df105eb74b3b7e626658009932`, replaced on
+every publish), used while the backend fetch is being verified. Once it works,
+switch to the content-addressed release so the URL is immutable. The checkpoint
+is downloaded at runtime from the `weights_url` in the UDF context.
 
 ## Files
 

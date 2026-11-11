@@ -160,7 +160,7 @@
     "python-memory": "6g",
     "soft-errors": 0.1,
     "udf-dependency-archives": [
-      "https://example.com/py311-torch231/dependencies.zip#feature_deps"
+      "https://github.com/danlooo/fair-geo-fm/releases/download/staging/py311-torch231.zip#feature_deps"
     ]
   },
   "process_graph": {
