@@ -1,0 +1,59 @@
+name: check process graphs
+
+# Fails when a process's process_graph.json does not match its udf.py, i.e.
+# when the inlined UDF is stale. See scripts/build-process-graph.py.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "processes/**"
+      - "scripts/build-process-graph.py"
+      - ".github/workflows/check-process-graphs.yml"
+  pull_request:
+    paths:
+      - "processes/**"
+      - "scripts/build-process-graph.py"
+      - ".github/workflows/check-process-graphs.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Check inlined UDFs are up to date
+        run: |
+          set -euo pipefail
+          found=0
+          stale=()
+          for dir in processes/*/; do
+            [ -f "$dir/udf.py" ] || continue
+            [ -f "$dir/process_graph.json" ] || continue
+            found=$((found + 1))
+            if ! uv run scripts/build-process-graph.py "${dir%/}" --check; then
+              stale+=("${dir%/}")
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "no process directories with udf.py and process_graph.json found" >&2
+            exit 1
+          fi
+          if [ ${#stale[@]} -gt 0 ]; then
+            echo
+            echo "stale process_graph.json in: ${stale[*]}" >&2
+            echo "run: uv run scripts/build-process-graph.py <dir>" >&2
+            exit 1
+          fi
+          echo "checked $found process graph(s)"

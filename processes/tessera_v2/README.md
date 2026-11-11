@@ -79,11 +79,21 @@ and still needs to move there. The checkpoint is downloaded at runtime from the
 
 ## Files
 
-| File                 | Purpose                                                                |
-| -------------------- | ---------------------------------------------------------------------- |
-| `process_graph.json` | Process definition served as the remote namespace, maintained by hand. |
-| `udf.py`             | UDF source, inlined into `process_graph.json`.                         |
-| `example.py`         | Sample call on CDSE.                                                   |
+| File                 | Purpose                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| `process_graph.json` | Process definition served as the remote namespace; graph structure is maintained by hand.   |
+| `udf.py`             | UDF source of truth, inlined into `process_graph.json` (see below).                         |
+| `example.py`         | Sample call on CDSE.                                                                        |
+
+The `udf` argument cannot reference `udf.py`: relative paths resolve against the
+user's server-side workspace, not this repository, and URL UDFs are
+backend-specific. Regenerate the inline copy after editing the UDF:
+
+```sh
+uv run scripts/build-process-graph.py processes/tessera_v2
+```
+
+`--check` verifies it is in sync without writing.
 
 ## Notes
 
