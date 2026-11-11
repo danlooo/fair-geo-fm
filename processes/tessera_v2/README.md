@@ -83,6 +83,7 @@ and still needs to move there. The checkpoint is downloaded at runtime from the
 | -------------------- | ------------------------------------------------------------------------------------------- |
 | `process_graph.json` | Process definition served as the remote namespace; graph structure is maintained by hand.   |
 | `udf.py`             | UDF source of truth, inlined into `process_graph.json` (see below).                         |
+| `runtime.txt`        | Runtime directory under `runtimes/` the process depends on; checked in CI.                  |
 | `example.py`         | Sample call on CDSE.                                                                        |
 
 The `udf` argument cannot reference `udf.py`: relative paths resolve against the
