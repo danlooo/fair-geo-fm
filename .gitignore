@@ -3,3 +3,8 @@ __pycache__/
 
 # Built UDF dependency archives are served from object storage, not git.
 runtimes/*/dependencies.zip
+
+# VitePress site (documentation is built in CI).
+node_modules/
+.vitepress/dist/
+.vitepress/cache/

@@ -23,7 +23,7 @@ Reference it by URL as the `namespace`; the node id follows the web editor's
     "tessera_v2_embeddings1": {
       "process_id": "tessera_v2_embeddings",
       "namespace": "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/processes/tessera_v2/process_graph.json",
-      "description": "Documentation: https://danlooo.github.io/fair-geo-fm/processes/tessera_v2",
+      "description": "Documentation: https://danlooo.github.io/fair-geo-fm/processes/tessera_v2/",
       "arguments": {
         "spatial_extent": {
           "west": 11.55,
@@ -71,7 +71,8 @@ internally.
 
 `run_udf` is pinned to Python 3.11. PyTorch comes from the
 `udf-dependency-archives` job option in `default_job_options`, which points at
-the archive built from [`runtimes/py311-torch231`](../../runtimes/py311-torch231)
+the archive built from
+[`runtimes/py311-torch231`](https://github.com/danlooo/fair-geo-fm/tree/main/runtimes/py311-torch231)
 and published by the `publish runtime` workflow. The full URL lives in
 `runtime.txt` and must appear verbatim in `default_job_options`:
 

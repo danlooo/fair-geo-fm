@@ -1,0 +1,69 @@
+# Getting started
+
+This site collects geospatial foundation models and their embedding workflows in
+a form that is ready to use from [openEO](https://openeo.org) at the
+[Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu) (CDSE).
+
+Models are shipped either as **weights** or as **pre-calculated frozen
+embeddings**. Weights are cheaper to produce; frozen embeddings are cheaper to
+use. The catalogue covers both approaches.
+
+## Models and approaches
+
+| Example     | Model type             | Host               | Format    | Approach                                                    |
+| ----------- | ---------------------- | ------------------ | --------- | ----------------------------------------------------------- |
+| AlphaEarth  | Frozen embeddings      | Cloud Ferro        | COG       | Load from a revised STAC catalogue                          |
+| TESSERA v1  | Frozen embeddings      | Source Cooperative | Zarr      | Read Zarr in CDSE or convert to COG on the fly              |
+| TESSERA v2  | Weights                | Hugging Face       | PyTorch   | Run a PyTorch UDF, or a CWL-to-STAC process graph           |
+| Embed2Scale | Weights for finetuning | Hugging Face       | TerraTorch | Run a CWL-to-STAC process graph or UDF                      |
+
+## Connect to CDSE
+
+```python
+import openeo
+
+connection = openeo.connect("https://openeo.dataspace.copernicus.eu")
+connection.authenticate_oidc()
+```
+
+## Call a process
+
+Processes are published as user-defined processes (UDPs) through the
+[openEO remote process definition extension](https://api.openeo.org/extensions/remote-process-definition/0.1.0).
+Reference a process graph by URL as its `namespace`:
+
+```python
+embeddings = connection.datacube_from_process(
+    "tessera_v2_embeddings",
+    namespace=(
+        "https://raw.githubusercontent.com/danlooo/fair-geo-fm/"
+        "<commit>/processes/tessera_v2/process_graph.json"
+    ),
+    spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
+    temporal_extent=["2023-08-01", "2023-09-30"],
+)
+```
+
+Replace `<commit>` with a commit or tag from
+[fair-geo-fm](https://github.com/danlooo/fair-geo-fm/commits/main). See
+[TESSERA v2 embeddings](/processes/tessera_v2/) for the complete example and
+parameters.
+
+## Reproducibility
+
+- Pin `namespace` to a commit or tag, never to a branch, so stored jobs keep
+  resolving to the same process graph.
+- One embedding per process graph: do not pack several models into one UDP.
+- A process id encodes its major model version (`tessera_v2_embeddings`), so
+  versions can be used side by side.
+
+> [!NOTE]
+> The openEO Web editor does not fetch metadata from the remote `namespace`
+> URL. The editor only shows the graph you paste, so any user-facing
+> information belongs in node descriptions or in the documentation pages here.
+
+## Learn more
+
+- [Browse processes](/processes/) for the available models and their parameters.
+- [Contributing](/contributing) for process, runtime, and release conventions.
+- [NFDI4Earth](https://nfdi4earth.de) for the project context.

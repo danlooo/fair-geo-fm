@@ -31,7 +31,9 @@ Conventions for the processes and runtimes in this repository.
   `run_udf` instead.
 - Point `namespace` at a commit or tag, not at a branch, so stored jobs stay
   reproducible.
-- Do not end URLs with a trailing `/` (namespace, `links`, documentation).
+- Do not end `namespace` or `links` URLs with a trailing `/`. Documentation
+  page URLs do end with `/` because VitePress serves each process page as a
+  directory index.
 - Documentation is published at <https://danlooo.github.io/fair-geo-fm>. Put the
   link in the process `description` and in `links` (`rel: canonical`), and in
   the node `description` of copy-paste examples — that is what a user reads in
