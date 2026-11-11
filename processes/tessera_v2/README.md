@@ -72,7 +72,8 @@ internally.
 `run_udf` is pinned to Python 3.11. PyTorch comes from the
 `udf-dependency-archives` job option in `default_job_options`, which points at
 the archive built from [`runtimes/py311-torch231`](../../runtimes/py311-torch231)
-and published by the `publish runtime` workflow:
+and published by the `publish runtime` workflow. The full URL lives in
+`runtime.txt` and must appear verbatim in `default_job_options`:
 
 ```
 https://github.com/danlooo/fair-geo-fm/releases/download/staging/py311-torch231.zip#feature_deps
@@ -90,7 +91,7 @@ is downloaded at runtime from the `weights_url` in the UDF context.
 | -------------------- | ------------------------------------------------------------------------------------------- |
 | `process_graph.json` | Process definition served as the remote namespace; graph structure is maintained by hand.   |
 | `udf.py`             | UDF source of truth, inlined into `process_graph.json` (see below).                         |
-| `runtime.txt`        | Runtime directory under `runtimes/` the process depends on; checked in CI.                  |
+| `runtime.txt`        | Dependency archive URL the process needs; must appear in `default_job_options` (CI-checked). |
 | `example.py`         | Sample call on CDSE.                                                                        |
 
 The `udf` argument cannot reference `udf.py`: relative paths resolve against the

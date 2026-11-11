@@ -8,12 +8,13 @@ truth for the code, ``process_graph.json`` is the source of truth for the graph
 structure, and this script keeps the ``udf`` argument of the ``run_udf`` node in
 sync with the file.
 
-If the directory also has a ``runtime.txt``, it names the runtime directory under
-``runtimes/`` the process depends on (e.g. ``py311-torch231``). The script then
-requires that directory to exist and that at least one
-``default_job_options["udf-dependency-archives"]`` URL (ignoring the ``#``
-fragment) contains that name, so the interpreter and the dependency archive
-cannot drift apart.
+If the directory also has a ``runtime.txt``, it holds the one
+``udf-dependency-archives`` URL the process needs, complete with its ``#``
+fragment (e.g. ``https://.../py311-torch231.zip#feature_deps``). The script
+requires that URL to be listed verbatim in
+``default_job_options["udf-dependency-archives"]`` and the asset name in it
+(``py311-torch231``) to match a directory under ``runtimes/``, so the runtime
+directory, the published archive and the process graph cannot drift apart.
 
 Usage:
     uv run scripts/build-process-graph.py processes/tessera_v2
@@ -44,29 +45,42 @@ def find_run_udf_nodes(node: object) -> Iterator[dict]:
             yield from find_run_udf_nodes(value)
 
 
+def runtime_name(url: str) -> str:
+    """Return the runtime directory name an archive URL maps to.
+
+    ``.../py311-torch231.zip#feature_deps`` -> ``py311-torch231``.
+    """
+    path = url.split("#", 1)[0].rstrip("/")
+    name = path.rsplit("/", 1)[-1]
+    return name[:-4] if name.endswith(".zip") else name
+
+
 def check_runtime_reference(process_dir: Path, graph: dict) -> list[str]:
     """Validate ``runtime.txt`` against ``runtimes/`` and the job options."""
     runtime_file = process_dir / "runtime.txt"
     if not runtime_file.is_file():
         return []
 
-    names = [line.strip() for line in runtime_file.read_text(encoding="utf-8").splitlines() if line.strip()]
-    if len(names) != 1:
-        return [f"{runtime_file}: expected exactly one runtime directory name, found {names}"]
-    runtime = names[0]
+    urls = [line.strip() for line in runtime_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if len(urls) != 1:
+        return [f"{runtime_file}: expected exactly one dependency archive URL, found {urls}"]
+    archive_url = urls[0]
 
     problems = []
+    name = runtime_name(archive_url)
     repo_root = process_dir.resolve().parent.parent
-    if not (repo_root / "runtimes" / runtime).is_dir():
-        problems.append(f"{runtime_file} names {runtime!r}, but runtimes/{runtime}/ does not exist")
+    if not (repo_root / "runtimes" / name).is_dir():
+        problems.append(
+            f"{runtime_file} refers to runtime {name!r}, but runtimes/{name}/ does not exist"
+        )
 
     archives = (graph.get("default_job_options") or {}).get("udf-dependency-archives") or []
     if not archives:
         problems.append(f"{runtime_file}: default_job_options has no udf-dependency-archives")
-    elif not any(runtime in url.split("#", 1)[0] for url in archives if isinstance(url, str)):
+    elif archive_url not in archives:
         problems.append(
-            f"{runtime_file} names {runtime!r}, but no udf-dependency-archives URL "
-            f"references it: {archives}"
+            f"{runtime_file} lists {archive_url!r}, which is not in "
+            f"default_job_options['udf-dependency-archives']: {archives}"
         )
     return problems
 

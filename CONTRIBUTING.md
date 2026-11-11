@@ -97,7 +97,9 @@ gh workflow run "publish runtime" \
 - Release downloads redirect to `objects.githubusercontent.com`. Confirm the
   target backend can follow that before pointing a process at the URL; the
   object-storage rule above still applies to production.
-- After publishing, set the content-addressed URL in the process's
-  `default_job_options["udf-dependency-archives"]` and update the sha256 quoted
-  in its README. The URL must contain the name from `runtime.txt`;
-  `scripts/build-process-graph.py --check` enforces that in CI.
+- After publishing, write the content-addressed URL to the process's
+  `runtime.txt`, copy it verbatim into
+  `default_job_options["udf-dependency-archives"]`, and update the sha256 quoted
+  in its README. `scripts/build-process-graph.py --check` enforces that the URL
+  is listed in the job options and that its asset name (`<runtime>.zip`) matches
+  a directory under `runtimes/`.
