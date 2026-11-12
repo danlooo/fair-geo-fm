@@ -19,5 +19,5 @@ features:
   - title: Model weights
     details: Run foundation models on demand inside an openEO batch job.
   - title: openEO native
-    details: Every workflow is a user-defined process, callable from the CDSE openEO API.
+    details: Every model is a single openEO user-defined process, optimized to run at the Copernicus Data Space Ecosystem
 ---
