@@ -14,7 +14,10 @@ import { tabsMarkdownPlugin } from "vitepress-plugin-tabs";
 function resolveCurrentVersion() {
   if (process.env.DOCS_CURRENT_VERSION) return process.env.DOCS_CURRENT_VERSION;
   try {
-    const file = readFileSync(new URL("./current-version.json", import.meta.url), "utf8");
+    const file = readFileSync(
+      new URL("./current-version.json", import.meta.url),
+      "utf8",
+    );
     return JSON.parse(file).version;
   } catch {
     return "main";
@@ -100,28 +103,6 @@ export default defineVersionedConfig({
       { text: "Models", link: "/models/" },
       { text: "Contributing", link: "/contributing" },
     ],
-
-    sidebar: {
-      "/guide/": [
-        {
-          text: "Guide",
-          items: [{ text: "Getting started", link: "/guide/" }],
-        },
-      ],
-      "/models/": [
-        {
-          text: "Models",
-          items: [
-            { text: "Overview", link: "/models/" },
-            {
-              text: "TESSERA v2",
-              link: "/models/tessera_v2/",
-            },
-          ],
-        },
-      ],
-    },
-
     outline: [2, 3],
     search: { provider: "local" },
     editLink: { pattern: editLinkFor, text: "Edit this page on GitHub" },
