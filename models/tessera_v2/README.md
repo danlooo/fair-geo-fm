@@ -1,21 +1,25 @@
-# TESSERA v2 embeddings
+# TESSERA v2
 
-On-demand TESSERA v2 pixel embeddings for any AOI and period, computed inside
-openEO from Sentinel-1 GRD (ascending and descending) and Sentinel-2 L2A.
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+  <Badge text="computed on demand" type="info" style="font-size: inherit; 
+  line-height: inherit;" />
+  <Badge text="Sentinel 1+2" type="info" style="font-size: inherit; 
+  line-height: inherit;" />
+</div>
 
-Process id: `tessera_v2_embeddings`
-
-This is **not** the published geotessera tiles: it runs the TESSERA v2 student
-encoder inside a PyTorch UDF, so coverage is any AOI/year, but results depend on
-available scenes and cloud cover, and it is a heavy batch job. Use the generic
-`load_embeddings` process for archived tiles.
+On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins.
 
 ## Usage
 
-`process_graph.json` is a user-defined process served remotely through the
-[remote process definition extension](https://api.openeo.org/extensions/remote-process-definition/0.1.0).
-Reference it by URL as the `namespace`; the node id follows the web editor's
-`<process_id>1` convention:
+::: tabs
+
+== Web editor
+
+1. Go to a openEO Web Editor page e.g. https://openeofed.dataspace.copernicus.eu
+1. Click on Log in at the bottom of the page if required.
+1. Click on the `</> Code` button
+1. Replace the content with this code
+1. Modify the workflow and run the job
 
 ```json
 {
@@ -46,70 +50,81 @@ Reference it by URL as the `namespace`; the node id follows the web editor's
 }
 ```
 
-Paste this into the `</> Code` tab of the openEO Web editor, then add downstream
-processes (e.g. classification) as needed. `example.py` submits the same call
-from Python.
+== Python
 
-## Parameters
+```python
+import openeo
 
-| Name               | Required | Description                                                                                                                  |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `spatial_extent`   | yes      | AOI as a WGS84 bounding box (`west`, `south`, `east`, `north`).                                                              |
-| `temporal_extent`  | yes      | Period to compute embeddings for, e.g. one calendar year.                                                                    |
-| `s2_collection_id` | no       | Sentinel-2 L2A collection id. Defaults to `SENTINEL2_L2A`.                                                                   |
-| `s1_collection_id` | no       | Sentinel-1 GRD collection id. Defaults to `SENTINEL1_GRD`.                                                                   |
-| `s2_bands`         | no       | Sentinel-2 bands in TESSERA order: 10 reflectance bands followed by SCL. Renamed positionally to TESSERA's canonical labels. |
-| `s1_bands`         | no       | Sentinel-1 bands in TESSERA order (`VV`, `VH`). Renamed positionally to `VV_ASC`/`VH_ASC` and `VV_DESC`/`VH_DESC` per orbit. |
+connection = openeo.connect("https://openeo.dataspace.copernicus.eu")
+connection.authenticate_oidc()
 
-Returns a raster cube with one 128-band embedding vector per pixel.
+embeddings = connection.datacube_from_process(
+    "tessera_v2_embeddings",
+    namespace="https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
+    spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
+    temporal_extent=["2023-08-01", "2023-09-30"],
+)
 
-The inputs are consumed raw: do not composite, resample or rescale them before
-this process. The UDF does SCL-based cloud masking and source-date pruning
-internally.
-
-## Runtime
-
-`run_udf` is pinned to Python 3.11. PyTorch comes from the
-`udf-dependency-archives` job option in `default_job_options`, which points at
-the archive built from
-[`runtimes/py311-torch231`](https://github.com/danlooo/fair-geo-fm/tree/main/runtimes/py311-torch231)
-and published by the `publish` workflow. The full URL lives in
-`runtime.txt` and must appear verbatim in `default_job_options`:
-
-```
-https://github.com/danlooo/fair-geo-fm/releases/download/staging/py311-torch231.zip#feature_deps
+job = embeddings.create_job(out_format="NETCDF")
+job.start_and_wait()
+job.download_result("tessera_v2_embeddings.nc")
 ```
 
-This is the **mutable `staging` prerelease** (sha256
-`84c33b6a11c407ad61f6cb48e937dd843daf17df105eb74b3b7e626658009932`, replaced on
-every publish), used while the backend fetch is being verified. Once it works,
-switch to the content-addressed release so the URL is immutable. The checkpoint
-is downloaded at runtime from the `weights_url` in the UDF context.
+== R
 
-## Files
+```r
+library(openeo)
 
-| File                 | Purpose                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `process_graph.json` | Process definition served as the remote namespace; graph structure is maintained by hand.   |
-| `udf.py`             | UDF source of truth, inlined into `process_graph.json` (see below).                         |
-| `runtime.txt`        | Dependency archive URL the process needs; must appear in `default_job_options` (CI-checked). |
-| `example.py`         | Sample call on CDSE.                                                                        |
+connect(host = "https://openeo.dataspace.copernicus.eu")
+login()
 
-The `udf` argument cannot reference `udf.py`: relative paths resolve against the
-user's server-side workspace, not this repository, and URL UDFs are
-backend-specific. Regenerate the inline copy after editing the UDF:
+# The R client cannot attach a process namespace URL to a node yet
+# (Open-EO/openeo-r-client#143), so fetch the definition and bind its
+# parameters locally instead.
+definition <- jsonlite::fromJSON(
+  "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
+  simplifyVector = FALSE
+)
+definition$parameters <- NULL
 
-```sh
-uv run scripts/build-process-graph.py models/tessera_v2
+graph <- parse_graph(
+  definition,
+  parameters = list(
+    spatial_extent = list(west = 11.55, south = 50.88, east = 11.65, north = 50.96),
+    temporal_extent = list("2023-08-01", "2023-09-30"),
+    s2_collection_id = "SENTINEL2_L2A",
+    s1_collection_id = "SENTINEL1_GRD",
+    s2_bands = list("B04", "B02", "B03", "B08", "B8A", "B05", "B06", "B07", "B11", "B12", "SCL"),
+    s1_bands = list("VV", "VH")
+  )
+)
+
+compute_result(
+  graph = graph,
+  format = "NETCDF",
+  output_file = "tessera_v2_embeddings.nc"
+)
 ```
 
-`--check` verifies it is in sync without writing.
+:::
 
-## Notes
+## Input parameters
 
-- The id ends with `_embeddings` to state the output type and mark this as a
-  foundation-model embedding process; no `infer_`/`load_` verb prefix.
-- One directory per major model version, so v1 and v2 can coexist.
-- The UDF is vendored from the
-  [openEO community example](https://github.com/Open-EO/openeo-community-examples/tree/main/python/60_geospatial-embeddings/tessera)
-  (Apache-2.0), pinned at submodule commit `938d997`.
+| Name               | Required | Default                                                                     | Description                                                           |
+| ------------------ | -------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `spatial_extent`   | yes      | —                                                                           | Area to compute embeddings for (WGS84 bounding box).                  |
+| `temporal_extent`  | yes      | —                                                                           | Period to compute embeddings for, e.g. one calendar year.             |
+| `s2_collection_id` | no       | `SENTINEL2_L2A`                                                             | Sentinel-2 L2A collection id.                                         |
+| `s1_collection_id` | no       | `SENTINEL1_GRD`                                                             | Sentinel-1 GRD collection id.                                         |
+| `s2_bands`         | no       | `B04`, `B02`, `B03`, `B08`, `B8A`, `B05`, `B06`, `B07`, `B11`, `B12`, `SCL` | Sentinel-2 bands in TESSERA order: ten reflectance bands, then `SCL`. |
+| `s1_bands`         | no       | `VV`, `VH`                                                                  | Sentinel-1 bands, renamed per orbit (`VV_ASC`, `VH_DESC`, …).         |
+
+## Publication
+
+Feng, Z. et al. (2026) ‘TESSERA v2: Scaling pixel-wise Earth
+foundation models’, _arXiv_ [Preprint]. Available at:
+<https://arxiv.org/abs/2607.03949> (Accessed: 12 November 2026).
+
+### Abstract
+
+Pixel-wise Earth-observation (EO) foundation models are now achieving state-of-the-art performance via generated spatial embeddings. However, how these models scale and how best to spend a pretraining budget remain poorly understood. We present the largest controlled scaling study for EO to date: 395 training runs within a fixed pixel-wise Barlow Twins family, each evaluated on 15 diverse downstream tasks. We find that pretraining loss barely predicts downstream performance (|Pearson r| < 0.2), so selecting models by loss wastes a large share of the compute. We also find that, as the training budget grows, the encoder and the data should grow together while the projector stays fixed, which gives a simple rule for allocating compute. Using this rule, we train a family of pixel-wise teachers (0.5B, 1B, and 2B) and distil the largest into compact students for embeddings-as-data deployment. In aggregate, our 44-million-parameter distilled student outperforms every open and proprietary embedding product we test, several of them an order of magnitude larger. These students produce Matryoshka representations that are inexpensive to serve: a 16-dimensional prefix keeps 92% of the full 128-dimensional performance at 1/8 of the storage. Together, these results give a concrete, empirically grounded recipe for scaling pixel-wise EO foundation models: train large encoders, select by downstream performance, and distil into flexible student models. We plan to release global 10 m annual embeddings covering 2017-2025 as version 2 of the TESSERA foundation-model embeddings product. All code is available at: this https URL

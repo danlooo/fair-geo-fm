@@ -5,4 +5,4 @@ Each foundation model is served as a user-defined process (UDP) through the
 
 ## Available Models
 
-- [TESSERA v2 embeddings](/models/tessera_v2/)
+- [TESSERA v2](/models/tessera_v2/)

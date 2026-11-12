@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { defineVersionedConfig } from "@viteplus/versions";
+import { tabsMarkdownPlugin } from "vitepress-plugin-tabs";
 
 // The site's current version is the newest v* tag. Every other branch and v*
 // tag that contains a site is copied to docs/archive/<ref>/ by
@@ -48,6 +49,13 @@ export default defineVersionedConfig({
   title: "fair-geo-fm",
   description: "Geospatial foundation models ready to use in openEO.",
   sitemap: { hostname: "https://danlooo.github.io" },
+
+  // `::: tabs` / `== Tab` blocks, rendered by docs/.vitepress/theme/.
+  markdown: {
+    config(md) {
+      md.use(tabsMarkdownPlugin);
+    },
+  },
 
   // The plugin rewrites links in markdown, but not URLs in frontmatter such as
   // the home page hero buttons.
@@ -106,7 +114,7 @@ export default defineVersionedConfig({
           items: [
             { text: "Overview", link: "/models/" },
             {
-              text: "TESSERA v2 embeddings",
+              text: "TESSERA v2",
               link: "/models/tessera_v2/",
             },
           ],
