@@ -75,6 +75,12 @@ needed. The manual dispatch below is only an escape hatch (for example to
 refresh the mutable `staging` prerelease); it is refused unless a successful
 build exists for the checked-out commit.
 
+Documentation is versioned by git ref. The site root serves `stable`, a
+generated branch that `build` moves to the newest `v*` tag once that tag builds
+successfully; `main` and every older tag are published under `/<ref>/` and
+listed in the version switcher. Do not commit to `stable` — it is overwritten.
+Tag the default branch to release a new version of the site.
+
 ```sh
 # dry run first: builds and verifies, publishes nothing
 gh workflow run "publish" \

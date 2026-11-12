@@ -4,11 +4,13 @@ name: publish
 # is published unless a `build` run for the commit has completed successfully,
 # so a commit that breaks a process graph or dependency archive is never
 # deployed. No manual trigger is involved.
-#   - every successful push build publishes the documentation site: the default
-#     branch is the current version; every other branch and tag that contains a
-#     site is archived into the same build by scripts/prepare-docs.mjs, so all
+#   - every successful push build publishes the documentation site: the
+#     `stable` branch (the newest successfully built v* tag) is the current
+#     version served at the site root; every other branch and tag that contains
+#     a site is archived into the same build by scripts/prepare-docs.mjs, so all
 #     versions are published at once and the version switcher links between
 #     them:
+#       https://danlooo.github.io/fair-geo-fm/          (stable, newest v tag)
 #       https://danlooo.github.io/fair-geo-fm/main/
 #       https://danlooo.github.io/fair-geo-fm/v0.1/
 #   - a successful default-branch build also publishes the dependency archives
@@ -96,6 +98,12 @@ jobs:
        (github.event_name == 'workflow_dispatch' &&
         (inputs.target == 'docs' || inputs.target == 'all')))
     runs-on: ubuntu-latest
+    # The config, theme and scripts come from the default branch checkout, but
+    # the current version's pages are read from `stable`, so the site root
+    # shows the newest release. If the branch does not exist yet (before the
+    # first v* tag build), prepare-docs falls back to the checkout.
+    env:
+      DOCS_CURRENT_REF: origin/stable
     permissions:
       contents: read
       pages: write

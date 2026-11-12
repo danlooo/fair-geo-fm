@@ -1,10 +1,12 @@
 import { defineVersionedConfig } from "@viteplus/versions";
 
-// The default branch is the current version on the site. Every other branch
+// The site's current version is the `stable` branch, which CI keeps pointing
+// at the newest v* tag (see .github/workflows/build.yml). Every other branch
 // and tag that contains a site is copied to docs/archive/<ref>/ by
 // scripts/prepare-docs.mjs, so one build serves all versions and the version
-// switcher links between them.
-const currentVersion = "main";
+// switcher links between them. `latest` defaults to the current version, so
+// the site root opens the stable docs.
+const currentVersion = process.env.DOCS_CURRENT_VERSION || "stable";
 
 // Map a versioned page back to the canonical file in the repository.
 // `relativePath` carries the version prefix, `filePath` the generated folder
@@ -18,7 +20,9 @@ function editLinkFor(page) {
     rest === "contributing.md"
       ? "CONTRIBUTING.md"
       : rest.replace(/^models\/([^/]+)\/index\.md$/, "models/$1/README.md");
-  const action = version === "main" ? "edit/main" : `blob/${version}`;
+  // docs/src is the stable release branch, which mirrors a v* tag, so edits are
+  // proposed against the default branch. Archived pages have no edit link.
+  const action = version === "stable" ? "edit/main" : `blob/${version}`;
   return `https://github.com/danlooo/fair-geo-fm/${action}/${source}`;
 }
 

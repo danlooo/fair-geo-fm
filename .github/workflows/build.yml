@@ -7,6 +7,10 @@ name: build
 #   - dependency archives: builds every runtimes/*/requirements.txt into a
 #     deterministic dependencies.zip and smoke-tests the imports on the pinned
 #     Python. Publishing is deliberately not automated; see publish.yml.
+#   - stable branch: when a v* tag builds successfully, moves `stable` to it.
+#     The documentation site is built from `stable`, so its root serves the
+#     newest release; `main` and older tags remain available as archived
+#     versions.
 #
 # It runs on every push and pull request, not only on changes that touch the
 # build inputs: publish.yml is triggered by this workflow's completion, so a
@@ -145,3 +149,40 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+  stable:
+    name: move stable to the newest v tag
+    needs: [process-graphs, dependency-archives]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: ${{ github.workflow }}-stable
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Point stable at the newest v* tag
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          git fetch --force --tags origin
+          newest="$(git tag --list 'v*' --sort=version:refname | tail -n 1)"
+          if [ "$tag" != "$newest" ]; then
+            echo "$tag is not the newest v* tag ($newest); leaving stable unchanged"
+            exit 0
+          fi
+          commit="$(git rev-parse "refs/tags/$tag^{commit}")"
+          remote="$(git ls-remote --heads origin stable | cut -f1)"
+          if [ "$remote" = "$commit" ]; then
+            echo "stable already at $tag"
+            exit 0
+          fi
+          # stable is a generated pointer branch, so moving it is a force push.
+          # This only runs after both build jobs passed, so stable never points
+          # at a tag whose build failed.
+          git push origin "$commit:refs/heads/stable" --force

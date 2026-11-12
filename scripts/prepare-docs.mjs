@@ -9,6 +9,12 @@
 //   docs/archive/<ref>/       every other branch and tag
 //   docs/public/<ref>/        non-markdown process files served next to pages
 //
+// The current version defaults to the `stable` branch, which CI keeps at the
+// newest v* tag, so the site root serves the latest release. Set
+// DOCS_CURRENT_REF to read that version's pages from another ref instead of the
+// working tree (CI sets it to origin/stable); without it, local builds use the
+// working tree so previewing edits works.
+//
 // Run `node scripts/prepare-docs.mjs` for the current version only, and
 // `node scripts/prepare-docs.mjs --archives` to also archive refs. Archives
 // are read from git, so the checkout must contain all branches and tags
@@ -35,7 +41,8 @@ const archiveDir = join(docsRoot, "archive");
 // VitePress copies docs/public as-is to the site root, so per-version process
 // files end up next to their pages.
 const publicDir = join(docsRoot, "public");
-const currentVersion = process.env.DOCS_CURRENT_VERSION || "main";
+const currentVersion = process.env.DOCS_CURRENT_VERSION || "stable";
+const currentRef = process.env.DOCS_CURRENT_REF || "";
 const withArchives = process.argv.includes("--archives");
 
 function git(args) {
@@ -44,6 +51,39 @@ function git(args) {
 
 function warn(message) {
   console.warn(`prepare-docs: ${message}`);
+}
+
+function hasRef(ref) {
+  try {
+    git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Run fn against a temporary worktree of ref, then remove it. Cloning into a
+// worktree keeps the checkout (and its git index) untouched, so refs can be
+// read without switching the working tree.
+function withWorktree(ref, fn) {
+  const tempRoot = mkdtempSync(join(tmpdir(), "fair-geo-fm-docs-"));
+  const worktree = join(tempRoot, "repo");
+  try {
+    git(["worktree", "add", "--detach", "--force", worktree, ref]);
+    return fn(worktree);
+  } finally {
+    try {
+      git(["worktree", "remove", "--force", worktree]);
+    } catch {
+      rmSync(worktree, { recursive: true, force: true });
+    }
+    rmSync(tempRoot, { recursive: true, force: true });
+    try {
+      git(["worktree", "prune"]);
+    } catch {
+      // Nothing to prune.
+    }
+  }
 }
 
 // All files below dir, as paths relative to dir.
@@ -174,9 +214,23 @@ function refsToArchive() {
 // deleted refs as well as the current version's files.
 if (withArchives) rmSync(publicDir, { recursive: true, force: true });
 
-writeTree(sitePages(repoRoot), sourcesDir);
-writeTree(siteAssets(repoRoot), join(publicDir, currentVersion));
-console.log(`prepare-docs: wrote ${currentVersion} to docs/src and docs/public`);
+function writeCurrentVersion(root) {
+  writeTree(sitePages(root), sourcesDir);
+  writeTree(siteAssets(root), join(publicDir, currentVersion));
+}
+
+if (currentRef && hasRef(currentRef)) {
+  withWorktree(currentRef, writeCurrentVersion);
+  console.log(
+    `prepare-docs: wrote ${currentVersion} (from ${currentRef}) to docs/src and docs/public`,
+  );
+} else {
+  if (currentRef) {
+    warn(`${currentRef} does not exist; using the working tree for ${currentVersion}`);
+  }
+  writeCurrentVersion(repoRoot);
+  console.log(`prepare-docs: wrote ${currentVersion} to docs/src and docs/public`);
+}
 
 if (!withArchives) {
   process.exit(0);
@@ -196,35 +250,22 @@ for (const { name, ref } of refsToArchive()) {
     continue;
   }
 
-  const tempRoot = mkdtempSync(join(tmpdir(), "fair-geo-fm-docs-"));
-  const worktree = join(tempRoot, "repo");
-  try {
-    git(["worktree", "add", "--detach", "--force", worktree, ref]);
+  const wasArchived = withWorktree(ref, (worktree) => {
     const pages = sitePages(worktree);
     // A ref without the site's home page predates the documentation site (or
     // is not a site at all); publishing it would only yield dead links.
     if (!pages.has("index.md")) {
       warn(`skipping ${name}: no VitePress site at this ref`);
-      continue;
+      return false;
     }
     writeTree(pages, join(archiveDir, version));
     writeTree(siteAssets(worktree), join(publicDir, version));
-    used.add(version);
-    archived += 1;
-    console.log(`prepare-docs: archived ${name} as docs/archive/${version}`);
-  } finally {
-    try {
-      git(["worktree", "remove", "--force", worktree]);
-    } catch {
-      rmSync(worktree, { recursive: true, force: true });
-    }
-    rmSync(tempRoot, { recursive: true, force: true });
-    try {
-      git(["worktree", "prune"]);
-    } catch {
-      // Nothing to prune.
-    }
-  }
+    return true;
+  });
+  if (!wasArchived) continue;
+  used.add(version);
+  archived += 1;
+  console.log(`prepare-docs: archived ${name} as docs/archive/${version}`);
 }
 
 mkdirSync(archiveDir, { recursive: true });
