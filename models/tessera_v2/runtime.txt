@@ -1,1 +1,1 @@
-https://github.com/danlooo/fair-geo-fm/releases/download/staging/py311-torch231.zip#feature_deps
+py311-torch231
