@@ -27,7 +27,7 @@ export default defineVersionedConfig({
   // Direct .html URLs keep the version switcher working on a full page load;
   // clean URLs would make it link to /<version>/guide/index.
   cleanUrls: false,
-  title: "FAIR Geospatial Foundation Models",
+  title: "fair-geo-fm",
   description: "Geospatial foundation models ready to use in openEO.",
   sitemap: { hostname: "https://danlooo.github.io" },
 
