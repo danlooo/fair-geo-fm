@@ -67,21 +67,25 @@ Conventions for the models and runtimes in this repository.
 
 ## Releases
 
-Archives are published by the `publish runtime` workflow, never by hand and
-never by committing the zip.
+Archives are published by the `publish` workflow, never by hand and never by
+committing the zip. Pushes publish the documentation; runtime archives are
+published manually with `target: runtime`. `publish` only runs after a
+successful `build`: a push is published once the build triggered by that push
+completes, and a manual dispatch is refused unless a successful build exists
+for the checked-out commit.
 
 ```sh
 # dry run first: builds and verifies, publishes nothing
-gh workflow run "publish runtime" \
-  -f runtime=py311-torch231 -F dry_run=true
+gh workflow run "publish" \
+  -f target=runtime -f runtime=py311-torch231 -F dry_run=true
 
 # immutable, content-addressed release
-gh workflow run "publish runtime" \
-  -f runtime=py311-torch231 -F dry_run=false
+gh workflow run "publish" \
+  -f target=runtime -f runtime=py311-torch231 -F dry_run=false
 
 # mutable staging release, for checking that a backend can fetch the URL
-gh workflow run "publish runtime" \
-  -f runtime=py311-torch231 -f tag=staging -F dry_run=false
+gh workflow run "publish" \
+  -f target=runtime -f runtime=py311-torch231 -f tag=staging -F dry_run=false
 ```
 
 - `workflow_dispatch` only fires once the workflow file is on the default

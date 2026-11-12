@@ -1,24 +1,23 @@
-name: build dependency archives
+name: build
 
-# Builds every runtimes/*/requirements.txt into a deterministic
-# dependencies.zip and smoke-tests it on the target Python version.
-# Publishing is deliberately not automated: per CONTRIBUTING.md the archive is
-# served from object storage, not from GitHub (release assets redirect to
-# objects.githubusercontent.com, which backends often cannot reach).
-
+# First stage of the build -> publish pipeline. Everything that can be
+# validated without publishing lives here:
+#   - process graphs: fails when a model's process_graph.json no longer matches
+#     its udf.py (see scripts/build-process-graph.py)
+#   - dependency archives: builds every runtimes/*/requirements.txt into a
+#     deterministic dependencies.zip and smoke-tests the imports on the pinned
+#     Python. Publishing is deliberately not automated; see publish.yml.
+#
+# It runs on every push and pull request, not only on changes that touch the
+# build inputs: publish.yml is triggered by this workflow's completion, so a
+# successful build run must exist for every commit that may be published.
+# Unchanged archives are restored from the cache instead of rebuilt.
 on:
   workflow_dispatch:
   push:
-    branches: [main]
-    paths:
-      - "runtimes/**/requirements.txt"
-      - "scripts/create-python-dependency-archive.py"
-      - ".github/workflows/build-dependency-archives.yml"
+    branches: ["**"]
+    tags: ["**"]
   pull_request:
-    paths:
-      - "runtimes/**/requirements.txt"
-      - "scripts/create-python-dependency-archive.py"
-      - ".github/workflows/build-dependency-archives.yml"
 
 permissions:
   contents: read
@@ -30,7 +29,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  process-graphs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Check inlined UDFs are up to date
+        run: |
+          set -euo pipefail
+          found=0
+          stale=()
+          for dir in models/*/; do
+            [ -f "$dir/udf.py" ] || continue
+            [ -f "$dir/process_graph.json" ] || continue
+            found=$((found + 1))
+            if ! uv run scripts/build-process-graph.py "${dir%/}" --check; then
+              stale+=("${dir%/}")
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "no model directories with udf.py and process_graph.json found" >&2
+            exit 1
+          fi
+          if [ ${#stale[@]} -gt 0 ]; then
+            echo
+            echo "stale process_graph.json in: ${stale[*]}" >&2
+            echo "run: uv run scripts/build-process-graph.py <dir>" >&2
+            exit 1
+          fi
+          echo "checked $found process graph(s)"
+
+  dependency-archives:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -41,7 +73,15 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "runtimes/*/requirements.txt"
 
+      - name: Restore unchanged archives
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: runtimes/*/dependencies.zip
+          key: dependency-archives-${{ hashFiles('runtimes/*/requirements.txt', 'scripts/create-python-dependency-archive.py') }}
+
       - name: Build archives
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob

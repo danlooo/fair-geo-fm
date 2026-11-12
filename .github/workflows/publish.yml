@@ -1,28 +1,34 @@
-name: publish runtime
+name: publish
 
-# Builds one runtime's dependency archive, verifies it, and attaches it to a
-# content-addressed GitHub Release: tag and asset both carry the zip's sha256,
-# so the same bytes always map to the same release and no release is ever
-# overwritten.
-#
-# Note: CONTRIBUTING.md currently says archives should be served from object
-# storage rather than GitHub releases, because release downloads redirect to
-# objects.githubusercontent.com. Confirm the target backend can fetch the URL
-# before pointing a process at it.
-#
-# Manual only: publishing is a deliberate act.
-#
-# Setting `tag` publishes a mutable prerelease under that tag instead (e.g.
-# `staging`), overwriting its single `<runtime>.zip` asset on each run. Use it
-# to check that a backend can fetch the URL; leave `tag` empty for the
-# immutable, content-addressed release.
-
+# Second stage of the build -> publish pipeline. Nothing is published unless a
+# `build` run for the commit has completed successfully, so a commit that breaks
+# a process graph or dependency archive is never deployed:
+#   - a successful push build of `build` triggers the documentation site: the
+#     default branch is the current version; every other branch and tag that
+#     contains a site is archived into the same build by scripts/prepare-docs.mjs,
+#     so all versions are published at once and the version switcher links
+#     between them:
+#       https://danlooo.github.io/fair-geo-fm/main/
+#       https://danlooo.github.io/fair-geo-fm/v0.1/
+#   - runtime archives are published manually (target: runtime). A manual
+#     dispatch is refused unless a successful build exists for the checked-out
+#     commit. The release is content-addressed with its sha256, so the same bytes
+#     always map to the same release and no release is ever overwritten.
 on:
+  workflow_run:
+    workflows: [build]
+    types: [completed]
   workflow_dispatch:
     inputs:
+      target:
+        description: "What to publish"
+        required: true
+        default: docs
+        type: choice
+        options: [docs, runtime, all]
       runtime:
         description: "Runtime directory under runtimes/"
-        required: true
+        required: false
         default: py311-torch231
         type: string
       tag:
@@ -32,21 +38,129 @@ on:
         type: string
       dry_run:
         description: "Build and verify only; do not create a release"
-        required: true
+        required: false
         default: true
         type: boolean
 
 permissions:
-  contents: write
-
-concurrency:
-  group: ${{ github.workflow }}-${{ inputs.runtime }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  publish:
+  verify-build:
+    name: require successful build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - name: Check build status
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ok=false
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # A pull request build is not a publishing candidate.
+            if [ "${{ github.event.workflow_run.event }}" = "push" ] &&
+               [ "${{ github.event.workflow_run.conclusion }}" = "success" ]; then
+              ok=true
+            fi
+            echo "build ${{ github.event.workflow_run.id }} (${{ github.event.workflow_run.head_sha }}): ${{ github.event.workflow_run.event }} -> ${{ github.event.workflow_run.conclusion }}"
+          else
+            count="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?head_sha=$GITHUB_SHA&status=success&per_page=1" --jq '.total_count')"
+            if [ "$count" -gt 0 ]; then
+              ok=true
+            else
+              echo "refusing to publish: no successful build for $GITHUB_SHA" >&2
+            fi
+          fi
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "$ok" != "true" ]; then
+            echo "run the build workflow for this commit first" >&2
+            exit 1
+          fi
+
+  documentation:
+    needs: verify-build
+    if: |
+      needs.verify-build.outputs.ok == 'true' &&
+      (github.event_name == 'workflow_run' ||
+       (github.event_name == 'workflow_dispatch' &&
+        (inputs.target == 'docs' || inputs.target == 'all')))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out all branches and tags
+        uses: actions/checkout@v4
+        with:
+          # The current version is always the default branch; other refs are
+          # archived from git, so every trigger produces the same site.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: Build all versions
+        # prepare-docs copies the canonical pages into docs/src, checks out each
+        # other ref into docs/archive/<ref>/, then VitePress builds one site
+        # with @viteplus/versions.
+        run: npm run build
+
+      - name: Disable Jekyll
+        run: touch docs/.vitepress/dist/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+      - name: Compute deployment version
+        id: version
+        run: |
+          # deploy-pages sends GITHUB_SHA as the Pages build version, and Pages
+          # does not republish an already-deployed version. Moving a tag or
+          # deleting a branch does not change the commit SHA, so derive a unique
+          # version per workflow run to always publish the reassembled site.
+          echo "sha=$(printf '%s-%s' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha1sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        env:
+          GITHUB_SHA: ${{ steps.version.outputs.sha }}
+
+  runtime:
+    needs: verify-build
+    if: |
+      needs.verify-build.outputs.ok == 'true' &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.target == 'runtime' || inputs.target == 'all')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
+    concurrency:
+      group: ${{ github.workflow }}-${{ inputs.runtime }}
+      cancel-in-progress: false
     environment: publish
     env:
       RUNTIME: ${{ inputs.runtime }}

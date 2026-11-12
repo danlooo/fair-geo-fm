@@ -73,7 +73,7 @@ internally.
 `udf-dependency-archives` job option in `default_job_options`, which points at
 the archive built from
 [`runtimes/py311-torch231`](https://github.com/danlooo/fair-geo-fm/tree/main/runtimes/py311-torch231)
-and published by the `publish runtime` workflow. The full URL lives in
+and published by the `publish` workflow. The full URL lives in
 `runtime.txt` and must appear verbatim in `default_job_options`:
 
 ```

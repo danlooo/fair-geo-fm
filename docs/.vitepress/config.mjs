@@ -104,7 +104,7 @@ export default defineVersionedConfig({
     ],
     footer: {
       message:
-        'Part of <a href="https://nfdi4earth.de" target="_blank" rel="noreferrer">NFDI4Earth</a>, funded by the German Research Foundation (<a href="https://gepris.dfg.de/gepris/projekt/460036893" target="_blank" rel="noreferrer">DFG project</a>).',
+        'Part of <a href="https://nfdi4earth.de" target="_blank" rel="noreferrer">NFDI4Earth</a>, funded by the <a href="https://gepris.dfg.de/gepris/projekt/460036893" target="_blank" rel="noreferrer">German Research Foundation</a>.',
     },
   },
 });
