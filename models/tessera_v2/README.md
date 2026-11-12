@@ -131,5 +131,5 @@ Pixel-wise Earth-observation (EO) foundation models are now achieving state-of-t
 
 ## Links
 
-- [Original notebook as an openEO community example](https://github.com/Open-EO/openeo-community-examples/tree/main/python/60_geospatial-embeddings/tessera)
+- [Original notebook as an openEO community example](https://github.com/Open-EO/openeo-community-examples/blob/main/python/60_geospatial-embeddings/tessera/tessera-embedding.ipynb)
 - [CDSE release note on the original notebook](https://dataspace.copernicus.eu/news/2026-9-25-new-openeo-community-example-generate-tessera-pixel-embeddings-sentinel-1-and)
