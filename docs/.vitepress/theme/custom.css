@@ -27,3 +27,31 @@
   --vp-c-brand-3: #c0d6df;
   --vp-c-brand-soft: rgba(5, 102, 141, 0.22);
 }
+
+/**
+ * Minimal elevation contours behind the home page, like the lines on a
+ * topographic map: summit contours are earth brown (#65421F), lower lines are
+ * ocean blue (#05668D). A mask fades them out before the features so the copy
+ * stays readable.
+ */
+.VPHome {
+  position: relative;
+  isolation: isolate;
+}
+
+.VPHome::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: min(760px, 95vh);
+  z-index: -1;
+  pointer-events: none;
+  background: url("./contours.svg") center top / cover no-repeat;
+  opacity: 0.75;
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+}
+
+.dark .VPHome::before {
+  opacity: 0.4;
+}
