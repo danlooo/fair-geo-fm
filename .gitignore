@@ -6,5 +6,10 @@ runtimes/*/dependencies.zip
 
 # VitePress site (documentation is built in CI).
 node_modules/
-.vitepress/dist/
-.vitepress/cache/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Versioned content is generated from the repository and git refs by
+# scripts/prepare-docs.mjs.
+docs/src/
+docs/archive/

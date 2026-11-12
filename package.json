@@ -1,11 +1,14 @@
 {
   "private": true,
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "vitepress build",
-    "preview": "vitepress preview"
+    "docs:prepare": "node scripts/prepare-docs.mjs",
+    "docs:prepare:all": "node scripts/prepare-docs.mjs --archives",
+    "dev": "npm run docs:prepare && vitepress dev docs",
+    "build": "npm run docs:prepare:all && vitepress build docs",
+    "preview": "vitepress preview docs"
   },
   "devDependencies": {
+    "@viteplus/versions": "^3.0.0",
     "vitepress": "^1.6.4"
   }
 }

@@ -1,11 +1,11 @@
 name: Deploy documentation
 
-# Build and publish the VitePress site for every branch and tag. Each ref is
-# served from its own subpath, e.g.
+# Build and publish the VitePress site. The default branch is the current
+# version; every other branch and tag that contains a site is archived into the
+# same build by scripts/prepare-docs.mjs, so all versions are published at once
+# and the version switcher links between them:
 #   https://danlooo.github.io/fair-geo-fm/main/
-#   https://danlooo.github.io/fair-geo-fm/v1.2.3/
-# A deployment publishes all refs at once (not only the pushed one), so the
-# sites of other branches and tags stay reachable after every deploy.
+#   https://danlooo.github.io/fair-geo-fm/v0.1/
 on:
   push:
     branches: ["**"]
@@ -22,140 +22,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Enumerate every remote branch and tag once, so the build matrix covers all
-  # refs and not just the one that triggered the workflow.
-  refs:
-    runs-on: ubuntu-latest
-    outputs:
-      refs: ${{ steps.list.outputs.refs }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # All history for all branches and tags.
-          fetch-depth: 0
-
-      - name: List branches and tags
-        id: list
-        run: |
-          {
-            git for-each-ref --format='%(refname:lstrip=3)' refs/remotes/origin
-            git for-each-ref --format='%(refname:short)' refs/tags
-          } | grep -vx 'HEAD' | sort -u > refs.txt
-          jq -R -s -c 'split("\n") | map(select(length > 0))' refs.txt > refs.json
-          echo "refs=$(cat refs.json)" >> "$GITHUB_OUTPUT"
-          echo "Refs to build:"
-          cat refs.txt
-
-  build:
-    needs: refs
-    runs-on: ubuntu-latest
-    # A broken branch/tag must not prevent the other refs from being published.
-    continue-on-error: true
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        ref: ${{ fromJSON(needs.refs.outputs.refs) }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ matrix.ref }}
-          fetch-depth: 1
-
-      - name: Check for a VitePress site
-        id: check
-        run: |
-          if [ -f package.json ] && ls .vitepress/config.* >/dev/null 2>&1; then
-            echo "buildable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "buildable=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::${{ matrix.ref }} has no VitePress site; publishing a placeholder."
-            mkdir -p "site/${{ matrix.ref }}"
-            cat > "site/${{ matrix.ref }}/index.html" <<EOF
-          <!doctype html>
-          <html lang="en">
-          <head><meta charset="utf-8"><title>No documentation for ${{ matrix.ref }}</title></head>
-          <body>
-          <p>This branch or tag has no VitePress documentation.</p>
-          <p>See the <a href="/fair-geo-fm/main/">main documentation</a>.</p>
-          </body>
-          </html>
-          EOF
-          fi
-
-      - uses: actions/setup-node@v4
-        if: steps.check.outputs.buildable == 'true'
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        if: steps.check.outputs.buildable == 'true'
-        run: |
-          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
-
-      - name: Build
-        if: steps.check.outputs.buildable == 'true'
-        # --base works for older refs whose config predates this workflow.
-        run: npm run build -- --base "/fair-geo-fm/${{ matrix.ref }}/"
-
-      - name: Collect versioned site
-        if: steps.check.outputs.buildable == 'true'
-        run: |
-          mkdir -p "site/${{ matrix.ref }}"
-          cp -a .vitepress/dist/. "site/${{ matrix.ref }}/"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          # The artifact content is the ref-named directory tree, so downloading
-          # all artifacts with merge-multiple restores every versioned site.
-          name: site-${{ strategy.job-index }}
-          path: site
-          retention-days: 1
-
   deploy:
-    needs: [refs, build]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Assemble all versions
-        run: mkdir -p _site
-
-      - uses: actions/download-artifact@v4
-        continue-on-error: true
+      - name: Check out all branches and tags
+        uses: actions/checkout@v4
         with:
-          path: _site
-          pattern: site-*
-          merge-multiple: true
+          # The current version is always the default branch; other refs are
+          # archived from git, so every trigger produces the same site.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
 
-      - name: Add root redirect
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
         run: |
-          touch _site/.nojekyll
-          default="${DEFAULT_BRANCH:-main}"
-          if [ ! -d "_site/$default" ]; then
-            default=$(cd _site && find . -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | head -n1)
-          fi
-          [ -n "$default" ] || default=main
-          # Landing page for the Pages root; versioned sites live below it.
-          cat > _site/index.html <<EOF
-          <!doctype html>
-          <html lang="en">
-          <head>
-          <meta charset="utf-8">
-          <title>FAIR Geospatial Foundation Models</title>
-          <link rel="canonical" href="./$default/">
-          <meta http-equiv="refresh" content="0; url=./$default/">
-          </head>
-          <body><p>Redirecting to the <a href="./$default/">latest documentation</a>.</p></body>
-          </html>
-          EOF
+          if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: Build all versions
+        # prepare-docs copies the canonical pages into docs/src, checks out each
+        # other ref into docs/archive/<ref>/, then VitePress builds one site
+        # with @viteplus/versions.
+        run: npm run build
+
+      - name: Disable Jekyll
+        run: touch docs/.vitepress/dist/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: docs/.vitepress/dist
 
       - name: Compute deployment version
         id: version
