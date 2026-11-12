@@ -35,7 +35,7 @@ On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins
           "east": 11.65,
           "north": 50.96
         },
-        "temporal_extent": ["2023-08-01", "2023-09-30"]
+        "temporal_extent": ["2025-01-01", "2026-01-01"]
       }
     },
     "save1": {
@@ -62,7 +62,7 @@ embeddings = connection.datacube_from_process(
     "tessera_v2_embeddings",
     namespace="https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
     spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
-    temporal_extent=["2023-08-01", "2023-09-30"],
+    temporal_extent=["2025-01-01", "2026-01-01"],
 )
 
 job = embeddings.create_job(out_format="NETCDF")
@@ -91,7 +91,7 @@ graph <- parse_graph(
   definition,
   parameters = list(
     spatial_extent = list(west = 11.55, south = 50.88, east = 11.65, north = 50.96),
-    temporal_extent = list("2023-08-01", "2023-09-30"),
+    temporal_extent = list("2025-01-01", "2026-01-01"),
     s2_collection_id = "SENTINEL2_L2A",
     s1_collection_id = "SENTINEL1_GRD",
     s2_bands = list("B04", "B02", "B03", "B08", "B8A", "B05", "B06", "B07", "B11", "B12", "SCL"),
