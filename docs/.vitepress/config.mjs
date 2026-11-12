@@ -103,7 +103,8 @@ export default defineVersionedConfig({
       { icon: "github", link: "https://github.com/danlooo/fair-geo-fm" },
     ],
     footer: {
-      message: "Part of NFDI4Earth, funded by DFG project 460036893.",
+      message:
+        'Part of <a href="https://nfdi4earth.de" target="_blank" rel="noreferrer">NFDI4Earth</a>, funded by the German Research Foundation (<a href="https://gepris.dfg.de/gepris/projekt/460036893" target="_blank" rel="noreferrer">DFG project</a>).',
     },
   },
 });
