@@ -1,29 +1,43 @@
+import { readFileSync } from "node:fs";
+
 import { defineVersionedConfig } from "@viteplus/versions";
 
-// The site's current version is the `stable` branch, which CI keeps pointing
-// at the newest v* tag (see .github/workflows/build.yml). Every other branch
-// and tag that contains a site is copied to docs/archive/<ref>/ by
+// The site's current version is the newest v* tag. Every other branch and v*
+// tag that contains a site is copied to docs/archive/<ref>/ by
 // scripts/prepare-docs.mjs, so one build serves all versions and the version
 // switcher links between them. `latest` defaults to the current version, so
-// the site root opens the stable docs.
-const currentVersion = process.env.DOCS_CURRENT_VERSION || "stable";
+// the site root redirects to that tag's URL (e.g. /v0.1/).
+//
+// prepare-docs.mjs runs first and writes the resolved name to
+// current-version.json; before the first release it is the default branch.
+function resolveCurrentVersion() {
+  if (process.env.DOCS_CURRENT_VERSION) return process.env.DOCS_CURRENT_VERSION;
+  try {
+    const file = readFileSync(new URL("./current-version.json", import.meta.url), "utf8");
+    return JSON.parse(file).version;
+  } catch {
+    return "main";
+  }
+}
+
+const currentVersion = resolveCurrentVersion();
 
 // Map a versioned page back to the canonical file in the repository.
-// `relativePath` carries the version prefix, `filePath` the generated folder
-// (docs/src or docs/archive/<ref>). The function is serialized into the client
-// bundle, so it must not reference anything outside its own scope.
+// `filePath` is the generated folder (docs/src or docs/archive/<ref>), so the
+// version prefix and archive segment are stripped here. The function is
+// serialized into the client bundle, so it must not reference anything outside
+// its own scope.
 function editLinkFor(page) {
-  const version = page.relativePath.split("/")[0];
   const parts = page.filePath.split("/");
   const rest = (parts[0] === "src" ? parts.slice(1) : parts.slice(2)).join("/");
   const source =
     rest === "contributing.md"
       ? "CONTRIBUTING.md"
       : rest.replace(/^models\/([^/]+)\/index\.md$/, "models/$1/README.md");
-  // docs/src is the stable release branch, which mirrors a v* tag, so edits are
-  // proposed against the default branch. Archived pages have no edit link.
-  const action = version === "stable" ? "edit/main" : `blob/${version}`;
-  return `https://github.com/danlooo/fair-geo-fm/${action}/${source}`;
+  // docs/src is the newest release, a snapshot of a v* tag, so edits are
+  // proposed against the default branch. Archived pages have no edit link, so
+  // this only produces URLs for that snapshot.
+  return `https://github.com/danlooo/fair-geo-fm/edit/main/${source}`;
 }
 
 export default defineVersionedConfig({

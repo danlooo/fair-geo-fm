@@ -10,7 +10,9 @@ docs/.vitepress/dist/
 docs/.vitepress/cache/
 
 # Versioned content is generated from the repository and git refs by
-# scripts/prepare-docs.mjs.
+# scripts/prepare-docs.mjs. current-version.json hands the resolved current
+# version to the VitePress config.
 docs/src/
 docs/archive/
 docs/public/
+docs/.vitepress/current-version.json

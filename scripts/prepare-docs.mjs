@@ -5,15 +5,16 @@
 // guide/, models/<name>/README.md, CONTRIBUTING.md). The versioning plugin
 // expects one folder per version, so this script copies those pages into
 //
-//   docs/src/                 the current version (DOCS_CURRENT_VERSION)
-//   docs/archive/<ref>/       every other branch and tag
+//   docs/src/                 the current version (the newest v* tag)
+//   docs/archive/<ref>/       every other branch and v* tag
 //   docs/public/<ref>/        non-markdown process files served next to pages
 //
-// The current version defaults to the `stable` branch, which CI keeps at the
-// newest v* tag, so the site root serves the latest release. Set
-// DOCS_CURRENT_REF to read that version's pages from another ref instead of the
-// working tree (CI sets it to origin/stable); without it, local builds use the
-// working tree so previewing edits works.
+// The current version is the newest v* tag, so the site root redirects to that
+// tag's URL (e.g. /v0.1/). Set DOCS_CURRENT_VERSION to override the name; the
+// chosen name is also written to docs/.vitepress/current-version.json for the
+// VitePress config. Set DOCS_CURRENT_REF to read the pages from a ref instead
+// of the working tree (CI sets both); without it, local builds use the working
+// tree so previewing edits works.
 //
 // Run `node scripts/prepare-docs.mjs` for the current version only, and
 // `node scripts/prepare-docs.mjs --archives` to also archive refs. Archives
@@ -41,13 +42,34 @@ const archiveDir = join(docsRoot, "archive");
 // VitePress copies docs/public as-is to the site root, so per-version process
 // files end up next to their pages.
 const publicDir = join(docsRoot, "public");
-const currentVersion = process.env.DOCS_CURRENT_VERSION || "stable";
-const currentRef = process.env.DOCS_CURRENT_REF || "";
 const withArchives = process.argv.includes("--archives");
 
 function git(args) {
   return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim();
 }
+
+// The newest release tag, or "" when the repository has none yet.
+function newestTag() {
+  try {
+    const tags = git(["tag", "--list", "v*", "--sort=version:refname"])
+      .split("\n")
+      .filter(Boolean);
+    return tags.at(-1) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+// Before the first release the default branch is the current version.
+const currentVersion = process.env.DOCS_CURRENT_VERSION || newestTag() || "main";
+const currentRef = process.env.DOCS_CURRENT_REF || "";
+
+// The VitePress config is a separate process, so hand it the chosen name.
+mkdirSync(join(docsRoot, ".vitepress"), { recursive: true });
+writeFileSync(
+  join(docsRoot, ".vitepress", "current-version.json"),
+  `${JSON.stringify({ version: currentVersion })}\n`,
+);
 
 function warn(message) {
   console.warn(`prepare-docs: ${message}`);
@@ -203,6 +225,9 @@ function refsToArchive() {
   ])
     .split("\n")
     .filter(Boolean)) {
+    // Only release tags are documentation versions; content-addressed archive
+    // releases such as py311-torch231-<sha> are not.
+    if (!name.startsWith("v")) continue;
     // A branch and a tag with the same name are one version; the branch wins.
     if (name !== currentVersion && !refs.has(name)) refs.set(name, name);
   }
@@ -219,15 +244,32 @@ function writeCurrentVersion(root) {
   writeTree(siteAssets(root), join(publicDir, currentVersion));
 }
 
-if (currentRef && hasRef(currentRef)) {
-  withWorktree(currentRef, writeCurrentVersion);
+// Returns false when ref has no documentation site, so the caller falls back to
+// the working tree instead of publishing an empty version.
+function writeCurrentVersionFrom(ref) {
+  return withWorktree(ref, (worktree) => {
+    if (!sitePages(worktree).has("index.md")) {
+      warn(`${ref} has no documentation site`);
+      return false;
+    }
+    writeCurrentVersion(worktree);
+    return true;
+  });
+}
+
+let fromRef = false;
+if (currentRef) {
+  if (hasRef(currentRef)) {
+    fromRef = writeCurrentVersionFrom(currentRef);
+  } else {
+    warn(`${currentRef} does not exist`);
+  }
+}
+if (fromRef) {
   console.log(
     `prepare-docs: wrote ${currentVersion} (from ${currentRef}) to docs/src and docs/public`,
   );
 } else {
-  if (currentRef) {
-    warn(`${currentRef} does not exist; using the working tree for ${currentVersion}`);
-  }
   writeCurrentVersion(repoRoot);
   console.log(`prepare-docs: wrote ${currentVersion} to docs/src and docs/public`);
 }

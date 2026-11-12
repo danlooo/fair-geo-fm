@@ -3,15 +3,14 @@ name: publish
 # Second stage of the build -> publish pipeline. Nothing is published unless a
 # `build` run for the commit has completed successfully, so a commit that breaks
 # a process graph or dependency archive is never deployed.
-#   - every successful push build publishes the documentation site: the
-#     `stable` branch (the newest successfully built v* tag) is the current
-#     version served at the site root; every other branch and tag that contains
-#     a site is archived into the same build by scripts/prepare-docs.mjs, so all
-#     versions are published at once and the version switcher links between
-#     them:
-#       https://danlooo.github.io/fair-geo-fm/          (stable, newest v tag)
-#       https://danlooo.github.io/fair-geo-fm/main/
+#   - every successful push build publishes the documentation site: the newest
+#     v* tag is the current version and the site root redirects to it; every
+#     other branch and v* tag that contains a site is archived into the same build
+#     by scripts/prepare-docs.mjs, so all versions are published at once and the
+#     version switcher links between them:
+#       https://danlooo.github.io/fair-geo-fm/          -> /v0.1/
 #       https://danlooo.github.io/fair-geo-fm/v0.1/
+#       https://danlooo.github.io/fair-geo-fm/main/
 #   - dependency archives are never released automatically. A maintainer runs
 #     `workflow_dispatch` with `target: runtime` to build, smoke-test, and
 #     publish one runtime. Releases are content-addressed with their sha256, so
@@ -96,12 +95,6 @@ jobs:
        (github.event_name == 'workflow_dispatch' &&
         (inputs.target == 'docs' || inputs.target == 'all')))
     runs-on: ubuntu-latest
-    # The config, theme and scripts come from the default branch checkout, but
-    # the current version's pages are read from `stable`, so the site root
-    # shows the newest release. If the branch does not exist yet (before the
-    # first v* tag build), prepare-docs falls back to the checkout.
-    env:
-      DOCS_CURRENT_REF: origin/stable
     permissions:
       contents: read
       pages: write
@@ -116,10 +109,26 @@ jobs:
       - name: Check out all branches and tags
         uses: actions/checkout@v4
         with:
-          # The current version is always the default branch; other refs are
-          # archived from git, so every trigger produces the same site.
+          # Everything is read from git: the newest v* tag is the current
+          # version and the other refs are archived, so every trigger produces
+          # the same site.
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
+
+      - name: Resolve the current version
+        # The site root redirects to the newest release, so its pages come from
+        # that tag rather than from the default branch, which may be ahead of it.
+        run: |
+          set -euo pipefail
+          newest="$(git tag --list 'v*' --sort=version:refname | tail -n 1)"
+          if [ -n "$newest" ]; then
+            echo "DOCS_CURRENT_VERSION=$newest" >> "$GITHUB_ENV"
+            echo "DOCS_CURRENT_REF=refs/tags/$newest" >> "$GITHUB_ENV"
+          else
+            # Before the first release the default branch is the current version.
+            echo "DOCS_CURRENT_VERSION=${{ github.event.repository.default_branch }}" >> "$GITHUB_ENV"
+            echo "DOCS_CURRENT_REF=origin/${{ github.event.repository.default_branch }}" >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/setup-node@v4
         with:

@@ -75,11 +75,10 @@ run `workflow_dispatch` with `target: runtime` to publish one runtime on
 purpose. Documentation, by contrast, is published automatically after every
 successful push build.
 
-Documentation is versioned by git ref. The site root serves `stable`, a
-generated branch that `build` moves to the newest `v*` tag once that tag builds
-successfully; `main` and every older tag are published under `/<ref>/` and
-listed in the version switcher. Do not commit to `stable` — it is overwritten.
-Tag the default branch to release a new version of the site.
+Documentation is versioned by git ref. The site root redirects to the newest
+`v*` tag, which is the current version; `main` and every older tag are
+published under `/<ref>/` and listed in the version switcher. Tag the default
+branch to release a new version of the site.
 
 ```sh
 # dry run first: builds and verifies, publishes nothing
