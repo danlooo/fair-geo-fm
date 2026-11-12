@@ -157,6 +157,17 @@ jobs:
         with:
           path: _site
 
+      - name: Compute deployment version
+        id: version
+        run: |
+          # deploy-pages sends GITHUB_SHA as the Pages build version, and Pages
+          # does not republish an already-deployed version. Moving a tag or
+          # deleting a branch does not change the commit SHA, so derive a unique
+          # version per workflow run to always publish the reassembled site.
+          echo "sha=$(printf '%s-%s' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" | sha1sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        env:
+          GITHUB_SHA: ${{ steps.version.outputs.sha }}
