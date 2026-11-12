@@ -125,6 +125,11 @@ Feng, Z. et al. (2026) ‘TESSERA v2: Scaling pixel-wise Earth
 foundation models’, _arXiv_ [Preprint]. Available at:
 <https://arxiv.org/abs/2607.03949> (Accessed: 12 November 2026).
 
-### Abstract
+**Abstract**
 
 Pixel-wise Earth-observation (EO) foundation models are now achieving state-of-the-art performance via generated spatial embeddings. However, how these models scale and how best to spend a pretraining budget remain poorly understood. We present the largest controlled scaling study for EO to date: 395 training runs within a fixed pixel-wise Barlow Twins family, each evaluated on 15 diverse downstream tasks. We find that pretraining loss barely predicts downstream performance (|Pearson r| < 0.2), so selecting models by loss wastes a large share of the compute. We also find that, as the training budget grows, the encoder and the data should grow together while the projector stays fixed, which gives a simple rule for allocating compute. Using this rule, we train a family of pixel-wise teachers (0.5B, 1B, and 2B) and distil the largest into compact students for embeddings-as-data deployment. In aggregate, our 44-million-parameter distilled student outperforms every open and proprietary embedding product we test, several of them an order of magnitude larger. These students produce Matryoshka representations that are inexpensive to serve: a 16-dimensional prefix keeps 92% of the full 128-dimensional performance at 1/8 of the storage. Together, these results give a concrete, empirically grounded recipe for scaling pixel-wise EO foundation models: train large encoders, select by downstream performance, and distil into flexible student models. We plan to release global 10 m annual embeddings covering 2017-2025 as version 2 of the TESSERA foundation-model embeddings product. All code is available at: this https URL
+
+## Links
+
+- [Original notebook as an openEO community example](https://github.com/Open-EO/openeo-community-examples/tree/main/python/60_geospatial-embeddings/tessera)
+- [CDSE release note on the original notebook](https://dataspace.copernicus.eu/news/2026-9-25-new-openeo-community-example-generate-tessera-pixel-embeddings-sentinel-1-and)
