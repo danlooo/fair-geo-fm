@@ -68,12 +68,12 @@ Conventions for the models and runtimes in this repository.
 ## Releases
 
 Archives are published by the `publish` workflow, never by hand and never by
-committing the zip. It runs automatically after a successful `build`: a push
-publishes the documentation, and a successful default-branch build publishes
-the archives it produced as content-addressed releases. No manual trigger is
-needed. The manual dispatch below is only an escape hatch (for example to
-refresh the mutable `staging` prerelease); it is refused unless a successful
-build exists for the checked-out commit.
+committing the zip. The workflow refuses to publish unless a successful `build`
+exists for the checked-out commit, so archives are released only after the
+process graphs and archives pass CI. Releases themselves are never automatic:
+run `workflow_dispatch` with `target: runtime` to publish one runtime on
+purpose. Documentation, by contrast, is published automatically after every
+successful push build.
 
 Documentation is versioned by git ref. The site root serves `stable`, a
 generated branch that `build` moves to the newest `v*` tag once that tag builds
