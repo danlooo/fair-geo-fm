@@ -68,11 +68,12 @@ Conventions for the models and runtimes in this repository.
 ## Releases
 
 Archives are published by the `publish` workflow, never by hand and never by
-committing the zip. Pushes publish the documentation; runtime archives are
-published manually with `target: runtime`. `publish` only runs after a
-successful `build`: a push is published once the build triggered by that push
-completes, and a manual dispatch is refused unless a successful build exists
-for the checked-out commit.
+committing the zip. It runs automatically after a successful `build`: a push
+publishes the documentation, and a successful default-branch build publishes
+the archives it produced as content-addressed releases. No manual trigger is
+needed. The manual dispatch below is only an escape hatch (for example to
+refresh the mutable `staging` prerelease); it is refused unless a successful
+build exists for the checked-out commit.
 
 ```sh
 # dry run first: builds and verifies, publishes nothing

@@ -1,19 +1,23 @@
 name: publish
 
-# Second stage of the build -> publish pipeline. Nothing is published unless a
-# `build` run for the commit has completed successfully, so a commit that breaks
-# a process graph or dependency archive is never deployed:
-#   - a successful push build of `build` triggers the documentation site: the
-#     default branch is the current version; every other branch and tag that
-#     contains a site is archived into the same build by scripts/prepare-docs.mjs,
-#     so all versions are published at once and the version switcher links
-#     between them:
+# Second stage of the build -> publish pipeline. It runs automatically: nothing
+# is published unless a `build` run for the commit has completed successfully,
+# so a commit that breaks a process graph or dependency archive is never
+# deployed. No manual trigger is involved.
+#   - every successful push build publishes the documentation site: the default
+#     branch is the current version; every other branch and tag that contains a
+#     site is archived into the same build by scripts/prepare-docs.mjs, so all
+#     versions are published at once and the version switcher links between
+#     them:
 #       https://danlooo.github.io/fair-geo-fm/main/
 #       https://danlooo.github.io/fair-geo-fm/v0.1/
-#   - runtime archives are published manually (target: runtime). A manual
-#     dispatch is refused unless a successful build exists for the checked-out
-#     commit. The release is content-addressed with its sha256, so the same bytes
-#     always map to the same release and no release is ever overwritten.
+#   - a successful default-branch build also publishes the dependency archives
+#     it produced in `build`. Each release is content-addressed with its sha256,
+#     so unchanged bytes resolve to the existing release instead of creating a
+#     new one, and no release is ever overwritten.
+#   - `workflow_dispatch` is an escape hatch, not part of the normal flow: it
+#     can republish docs (target: docs) or publish a runtime archive by hand,
+#     e.g. to refresh the mutable `staging` prerelease.
 on:
   workflow_run:
     workflows: [build]
@@ -149,31 +153,55 @@ jobs:
           GITHUB_SHA: ${{ steps.version.outputs.sha }}
 
   runtime:
+    name: publish runtime archives
     needs: verify-build
+    # Automatic path: every successful build of the default branch publishes the
+    # archives it produced. Releases are content-addressed, so an unchanged
+    # runtime resolves to its existing release instead of creating a new one.
+    # Manual dispatch is an escape hatch only, e.g. to refresh the mutable
+    # `staging` prerelease used while a backend is being verified.
     if: |
       needs.verify-build.outputs.ok == 'true' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'runtime' || inputs.target == 'all')
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.head_branch == github.event.repository.default_branch) ||
+       (github.event_name == 'workflow_dispatch' &&
+        (inputs.target == 'runtime' || inputs.target == 'all')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      actions: read
       contents: write
     concurrency:
-      group: ${{ github.workflow }}-${{ inputs.runtime }}
+      group: ${{ github.workflow }}-runtime
       cancel-in-progress: false
-    environment: publish
     env:
       RUNTIME: ${{ inputs.runtime }}
       RELEASE_TAG: ${{ inputs.tag }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      BUILT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download the archives that the build verified
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: dependency-archives
+          # The artifact belongs to another run, so pass its id and a token.
+          # Publishing these exact bytes ties each release to what the build
+          # smoke-tested.
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: archives
+
       - uses: astral-sh/setup-uv@v6
+        if: github.event_name == 'workflow_dispatch'
         with:
           enable-cache: true
           cache-dependency-glob: "runtimes/*/requirements.txt"
 
       - name: Build archive
+        if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           if [[ ! "$RUNTIME" =~ ^[A-Za-z0-9._-]+$ ]]; then
@@ -190,6 +218,7 @@ jobs:
             --output-file "runtimes/$RUNTIME/dependencies.zip"
 
       - name: Verify on the pinned Python version
+        if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           sudo apt-get update -qq
@@ -222,92 +251,95 @@ jobs:
 
           rm -rf "$workdir"
 
-      - name: Compute release name
-        id: artifact
+      - name: Stage manually built archive
+        if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
-          digest="$(sha256sum "runtimes/$RUNTIME/dependencies.zip" | cut -d' ' -f1)"
-          short="${digest:0:16}"
-          if [ -n "$RELEASE_TAG" ]; then
-            if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
-              echo "invalid tag: $RELEASE_TAG" >&2
-              exit 1
-            fi
-            tag="$RELEASE_TAG"
-            asset="$RUNTIME.zip"
-            mutable=true
-          else
-            tag="$RUNTIME-$short"
-            asset="$RUNTIME-$short.zip"
-            mutable=false
-          fi
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "asset=$asset" >> "$GITHUB_OUTPUT"
-          echo "mutable=$mutable" >> "$GITHUB_OUTPUT"
-          cp "runtimes/$RUNTIME/dependencies.zip" "$RUNNER_TEMP/$asset"
+          mkdir -p "archives/runtimes/$RUNTIME"
+          cp "runtimes/$RUNTIME/dependencies.zip" "archives/runtimes/$RUNTIME/dependencies.zip"
 
-      - name: Publish release
+      - name: Publish releases
         env:
           GH_TOKEN: ${{ github.token }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          DIGEST: ${{ steps.artifact.outputs.digest }}
-          TAG: ${{ steps.artifact.outputs.tag }}
-          ASSET: ${{ steps.artifact.outputs.asset }}
-          MUTABLE: ${{ steps.artifact.outputs.mutable }}
         run: |
           set -euo pipefail
-          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
-
-          {
-            echo "### dependency archive"
-            echo
-            echo "- runtime: \`$RUNTIME\`"
-            echo "- sha256: \`$DIGEST\`"
-            echo "- release: \`$TAG\`"
-            echo "- mutable: $MUTABLE"
-            echo "- url: $url#feature_deps"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "dry run: would publish $TAG with $ASSET (mutable=$MUTABLE)"
-            exit 0
+          shopt -s nullglob
+          zips=(archives/runtimes/*/dependencies.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "no dependency archives found under archives/runtimes/" >&2
+            exit 1
           fi
 
-          if [ "$MUTABLE" = "true" ]; then
-            if gh release view "$TAG" >/dev/null 2>&1; then
-              echo "mutable release $TAG exists; replacing $ASSET"
-              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET" --clobber
+          for zip in "${zips[@]}"; do
+            runtime="$(basename "$(dirname "$zip")")"
+            digest="$(sha256sum "$zip" | cut -d' ' -f1)"
+            short="${digest:0:16}"
+            mutable=false
+            if [ -n "${RELEASE_TAG:-}" ] && [ "$runtime" = "${RUNTIME:-}" ]; then
+              if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+                echo "invalid tag: $RELEASE_TAG" >&2
+                exit 1
+              fi
+              tag="$RELEASE_TAG"
+              asset="$runtime.zip"
+              mutable=true
             else
-              gh release create "$TAG" \
-                --title "$TAG" \
-                --prerelease \
-                --latest=false \
-                --notes "Mutable staging release for \`runtimes/$RUNTIME\`; the asset is replaced on each publish.
-
-          sha256: \`$DIGEST\`
-          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`" \
-                "$RUNNER_TEMP/$ASSET"
+              tag="$runtime-$short"
+              asset="$runtime-$short.zip"
             fi
-            exit 0
-          fi
+            url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$asset"
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "release $TAG exists; not overwriting"
-            mkdir -p "$RUNNER_TEMP/existing"
-            if gh release download "$TAG" --pattern "$ASSET" --dir "$RUNNER_TEMP/existing"; then
-              echo "$DIGEST  $RUNNER_TEMP/existing/$ASSET" | sha256sum -c -
-            else
-              echo "asset missing from existing release; uploading it"
-              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET"
+            {
+              echo "### $runtime"
+              echo
+              echo "- sha256: \`$digest\`"
+              echo "- release: \`$tag\`"
+              echo "- mutable: $mutable"
+              echo "- url: $url#feature_deps"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "${DRY_RUN:-}" = "true" ]; then
+              echo "dry run: would publish $tag with $asset (mutable=$mutable)"
+              continue
             fi
-            exit 0
-          fi
 
-          notes="Content-addressed dependency archive for \`runtimes/$RUNTIME\`.
+            cp "$zip" "$RUNNER_TEMP/$asset"
 
-          sha256: \`$DIGEST\`
-          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`
+            if [ "$mutable" = "true" ]; then
+              if gh release view "$tag" >/dev/null 2>&1; then
+                echo "mutable release $tag exists; replacing $asset"
+                gh release upload "$tag" "$RUNNER_TEMP/$asset" --clobber
+              else
+                gh release create "$tag" \
+                  --title "$tag" \
+                  --prerelease \
+                  --latest=false \
+                  --notes "Mutable staging release for \`runtimes/$runtime\`; the asset is replaced on each publish.
+
+          sha256: \`$digest\`
+          built from \`$GITHUB_REPOSITORY@${BUILT_SHA:-$GITHUB_SHA}\`" \
+                  "$RUNNER_TEMP/$asset"
+              fi
+              continue
+            fi
+
+            if gh release view "$tag" >/dev/null 2>&1; then
+              # The tag embeds the digest of these exact bytes, so an existing
+              # release means this archive was already published; only repair a
+              # missing asset instead of overwriting anything.
+              if gh release view "$tag" --json assets --jq '.assets[].name' | grep -qx "$asset"; then
+                echo "release $tag already has $asset"
+              else
+                echo "asset missing from existing release; uploading it"
+                gh release upload "$tag" "$RUNNER_TEMP/$asset"
+              fi
+              continue
+            fi
+
+            notes="Content-addressed dependency archive for \`runtimes/$runtime\`.
+
+          sha256: \`$digest\`
+          built from \`$GITHUB_REPOSITORY@${BUILT_SHA:-$GITHUB_SHA}\`
 
           Use as a job option:
 
@@ -315,8 +347,9 @@ jobs:
           \"udf-dependency-archives\": [\"$url#feature_deps\"]
           \`\`\`"
 
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes "$notes" \
-            --latest=false \
-            "$RUNNER_TEMP/$ASSET"
+            gh release create "$tag" \
+              --title "$tag" \
+              --notes "$notes" \
+              --latest=false \
+              "$RUNNER_TEMP/$asset"
+          done
