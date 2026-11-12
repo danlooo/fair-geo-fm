@@ -17,8 +17,8 @@ requires that URL to be listed verbatim in
 directory, the published archive and the process graph cannot drift apart.
 
 Usage:
-    uv run scripts/build-process-graph.py processes/tessera_v2
-    uv run scripts/build-process-graph.py processes/tessera_v2 --check
+    uv run scripts/build-process-graph.py models/tessera_v2
+    uv run scripts/build-process-graph.py models/tessera_v2 --check
 
 ``--check`` writes nothing and exits non-zero when ``process_graph.json`` is
 stale or the runtime reference is invalid, for CI or a pre-commit hook.

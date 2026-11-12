@@ -22,8 +22,8 @@ Reference it by URL as the `namespace`; the node id follows the web editor's
   "process_graph": {
     "tessera_v2_embeddings1": {
       "process_id": "tessera_v2_embeddings",
-      "namespace": "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/processes/tessera_v2/process_graph.json",
-      "description": "Documentation: https://danlooo.github.io/fair-geo-fm/processes/tessera_v2/",
+      "namespace": "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
+      "description": "Documentation: https://danlooo.github.io/fair-geo-fm/models/tessera_v2/",
       "arguments": {
         "spatial_extent": {
           "west": 11.55,
@@ -100,7 +100,7 @@ user's server-side workspace, not this repository, and URL UDFs are
 backend-specific. Regenerate the inline copy after editing the UDF:
 
 ```sh
-uv run scripts/build-process-graph.py processes/tessera_v2
+uv run scripts/build-process-graph.py models/tessera_v2
 ```
 
 `--check` verifies it is in sync without writing.

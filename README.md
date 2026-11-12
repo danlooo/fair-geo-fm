@@ -7,7 +7,7 @@ FAIR geospatial foundation models, ready to use in openEO.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for process, file naming, versioning,
+See [CONTRIBUTING.md](CONTRIBUTING.md) for model, file naming, versioning,
 and runtime conventions.
 
 ## Funding

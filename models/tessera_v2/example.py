@@ -16,7 +16,7 @@ OUT_DIR = Path("downloads/tessera-jena-2025")
 # credentials; CDSE workers do not forward your openEO token to external URLs.
 PROCESS_URL = (
     "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/"
-    "processes/tessera_v2/process_graph.json"
+    "models/tessera_v2/process_graph.json"
 )
 PROCESS_ID = "tessera_v2_embeddings"
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Conventions for the processes and runtimes in this repository.
+Conventions for the models and runtimes in this repository.
 
 ## Processes
 
@@ -8,7 +8,7 @@ Conventions for the processes and runtimes in this repository.
   [openEO remote process definition extension](https://api.openeo.org/extensions/remote-process-definition/0.1.0).
   Callers set `namespace` to the process's `process_graph.json` in this repo.
 - One directory per major model version, so versions can be used side by side:
-  `processes/tessera_v2/`, `processes/tessera_v1/`.
+  `models/tessera_v2/`, `models/tessera_v1/`.
 - Put the major version in the process id, not in a parameter:
   `tessera_v2_embeddings`. UDPs have no version property, and a
   `model_version` parameter cannot change the process contract.
@@ -49,7 +49,7 @@ Conventions for the processes and runtimes in this repository.
 ## Runtimes
 
 - Shared dependency archives live in `runtimes/`, never inside a process
-  directory, and are reused across processes.
+  directory, and are reused across models.
 - One directory per interpreter/stack combination, named after both, containing
   only `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
   is encoded in the name (`py311` -> 3.11) and the file may pin an index via

@@ -1,11 +1,11 @@
 {
   "id": "tessera_v2_embeddings",
   "summary": "TESSERA v2 pixel embeddings from Sentinel-1/2, computed on demand.",
-  "description": "Computes TESSERA v2 pixel embeddings from Sentinel-1 GRD (ascending and\ndescending) and Sentinel-2 L2A via an inline PyTorch UDF. The time dimension\nis collapsed into a 128-band embedding cube on the Sentinel-2 grid.\n\nThe UDF is trained/standardised on raw Sentinel-2 DN and TESSERA-scaled\nSentinel-1 dB (linear sigma0-ellipsoid backscatter ->\nclip((20*log10(x)+50)*200, 0, 32767)). It performs SCL-based cloud masking\nand source-date pruning internally, so do not composite, resample or rescale\nthe inputs before this process.\n\nComputes on demand and is not the published geotessera tiles; use the\ngeneric load_embeddings process for archived embeddings. Batch execution on\nCDSE needs the udf-dependency-archives job option that supplies PyTorch (see\ndefault_job_options). The checkpoint is downloaded from Hugging Face at\nruntime by the UDF.\n\nDocumentation: https://danlooo.github.io/fair-geo-fm/processes/tessera_v2/",
+  "description": "Computes TESSERA v2 pixel embeddings from Sentinel-1 GRD (ascending and\ndescending) and Sentinel-2 L2A via an inline PyTorch UDF. The time dimension\nis collapsed into a 128-band embedding cube on the Sentinel-2 grid.\n\nThe UDF is trained/standardised on raw Sentinel-2 DN and TESSERA-scaled\nSentinel-1 dB (linear sigma0-ellipsoid backscatter ->\nclip((20*log10(x)+50)*200, 0, 32767)). It performs SCL-based cloud masking\nand source-date pruning internally, so do not composite, resample or rescale\nthe inputs before this process.\n\nComputes on demand and is not the published geotessera tiles; use the\ngeneric load_embeddings process for archived embeddings. Batch execution on\nCDSE needs the udf-dependency-archives job option that supplies PyTorch (see\ndefault_job_options). The checkpoint is downloaded from Hugging Face at\nruntime by the UDF.\n\nDocumentation: https://danlooo.github.io/fair-geo-fm/models/tessera_v2/",
   "links": [
     {
       "rel": "canonical",
-      "href": "https://danlooo.github.io/fair-geo-fm/processes/tessera_v2/",
+      "href": "https://danlooo.github.io/fair-geo-fm/models/tessera_v2/",
       "type": "text/html",
       "title": "TESSERA v2 embeddings documentation"
     }

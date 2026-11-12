@@ -10,8 +10,8 @@ hero:
       text: Get started
       link: /guide/
     - theme: alt
-      text: Browse processes
-      link: /processes/
+      text: Browse models
+      link: /models/
 
 features:
   - title: Frozen embeddings

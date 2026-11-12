@@ -2,7 +2,7 @@
 // Materialize the VitePress source tree for @viteplus/versions.
 //
 // The canonical pages stay where they belong in the repository (index.md,
-// guide/, processes/<name>/README.md, CONTRIBUTING.md). The versioning plugin
+// guide/, models/<name>/README.md, CONTRIBUTING.md). The versioning plugin
 // expects one folder per version, so this script copies those pages into
 //
 //   docs/src/                 the current version (DOCS_CURRENT_VERSION)
@@ -21,7 +21,9 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
@@ -63,29 +65,38 @@ function markdownFiles(dir) {
   return filesBelow(dir).filter((file) => file.endsWith(".md"));
 }
 
-// Non-markdown files in each process directory (process_graph.json, udf.py,
-// example.py, runtime.txt). They are served next to the process page, e.g.
-// /<version>/processes/tessera_v2/process_graph.json.
+// Foundation models live in models/. Archived refs that predate the rename keep
+// them in processes/; both are published as models/ so their links match the
+// current navigation.
+function modelSourceDir(root) {
+  return existsSync(join(root, "models")) ? "models" : "processes";
+}
+
+// Non-markdown files in each model directory (process_graph.json, udf.py,
+// example.py, runtime.txt). They are served next to the model page, e.g.
+// /<version>/models/tessera_v2/process_graph.json.
 function siteAssets(root) {
   const assets = new Map();
-  const processes = join(root, "processes");
-  if (!existsSync(processes)) return assets;
-  for (const entry of readdirSync(processes, { withFileTypes: true })) {
+  const source = modelSourceDir(root);
+  const models = join(root, source);
+  if (!existsSync(models)) return assets;
+  for (const entry of readdirSync(models, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const dir = join("processes", entry.name);
-    for (const file of filesBelow(join(root, dir))) {
+    const dir = join("models", entry.name);
+    for (const file of filesBelow(join(root, source, entry.name))) {
       if (file.endsWith(".md")) continue;
-      assets.set(join(dir, file), join(root, dir, file));
+      assets.set(join(dir, file), join(root, source, entry.name, file));
     }
   }
   return assets;
 }
 
 // Map canonical repository paths to site paths for one version.
-// Process READMEs are the source of truth for their pages, so they become
+// Model READMEs are the source of truth for their pages, so they become
 // index.md; VitePress serves them as directory indexes.
 function sitePages(root) {
   const pages = new Map();
+  const source = modelSourceDir(root);
   const add = (from, to) => {
     const file = join(root, from);
     if (existsSync(file)) pages.set(to, file);
@@ -95,13 +106,13 @@ function sitePages(root) {
   for (const file of markdownFiles(join(root, "guide"))) {
     add(join("guide", file), join("guide", file));
   }
-  add("processes/index.md", "processes/index.md");
+  add(join(source, "index.md"), "models/index.md");
 
-  const processes = join(root, "processes");
-  if (existsSync(processes)) {
-    for (const entry of readdirSync(processes, { withFileTypes: true })) {
+  const models = join(root, source);
+  if (existsSync(models)) {
+    for (const entry of readdirSync(models, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      add(join("processes", entry.name, "README.md"), join("processes", entry.name, "index.md"));
+      add(join(source, entry.name, "README.md"), join("models", entry.name, "index.md"));
     }
   }
 
@@ -115,7 +126,14 @@ function writeTree(pages, destination) {
   for (const [to, from] of pages) {
     const target = join(destination, to);
     mkdirSync(dirname(target), { recursive: true });
-    cpSync(from, target);
+    if (from.endsWith(".md")) {
+      // Archived refs link to their layout (/processes/); publish it under the
+      // current one so links keep resolving.
+      const text = readFileSync(from, "utf8").replace(/\]\(\/processes\//g, "](/models/");
+      writeFileSync(target, text);
+    } else {
+      cpSync(from, target);
+    }
   }
 }
 

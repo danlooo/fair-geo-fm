@@ -17,7 +17,7 @@ function editLinkFor(page) {
   const source =
     rest === "contributing.md"
       ? "CONTRIBUTING.md"
-      : rest.replace(/^processes\/([^/]+)\/index\.md$/, "processes/$1/README.md");
+      : rest.replace(/^models\/([^/]+)\/index\.md$/, "models/$1/README.md");
   const action = version === "main" ? "edit/main" : `blob/${version}`;
   return `https://github.com/danlooo/fair-geo-fm/${action}/${source}`;
 }
@@ -34,14 +34,18 @@ export default defineVersionedConfig({
   // The plugin rewrites links in markdown, but not URLs in frontmatter such as
   // the home page hero buttons.
   transformPageData(pageData) {
-    const actions = pageData.frontmatter?.hero?.actions;
-    if (!Array.isArray(actions)) return;
     const version = pageData.relativePath.split("/")[0];
+    const actions = pageData.frontmatter?.hero?.actions;
+    const frontmatter = { ...pageData.frontmatter };
+    // Archived pages are snapshots whose paths may predate renames, so an edit
+    // link would point at a file that does not exist at that ref.
+    if (version !== currentVersion) frontmatter.editLink = false;
+    if (!Array.isArray(actions)) return { frontmatter };
     return {
       frontmatter: {
-        ...pageData.frontmatter,
+        ...frontmatter,
         hero: {
-          ...pageData.frontmatter.hero,
+          ...frontmatter.hero,
           actions: actions.map((action) => ({
             ...action,
             link:
@@ -67,7 +71,7 @@ export default defineVersionedConfig({
     nav: [
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/" },
-      { text: "Processes", link: "/processes/" },
+      { text: "Models", link: "/models/" },
       { text: "Contributing", link: "/contributing" },
     ],
 
@@ -78,14 +82,14 @@ export default defineVersionedConfig({
           items: [{ text: "Getting started", link: "/guide/" }],
         },
       ],
-      "/processes/": [
+      "/models/": [
         {
-          text: "Processes",
+          text: "Models",
           items: [
-            { text: "Overview", link: "/processes/" },
+            { text: "Overview", link: "/models/" },
             {
               text: "TESSERA v2 embeddings",
-              link: "/processes/tessera_v2/",
+              link: "/models/tessera_v2/",
             },
           ],
         },

@@ -26,18 +26,18 @@ connection = openeo.connect("https://openeo.dataspace.copernicus.eu")
 connection.authenticate_oidc()
 ```
 
-## Call a process
+## Call a model
 
-Processes are published as user-defined processes (UDPs) through the
+Models are published as user-defined processes (UDPs) through the
 [openEO remote process definition extension](https://api.openeo.org/extensions/remote-process-definition/0.1.0).
-Reference a process graph by URL as its `namespace`:
+Reference a model's process graph by URL as its `namespace`:
 
 ```python
 embeddings = connection.datacube_from_process(
     "tessera_v2_embeddings",
     namespace=(
         "https://raw.githubusercontent.com/danlooo/fair-geo-fm/"
-        "<commit>/processes/tessera_v2/process_graph.json"
+        "<commit>/models/tessera_v2/process_graph.json"
     ),
     spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
     temporal_extent=["2023-08-01", "2023-09-30"],
@@ -46,7 +46,7 @@ embeddings = connection.datacube_from_process(
 
 Replace `<commit>` with a commit or tag from
 [fair-geo-fm](https://github.com/danlooo/fair-geo-fm/commits/main). See
-[TESSERA v2 embeddings](/processes/tessera_v2/) for the complete example and
+[TESSERA v2 embeddings](/models/tessera_v2/) for the complete example and
 parameters.
 
 ## Reproducibility
@@ -64,6 +64,6 @@ parameters.
 
 ## Learn more
 
-- [Browse processes](/processes/) for the available models and their parameters.
+- [Browse models](/models/) for the available models and their parameters.
 - [Contributing](/contributing) for process, runtime, and release conventions.
 - [NFDI4Earth](https://nfdi4earth.de) for the project context.
