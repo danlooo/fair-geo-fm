@@ -7,6 +7,7 @@
 //
 //   docs/src/                 the current version (DOCS_CURRENT_VERSION)
 //   docs/archive/<ref>/       every other branch and tag
+//   docs/public/<ref>/        non-markdown process files served next to pages
 //
 // Run `node scripts/prepare-docs.mjs` for the current version only, and
 // `node scripts/prepare-docs.mjs --archives` to also archive refs. Archives
@@ -29,6 +30,9 @@ const repoRoot = resolve(process.cwd());
 const docsRoot = join(repoRoot, "docs");
 const sourcesDir = join(docsRoot, "src");
 const archiveDir = join(docsRoot, "archive");
+// VitePress copies docs/public as-is to the site root, so per-version process
+// files end up next to their pages.
+const publicDir = join(docsRoot, "public");
 const currentVersion = process.env.DOCS_CURRENT_VERSION || "main";
 const withArchives = process.argv.includes("--archives");
 
@@ -40,19 +44,41 @@ function warn(message) {
   console.warn(`prepare-docs: ${message}`);
 }
 
-// All markdown files below dir, as paths relative to dir.
-function markdownFiles(dir) {
+// All files below dir, as paths relative to dir.
+function filesBelow(dir, base = dir) {
   if (!existsSync(dir)) return [];
   const files = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      for (const file of markdownFiles(full)) files.push(join(entry.name, file));
-    } else if (entry.isFile() && entry.name.endsWith(".md")) {
-      files.push(entry.name);
+      files.push(...filesBelow(full, base));
+    } else if (entry.isFile()) {
+      files.push(relative(base, full));
     }
   }
   return files;
+}
+
+function markdownFiles(dir) {
+  return filesBelow(dir).filter((file) => file.endsWith(".md"));
+}
+
+// Non-markdown files in each process directory (process_graph.json, udf.py,
+// example.py, runtime.txt). They are served next to the process page, e.g.
+// /<version>/processes/tessera_v2/process_graph.json.
+function siteAssets(root) {
+  const assets = new Map();
+  const processes = join(root, "processes");
+  if (!existsSync(processes)) return assets;
+  for (const entry of readdirSync(processes, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = join("processes", entry.name);
+    for (const file of filesBelow(join(root, dir))) {
+      if (file.endsWith(".md")) continue;
+      assets.set(join(dir, file), join(root, dir, file));
+    }
+  }
+  return assets;
 }
 
 // Map canonical repository paths to site paths for one version.
@@ -83,7 +109,7 @@ function sitePages(root) {
   return pages;
 }
 
-function writePages(pages, destination) {
+function writeTree(pages, destination) {
   rmSync(destination, { recursive: true, force: true });
   mkdirSync(destination, { recursive: true });
   for (const [to, from] of pages) {
@@ -126,8 +152,13 @@ function refsToArchive() {
   return [...refs.entries()].map(([name, ref]) => ({ name, ref }));
 }
 
-writePages(sitePages(repoRoot), sourcesDir);
-console.log(`prepare-docs: wrote ${currentVersion} to docs/src`);
+// A full archive run replaces the whole public tree, dropping versions of
+// deleted refs as well as the current version's files.
+if (withArchives) rmSync(publicDir, { recursive: true, force: true });
+
+writeTree(sitePages(repoRoot), sourcesDir);
+writeTree(siteAssets(repoRoot), join(publicDir, currentVersion));
+console.log(`prepare-docs: wrote ${currentVersion} to docs/src and docs/public`);
 
 if (!withArchives) {
   process.exit(0);
@@ -158,7 +189,8 @@ for (const { name, ref } of refsToArchive()) {
       warn(`skipping ${name}: no VitePress site at this ref`);
       continue;
     }
-    writePages(pages, join(archiveDir, version));
+    writeTree(pages, join(archiveDir, version));
+    writeTree(siteAssets(worktree), join(publicDir, version));
     used.add(version);
     archived += 1;
     console.log(`prepare-docs: archived ${name} as docs/archive/${version}`);

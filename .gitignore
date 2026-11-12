@@ -13,3 +13,4 @@ docs/.vitepress/cache/
 # scripts/prepare-docs.mjs.
 docs/src/
 docs/archive/
+docs/public/
