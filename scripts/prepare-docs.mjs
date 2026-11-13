@@ -381,17 +381,21 @@ function rewriteLegacyModelGraphUrl(text, version, model) {
 
 // Tags created before README.md.j2 gained its release header still publish a
 // model page without one. Add the same line the template renders, right below
-// the page title, so every published model page advertises the release it
+// the page title, so every published release page advertises the version it
 // documents -- including the current version, which is read from its tag.
-// A preview ref (main) gets the release link without a DOI.
+// A preview ref (main) has no DOI, so it gets no header, like the template's
+// `{% if doi %}` gate.
 function ensureReleaseHeader(text, version, model) {
   const { release_version: releaseVersion, release_url: releaseUrl, doi } =
     modelTemplateValues(version, model);
+  // Only a release has a DOI. Do not advertise the newest release as the
+  // header of a preview page (main), matching README.md.j2's `{% if doi %}`.
+  if (!doi) return text;
   const link = `[Release ${releaseVersion}](${releaseUrl})`;
   if (text.includes(link)) return text;
   const lines = text.split("\n");
   if (!lines[0].startsWith("# ")) return text;
-  const header = doi ? `${link} | [DOI ${doi}](https://doi.org/${doi})` : link;
+  const header = `${link} | [DOI ${doi}](https://doi.org/${doi})`;
   return [lines[0], "", header, ...lines.slice(1)].join("\n");
 }
 

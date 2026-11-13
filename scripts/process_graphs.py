@@ -24,8 +24,9 @@ of the same publication target. For a Zenodo release the files live under the
 record URL while the page itself stays on the documentation site, so
 ``render_readme`` takes the documentation base URL separately. The page header
 also advertises the release it documents through ``release_version``,
-``release_url`` and ``doi``, so every versioned page links its own release and
-version DOI instead of a hardcoded one.
+``release_url`` and ``doi``, so every release page links its own version record
+and DOI instead of a hardcoded one. A preview render has no DOI and therefore
+no header.
 
 This module is imported by ``build-process-graph.py`` and
 ``publish-release.py``; it is not a standalone script.
@@ -208,12 +209,12 @@ def render_readme(
 
     ``base_url`` locates the model's published files (the process graph),
     ``docs_base_url`` the version's documentation page. ``release_version`` and
-    ``doi`` are the release the page advertises (its header links both): they
-    default to the newest ``v*`` tag and to the concept DOI for a release render,
-    so the build check -- which renders the staging page -- still carries a valid
-    release link. A preview render (``release=False``) shows no DOI, because only
-    tagged releases have one. ``release`` is exposed to templates that gate
-    development notices on it; it defaults to the branch (preview) rendering.
+    ``doi`` describe the release the page advertises (its header links both):
+    they default to the newest ``v*`` tag and to the concept DOI for a release
+    render. A preview render (``release=False``) has no DOI, so the template's
+    ``{% if doi %}`` gate omits the header; only tagged releases advertise one.
+    ``release`` is exposed to templates that gate development notices on it; it
+    defaults to the branch (preview) rendering.
     Returns ``(text, readme_url)``. Unknown template variables are an error.
     """
     process_dir = process_dir.resolve()
@@ -240,7 +241,7 @@ def render_readme(
         docs_url=f"{docs_base_url.rstrip('/')}/models/{model}/",
         release_version=advertised,
         release_url=f"{SITE_BASE_URL}/{advertised}/models/{model}/",
-        # Only a release has a DOI; a preview build links the release instead.
+        # Only a release has a DOI; a preview build gets no release header.
         doi=CONCEPT_DOI if doi is None and release else (doi or ""),
     )
     return text, readme_url(base_url, model)

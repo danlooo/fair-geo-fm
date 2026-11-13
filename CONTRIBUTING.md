@@ -45,10 +45,10 @@ Conventions for the models and runtimes in this repository.
   `{{ docs_url }}` (the version's documentation page, with a trailing `/`), and
   the release its header advertises: `{{ release_version }}`, `{{ release_url }}`
   (that release's documentation page, with a trailing `/`) and `{{ doi }}` (that
-  release's version DOI, empty on a preview page because only a release has one).
-  A tag page advertises its own release, a branch page
-  (`main`) the newest `v*` tag, and the release README uploaded to Zenodo the
-  record it belongs to; never write `v0.1.2` or a DOI into the template.
+  release's version DOI). A tag page advertises its own release and DOI; a
+  branch page (`main`) has no DOI, so the `{% if doi %}` gate omits the header
+  entirely. The release README uploaded to Zenodo advertises the record it
+  belongs to; never write `v0.1.2` or a DOI into the template.
   The same layout is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
   - release: `https://zenodo.org/records/<record-id>/files`
@@ -192,12 +192,12 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   to the same page in the current version, or to its home page when the page
   does not exist there (`docs/.vitepress/theme/VersionBanner.vue`).
 - A released tag's model page links to that tag's Zenodo version record and shows
-  that version's DOI; a branch page (`main`) shows the newest release and links
-  its page, but no DOI, because only a release has one. The docs build resolves
-  the version records and DOIs from the concept record through the Zenodo API and
-  falls back to the staging base and the concept DOI if that lookup fails. Refs
-  that predate the header in `README.md.j2` get the same line inserted by
-  `scripts/prepare-docs.mjs`, so no published model page is missing it.
+  that version's DOI; a branch page (`main`) has no DOI, so it carries no release
+  header at all. The docs build resolves the version records and DOIs from the
+  concept record through the Zenodo API and falls back to the staging base and
+  the concept DOI if that lookup fails. Released refs that predate the header in
+  `README.md.j2` get the same line inserted by `scripts/prepare-docs.mjs`, so no
+  published release page is missing it.
 - `publish-release` dispatches `publish` after the Zenodo record is published,
   so the tag page is rebuilt against the new version record/DOI instead of the
   staging URLs from the deployment that ran when the tag was pushed. A
