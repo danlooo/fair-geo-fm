@@ -343,7 +343,7 @@ async function fetchZenodoReleases() {
 // The documentation page itself is always versioned. ``release`` is true for
 // v* tags and false for branches, so archived templates that gate development
 // notices on it still render; the current template relies on the site-wide
-// banner in docs/.vitepress/theme/PreviewBanner.vue instead.
+// banner in docs/.vitepress/theme/VersionBanner.vue instead.
 // ``release_version`` / ``release_url`` / ``doi`` describe the release the page
 // advertises: a tag page links itself, a branch page (main) links the newest
 // release, the same one the site root redirects to. Only a release has a DOI,

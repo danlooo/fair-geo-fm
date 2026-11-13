@@ -186,7 +186,11 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   already published is refused, because its version is already the latest.
 - Documentation is versioned by git ref. The site root redirects to the newest
   `v*` tag, which is the current version; `main` and every older tag are
-  published under `/<ref>/` and listed in the version switcher.
+  published under `/<ref>/` and listed in the version switcher. Every page that
+  is not the current release shows a notice above its heading: older tags an
+  outdated-version banner and branches an unreleased-preview banner. Both link
+  to the same page in the current version, or to its home page when the page
+  does not exist there (`docs/.vitepress/theme/VersionBanner.vue`).
 - A released tag's model page links to that tag's Zenodo version record and shows
   that version's DOI; a branch page (`main`) shows the newest release and links
   its page, but no DOI, because only a release has one. The docs build resolves
