@@ -10,6 +10,11 @@
 //   docs/public/<ref>/        non-markdown process files served next to pages
 //   docs/public/main/runtimes/  built runtime archives for the default branch,
 //                             overwritten on every deployment
+//   docs/public/main/models/  rendered process graphs for the default branch
+//
+// Model pages of released tags link to that tag's Zenodo version record (its
+// files, not the concept DOI); main and other branches link to the staging
+// /main/ process graphs, which this script serves.
 //
 // The current version is the newest v* tag, so the site root redirects to that
 // tag's URL (e.g. /v0.1/). Set DOCS_CURRENT_VERSION to override the name; the
@@ -196,6 +201,36 @@ function writeRuntimeAssets() {
   );
 }
 
+// Rendered process graphs are git-ignored build outputs, so ref worktrees
+// never contain them. The publish workflow renders the default branch's graphs
+// in the checkout; serve them at the fixed /main/ path that model pages link
+// to. Copy rather than writeTree, for the same reason as writeRuntimeAssets.
+function writeStagingProcessGraphs() {
+  const models = join(repoRoot, "models");
+  if (!existsSync(models)) return;
+  let count = 0;
+  for (const entry of readdirSync(models, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const graph = join(models, entry.name, "process_graph.json");
+    if (!existsSync(graph)) continue;
+    const target = join(
+      publicDir,
+      "main",
+      "models",
+      entry.name,
+      "process_graph.json",
+    );
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(graph, target);
+    count += 1;
+  }
+  if (count > 0) {
+    console.log(
+      `prepare-docs: wrote ${count} staging process graph(s) under docs/public/main`,
+    );
+  }
+}
+
 // Public origin of the documentation site. VitePress serves every version
 // under /fair-geo-fm/<version>/, while process graphs are only rebuilt under
 // /main/ on every deployment.
@@ -203,12 +238,59 @@ const siteBaseUrl = (
   process.env.DOCS_SITE_BASE_URL || "https://danlooo.github.io/fair-geo-fm"
 ).replace(/\/+$/, "");
 
+// Released tags are archived on Zenodo as versions of one concept record.
+// Kept in sync with DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
+const zenodoConceptId =
+  process.env.DOCS_ZENODO_CONCEPT_ID || "24193626";
+const zenodoApiUrl = (
+  process.env.DOCS_ZENODO_API_URL || "https://zenodo.org/api"
+).replace(/\/+$/, "");
+const zenodoSiteUrl = zenodoApiUrl.replace(/\/api$/, "");
+
+// Tag -> public file base of its Zenodo version, e.g.
+// v0.1.0 -> https://zenodo.org/records/24193627/files. One unauthenticated
+// request; a failure degrades to the staging /main base instead of breaking
+// the docs build.
+async function fetchZenodoFilesBases() {
+  const bases = new Map();
+  const query = `parent.id:${zenodoConceptId}`;
+  try {
+    const response = await fetch(
+      `${zenodoApiUrl}/records?q=${encodeURIComponent(query)}&size=25`,
+      {
+        headers: {
+          Accept: "application/json",
+          // Zenodo rejects requests without a descriptive User-Agent.
+          "User-Agent":
+            "fair-geo-fm-docs/1.0 (+https://danlooo.github.io/fair-geo-fm/)",
+        },
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    for (const hit of body?.hits?.hits ?? []) {
+      const version = hit?.metadata?.version;
+      if (typeof version === "string" && version) {
+        bases.set(version, `${zenodoSiteUrl}/records/${hit.id}/files`);
+      }
+    }
+    console.log(`prepare-docs: resolved ${bases.size} Zenodo release(s)`);
+  } catch (error) {
+    warn(
+      `could not resolve Zenodo releases (${error.message}); ` +
+        "tagged versions link to the staging base",
+    );
+  }
+  return bases;
+}
+
 // The variables a model README template can use, mirroring the ones in
-// scripts/process_graphs.py. Process graphs are only rebuilt under the staging
-// /main/ base, so every version's examples link there; the documentation page
-// itself is versioned, so it links into the version being rendered.
+// scripts/process_graphs.py. Released tags link to their immutable Zenodo
+// files; main and branches link to the staging graphs rebuilt under /main.
+// The documentation page itself is always versioned.
 function modelTemplateValues(version, model) {
-  const filesBaseUrl = `${siteBaseUrl}/main`;
+  const filesBaseUrl = zenodoFilesBases.get(version) ?? `${siteBaseUrl}/main`;
   const docsBaseUrl = `${siteBaseUrl}/${version}`;
   return {
     base_url: filesBaseUrl,
@@ -216,6 +298,18 @@ function modelTemplateValues(version, model) {
     process_graph_url: `${filesBaseUrl}/models/${model}/process_graph.json`,
     docs_url: `${docsBaseUrl}/models/${model}/`,
   };
+}
+
+// Tags created before README.md.j2 hardcode the staging graph URL. Point that
+// one link at the tag's Zenodo version record so old release pages are
+// reproducible too; other staging links in the snapshot stay untouched.
+function rewriteLegacyModelGraphUrl(text, version, model) {
+  const releaseBaseUrl = zenodoFilesBases.get(version);
+  if (!releaseBaseUrl) return text;
+  return text.replaceAll(
+    `${siteBaseUrl}/main/models/${model}/process_graph.json`,
+    `${releaseBaseUrl}/models/${model}/process_graph.json`,
+  );
 }
 
 // Minimal Jinja2 ``{{ name }}`` substitution: the README templates only need
@@ -290,6 +384,10 @@ function writeTree(pages, destination, version) {
       if (from.endsWith(".md.j2")) {
         text = renderModelTemplate(text, version, to.split("/")[1], from);
       }
+      const modelPage = /^models\/([^/]+)\/index\.md$/.exec(to);
+      if (modelPage) {
+        text = rewriteLegacyModelGraphUrl(text, version, modelPage[1]);
+      }
       writeFileSync(target, text);
     } else {
       cpSync(from, target);
@@ -355,6 +453,10 @@ function writeCurrentVersionFrom(ref) {
   });
 }
 
+// Resolve the version records before rendering pages, so a tag's README links
+// to that tag's record rather than the concept/root DOI.
+const zenodoFilesBases = await fetchZenodoFilesBases();
+
 let fromRef = false;
 if (currentRef) {
   if (hasRef(currentRef)) {
@@ -373,6 +475,7 @@ if (fromRef) {
 }
 
 if (!withArchives) {
+  writeStagingProcessGraphs();
   writeRuntimeAssets();
   process.exit(0);
 }
@@ -413,4 +516,5 @@ mkdirSync(archiveDir, { recursive: true });
 console.log(`prepare-docs: archived ${archived} ref(s)`);
 
 // Last, so an archived `main` version written above does not replace them.
+writeStagingProcessGraphs();
 writeRuntimeAssets();

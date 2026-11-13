@@ -46,6 +46,9 @@ Conventions for the models and runtimes in this repository.
   The same layout is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
   - release: `https://zenodo.org/records/<record-id>/files`
+  A released tag's page links to **that tag's** Zenodo version record, resolved
+  from the concept record's versions (not the concept/root DOI); `main` and
+  other branches link to the staging `/main` graphs.
 - Reference a released model by its DOI URL in `namespace`, not by a branch, so
   stored jobs stay reproducible. The staging URL is overwritten on every
   deployment and is only for checking a change before a release.
@@ -178,6 +181,12 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - Documentation is versioned by git ref. The site root redirects to the newest
   `v*` tag, which is the current version; `main` and every older tag are
   published under `/<ref>/` and listed in the version switcher.
+- A released tag's model page links to that tag's Zenodo version record; the
+  docs build resolves the version records from the concept record through the
+  Zenodo API and falls back to the staging base if that lookup fails.
+- The staging process graph is served at the fixed `/main/models/<model>/`
+  path on Pages. `prepare-docs.mjs` copies the rendered default-branch graph
+  there, because a ref worktree never contains the git-ignored build output.
 - After a successful release, update the model page and `example.py` to show the
   DOI URL, and quote the runtime sha256 in its README.
   `scripts/build-process-graph.py --check` enforces that the committed

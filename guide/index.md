@@ -43,8 +43,9 @@ embeddings = connection.datacube_from_process(
 )
 ```
 
-Replace `<doi>` with the DOI shown on the model's page. Released versions are
-archived on Zenodo. For unreleased staging builds use
+Replace `<record-id>` with the version record id linked from the model's page.
+Released versions are archived on Zenodo under their own version record (not
+the concept/root DOI). For unreleased staging builds use
 <https://danlooo.github.io/fair-geo-fm/main/models/tessera_v2/process_graph.json>.
 See [TESSERA v2 embeddings](/models/tessera_v2/) for the complete example and
 parameters.

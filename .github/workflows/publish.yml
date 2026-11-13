@@ -172,6 +172,23 @@ jobs:
         # with @viteplus/versions.
         run: npm run build
 
+      - name: Verify staging process graphs
+        # Model pages link to the default branch's graph at this fixed path, so
+        # a missing or malformed build output must fail the deployment rather
+        # than publish a dead link.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          graphs=(docs/public/main/models/*/process_graph.json)
+          if [ ${#graphs[@]} -eq 0 ]; then
+            echo "no staging process graphs prepared under docs/public/main/models" >&2
+            exit 1
+          fi
+          for graph in "${graphs[@]}"; do
+            python3 -m json.tool "$graph" >/dev/null
+            echo "$graph: valid JSON"
+          done
+
       - name: Disable Jekyll
         run: touch docs/.vitepress/dist/.nojekyll
 
