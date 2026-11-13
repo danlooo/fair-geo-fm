@@ -129,6 +129,35 @@ def creators_metadata(creators: list[dict]) -> list[dict]:
     return translated
 
 
+def metadata_input(meta: dict) -> dict:
+    """Convert a native draft's metadata into an updateable request body."""
+    payload = {
+        "title": meta.get("title"),
+        "publication_date": meta.get("publication_date"),
+        "resource_type": {"id": (meta.get("resource_type") or {}).get("id")},
+        "creators": meta.get("creators") or [],
+        "publisher": meta.get("publisher") or "Zenodo",
+    }
+    for key in ("version", "description"):
+        if meta.get(key) is not None:
+            payload[key] = meta[key]
+    subjects = [
+        {"subject": subject["subject"]}
+        for subject in meta.get("subjects") or []
+        if isinstance(subject, dict) and subject.get("subject")
+    ]
+    if subjects:
+        payload["subjects"] = subjects
+    rights = [
+        {"id": right["id"]}
+        for right in meta.get("rights") or []
+        if isinstance(right, dict) and right.get("id")
+    ]
+    if rights:
+        payload["rights"] = rights
+    return payload
+
+
 def source_archive_key(version: str) -> str:
     """Zenodo file key for the source archive, e.g. ``danlooo/fair-geo-fm-v0.2.zip``."""
     slug = os.environ.get("GITHUB_REPOSITORY", "danlooo/fair-geo-fm")
@@ -331,7 +360,14 @@ def main() -> None:
         "creators": creators_metadata(creators),
         "publication_date": date.today().isoformat(),
         "resource_type": {"id": "dataset"},
-        "keywords": ["openEO", "geospatial foundation models", "embeddings"],
+        "publisher": "Zenodo",
+        # Zenodo requires a license for open records (legacy API defaulted to
+        # CC0 for datasets) and uses ``subjects`` for keyword strings.
+        "rights": [{"id": "cc0-1.0"}],
+        "subjects": [
+            {"subject": keyword}
+            for keyword in ("openEO", "geospatial foundation models", "embeddings")
+        ],
     }
 
     api = args.api_url.rstrip("/")
@@ -355,6 +391,14 @@ def main() -> None:
                 if error.status != 404:
                     raise
                 draft = {}
+            # Zenodo refuses to register a DOI without a publisher. Drafts
+            # created before this field was set need it added before retrying.
+            if draft.get("metadata") and not draft["metadata"].get("publisher"):
+                draft = api_request(
+                    session, "PUT", f"{api}/records/{args.deposition_id}/draft",
+                    json_body={"metadata": metadata_input(draft["metadata"])},
+                    accept=INVENIO_ACCEPT,
+                )
             doi = draft_doi(draft)
             if not doi:
                 # A draft created through the retired deposition API can still
