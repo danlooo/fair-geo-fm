@@ -250,13 +250,15 @@ const zenodoSiteUrl = zenodoApiUrl.replace(/\/api$/, "");
 // Tag -> public file base of its Zenodo version, e.g.
 // v0.1.0 -> https://zenodo.org/records/24193627/files. One unauthenticated
 // request; a failure degrades to the staging /main base instead of breaking
-// the docs build.
+// the docs build. ``all_versions=true`` is required: without it the search
+// endpoint only returns the latest version of the concept record.
 async function fetchZenodoFilesBases() {
   const bases = new Map();
   const query = `parent.id:${zenodoConceptId}`;
   try {
     const response = await fetch(
-      `${zenodoApiUrl}/records?q=${encodeURIComponent(query)}&size=25`,
+      `${zenodoApiUrl}/records?q=${encodeURIComponent(query)}` +
+        "&size=25&all_versions=true",
       {
         headers: {
           Accept: "application/json",
