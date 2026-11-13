@@ -1,384 +1,394 @@
 {
-    "id": "tessera_v2_embeddings",
-    "process_graph": {
-        "loadcollection1": {
-            "process_id": "load_collection",
-            "arguments": {
-                "bands": [
-                    "B04",
-                    "B02",
-                    "B03",
-                    "B08",
-                    "B8A",
-                    "B05",
-                    "B06",
-                    "B07",
-                    "B11",
-                    "B12",
-                    "SCL"
-                ],
-                "id": "SENTINEL2_L2A",
-                "properties": {
-                    "eo:cloud_cover": {
-                        "process_graph": {
-                            "lte1": {
-                                "process_id": "lte",
-                                "arguments": {
-                                    "x": {
-                                        "from_parameter": "value"
-                                    },
-                                    "y": 50
-                                },
-                                "result": true
-                            }
-                        }
-                    }
+  "id": "tessera_v2_embeddings",
+  "default_job_options": {
+    "driver-memory": "3g",
+    "executor-memory": "3g",
+    "executor-memoryOverhead": "3g",
+    "python-memory": "6g",
+    "soft-errors": 0.1,
+    "udf-dependency-archives": [
+      "https://github.com/danlooo/fair-geo-fm/releases/download/main/py311-torch231.zip#feature_deps"
+    ]
+  },
+  "process_graph": {
+    "loadcollection1": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "B04",
+          "B02",
+          "B03",
+          "B08",
+          "B8A",
+          "B05",
+          "B06",
+          "B07",
+          "B11",
+          "B12",
+          "SCL"
+        ],
+        "id": "SENTINEL2_L2A",
+        "properties": {
+          "eo:cloud_cover": {
+            "process_graph": {
+              "lte1": {
+                "process_id": "lte",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": 50
                 },
-                "spatial_extent": {
-                    "west": 4.56,
-                    "south": 43.61,
-                    "east": 4.69,
-                    "north": 43.7,
-                    "crs": 4326
-                },
-                "temporal_extent": [
-                    "2025-01-01",
-                    "2025-12-31"
-                ]
+                "result": true
+              }
             }
+          }
         },
-        "loadcollection2": {
-            "process_id": "load_collection",
-            "arguments": {
-                "bands": [
-                    "VV",
-                    "VH"
-                ],
-                "id": "SENTINEL1_GRD",
-                "properties": {
-                    "sat:orbit_state": {
-                        "process_graph": {
-                            "eq1": {
-                                "process_id": "eq",
-                                "arguments": {
-                                    "x": {
-                                        "from_parameter": "value"
-                                    },
-                                    "y": "ASCENDING"
-                                },
-                                "result": true
-                            }
-                        }
-                    }
+        "spatial_extent": {
+          "west": 4.56,
+          "south": 43.61,
+          "east": 4.69,
+          "north": 43.7,
+          "crs": 4326
+        },
+        "temporal_extent": [
+          "2025-01-01",
+          "2025-12-31"
+        ]
+      }
+    },
+    "loadcollection2": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "VV",
+          "VH"
+        ],
+        "id": "SENTINEL1_GRD",
+        "properties": {
+          "sat:orbit_state": {
+            "process_graph": {
+              "eq1": {
+                "process_id": "eq",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": "ASCENDING"
                 },
-                "spatial_extent": {
-                    "west": 4.56,
-                    "south": 43.61,
-                    "east": 4.69,
-                    "north": 43.7,
-                    "crs": 4326
-                },
-                "temporal_extent": [
-                    "2025-01-01",
-                    "2025-12-31"
-                ]
+                "result": true
+              }
             }
+          }
         },
-        "sarbackscatter1": {
-            "process_id": "sar_backscatter",
-            "arguments": {
-                "coefficient": "gamma0-ellipsoid",
-                "contributing_area": false,
-                "data": {
-                    "from_node": "loadcollection2"
-                },
-                "elevation_model": null,
-                "ellipsoid_incidence_angle": false,
-                "local_incidence_angle": false,
-                "mask": false,
-                "noise_removal": true
-            }
+        "spatial_extent": {
+          "west": 4.56,
+          "south": 43.61,
+          "east": 4.69,
+          "north": 43.7,
+          "crs": 4326
         },
-        "apply1": {
-            "process_id": "apply",
-            "arguments": {
-                "data": {
-                    "from_node": "sarbackscatter1"
-                },
-                "process": {
-                    "process_graph": {
-                        "log1": {
-                            "process_id": "log",
-                            "arguments": {
-                                "base": 10,
-                                "x": {
-                                    "from_parameter": "x"
-                                }
-                            }
-                        },
-                        "multiply1": {
-                            "process_id": "multiply",
-                            "arguments": {
-                                "x": 20,
-                                "y": {
-                                    "from_node": "log1"
-                                }
-                            }
-                        },
-                        "add1": {
-                            "process_id": "add",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "multiply1"
-                                },
-                                "y": 50
-                            }
-                        },
-                        "multiply2": {
-                            "process_id": "multiply",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "add1"
-                                },
-                                "y": 200
-                            }
-                        },
-                        "clip1": {
-                            "process_id": "clip",
-                            "arguments": {
-                                "max": 32767,
-                                "min": 0,
-                                "x": {
-                                    "from_node": "multiply2"
-                                }
-                            },
-                            "result": true
-                        }
-                    }
+        "temporal_extent": [
+          "2025-01-01",
+          "2025-12-31"
+        ]
+      }
+    },
+    "sarbackscatter1": {
+      "process_id": "sar_backscatter",
+      "arguments": {
+        "coefficient": "gamma0-ellipsoid",
+        "contributing_area": false,
+        "data": {
+          "from_node": "loadcollection2"
+        },
+        "elevation_model": null,
+        "ellipsoid_incidence_angle": false,
+        "local_incidence_angle": false,
+        "mask": false,
+        "noise_removal": true
+      }
+    },
+    "apply1": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "sarbackscatter1"
+        },
+        "process": {
+          "process_graph": {
+            "log1": {
+              "process_id": "log",
+              "arguments": {
+                "base": 10,
+                "x": {
+                  "from_parameter": "x"
                 }
-            }
-        },
-        "renamelabels1": {
-            "process_id": "rename_labels",
-            "arguments": {
-                "data": {
-                    "from_node": "apply1"
-                },
-                "dimension": "bands",
-                "target": [
-                    "VV_ASC",
-                    "VH_ASC"
-                ]
-            }
-        },
-        "resamplecubespatial1": {
-            "process_id": "resample_cube_spatial",
-            "arguments": {
-                "data": {
-                    "from_node": "renamelabels1"
-                },
-                "method": "cubic",
-                "target": {
-                    "from_node": "loadcollection1"
-                }
-            }
-        },
-        "mergecubes1": {
-            "process_id": "merge_cubes",
-            "arguments": {
-                "cube1": {
-                    "from_node": "loadcollection1"
-                },
-                "cube2": {
-                    "from_node": "resamplecubespatial1"
-                }
-            }
-        },
-        "loadcollection3": {
-            "process_id": "load_collection",
-            "arguments": {
-                "bands": [
-                    "VV",
-                    "VH"
-                ],
-                "id": "SENTINEL1_GRD",
-                "properties": {
-                    "sat:orbit_state": {
-                        "process_graph": {
-                            "eq2": {
-                                "process_id": "eq",
-                                "arguments": {
-                                    "x": {
-                                        "from_parameter": "value"
-                                    },
-                                    "y": "DESCENDING"
-                                },
-                                "result": true
-                            }
-                        }
-                    }
-                },
-                "spatial_extent": {
-                    "west": 4.56,
-                    "south": 43.61,
-                    "east": 4.69,
-                    "north": 43.7,
-                    "crs": 4326
-                },
-                "temporal_extent": [
-                    "2025-01-01",
-                    "2025-12-31"
-                ]
-            }
-        },
-        "sarbackscatter2": {
-            "process_id": "sar_backscatter",
-            "arguments": {
-                "coefficient": "gamma0-ellipsoid",
-                "contributing_area": false,
-                "data": {
-                    "from_node": "loadcollection3"
-                },
-                "elevation_model": null,
-                "ellipsoid_incidence_angle": false,
-                "local_incidence_angle": false,
-                "mask": false,
-                "noise_removal": true
-            }
-        },
-        "apply2": {
-            "process_id": "apply",
-            "arguments": {
-                "data": {
-                    "from_node": "sarbackscatter2"
-                },
-                "process": {
-                    "process_graph": {
-                        "log2": {
-                            "process_id": "log",
-                            "arguments": {
-                                "base": 10,
-                                "x": {
-                                    "from_parameter": "x"
-                                }
-                            }
-                        },
-                        "multiply3": {
-                            "process_id": "multiply",
-                            "arguments": {
-                                "x": 20,
-                                "y": {
-                                    "from_node": "log2"
-                                }
-                            }
-                        },
-                        "add2": {
-                            "process_id": "add",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "multiply3"
-                                },
-                                "y": 50
-                            }
-                        },
-                        "multiply4": {
-                            "process_id": "multiply",
-                            "arguments": {
-                                "x": {
-                                    "from_node": "add2"
-                                },
-                                "y": 200
-                            }
-                        },
-                        "clip2": {
-                            "process_id": "clip",
-                            "arguments": {
-                                "max": 32767,
-                                "min": 0,
-                                "x": {
-                                    "from_node": "multiply4"
-                                }
-                            },
-                            "result": true
-                        }
-                    }
-                }
-            }
-        },
-        "renamelabels2": {
-            "process_id": "rename_labels",
-            "arguments": {
-                "data": {
-                    "from_node": "apply2"
-                },
-                "dimension": "bands",
-                "target": [
-                    "VV_DESC",
-                    "VH_DESC"
-                ]
-            }
-        },
-        "resamplecubespatial2": {
-            "process_id": "resample_cube_spatial",
-            "arguments": {
-                "data": {
-                    "from_node": "renamelabels2"
-                },
-                "method": "cubic",
-                "target": {
-                    "from_node": "loadcollection1"
-                }
-            }
-        },
-        "mergecubes2": {
-            "process_id": "merge_cubes",
-            "arguments": {
-                "cube1": {
-                    "from_node": "mergecubes1"
-                },
-                "cube2": {
-                    "from_node": "resamplecubespatial2"
-                }
-            }
-        },
-        "applydimension1": {
-            "process_id": "apply_dimension",
-            "arguments": {
-                "data": {
-                    "from_node": "mergecubes2"
-                },
-                "dimension": "t",
-                "process": {
-                    "process_graph": {
-                        "runudf1": {
-                            "process_id": "run_udf",
-                            "arguments": {
-                                "context": {
-                                    "weights_url": "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt"
-                                },
-                                "data": {
-                                    "from_parameter": "data"
-                                },
-                                "runtime": "Python",
-                                "udf": "\"\"\"openEO UDF: TESSERA v2 \"student\" pixel embeddings from Sentinel-1/2.\n\nThis vendors (with minor adaptations noted inline) the model definition and\ninference helpers from `tessera_infer_v2/student/{model.py,infer.py}` in\nhttps://github.com/ucam-eo/tessera, so the UDF only needs torch + numpy - no\ncustom reimplementation of the forward pass. See that repo for the original,\nauthoritative source and license.\n\nTorch is not part of the default openEO UDF sandbox, so it must be supplied\nvia the \"udf-dependency-archives\" job option, e.g.:\n\n    job_options = {\n        \"udf-dependency-archives\": [\n            \"https://s3.waw3-1.cloudferro.com/project_dependencies/torch_deps_python311.zip#feature_deps\",\n        ],\n    }\n\nThe checkpoint itself (a `student_*.pt` file) is downloaded by the UDF at\nruntime from a URL passed via context, e.g.:\n\n    openeo.UDF.from_file(\"udf_tessera_embedding.py\",\n                          context={\"weights_url\": \"https://.../student_nano.pt\"})\n\nExpects the merged input cube to contain (at least) these bands, produced by\nmerge_cubes() of three separately-loaded collections (see TesseraEmbedding.ipynb):\n    S2:        B04, B02, B03, B08, B8A, B05, B06, B07, B11, B12, SCL\n    S1 asc:    VV_ASC, VH_ASC\n    S1 desc:   VV_DESC, VH_DESC\nBecause merge_cubes() unions the \"t\" dimension, a given band's source can be\nall-NaN on dates that belong to another source. This UDF first prunes those\nsource-mismatch dates per source, then applies SCL-based cloud masking on S2\n(SCL classes 7/8/9) so cloud NaNs don't interfere with source-date pruning.\n\"\"\"\nimport functools\nimport io\nimport math\nimport os\nimport sys\nimport time\nimport urllib.request\nfrom typing import Optional, Tuple\n\n# Torch is supplied via the \"udf-dependency-archives\" job option, which\n# extracts the archive to ./feature_deps. Guard so this file stays importable\n# in other contexts (tests, local runs) where that directory doesn't exist.\n_DEPS_DIR = os.environ.get(\"TESSERA_TORCH_DEPS_DIR\", \"feature_deps\")\nif os.path.isdir(_DEPS_DIR):\n    sys.path.insert(0, _DEPS_DIR)\n\nimport numpy as np\nimport pandas as pd\nimport torch\nimport torch.nn as nn\nimport xarray as xr\nfrom openeo.metadata import CubeMetadata\nfrom openeo.udf import XarrayDataCube\n\n# Keep per-worker CPU usage predictable inside the openEO sandbox.\ntorch.set_num_threads(2)\ntry:\n    torch.set_num_interop_threads(2)\nexcept RuntimeError:\n    # set_num_interop_threads must be called before any parallel work; if the\n    # module is re-imported in the same process it will raise. Safe to ignore.\n    pass\n\n# =============================================================================\n# Vendored from tessera_infer_v2/student/model.py\n# =============================================================================\nS2_BAND_MEAN = np.array(\n    [1633.0042, 1341.1090, 1539.5536, 3054.8269, 3117.4658,\n     2004.1648, 2694.7275, 2945.1504, 2266.6079, 1657.3094],\n    dtype=np.float32,\n)\nS2_BAND_STD = np.array(\n    [1999.4603, 2014.7549, 1929.2201, 1754.2493, 1649.9807,\n     1936.8988, 1748.6041, 1708.6991, 1207.5250, 1108.6046],\n    dtype=np.float32,\n)\nS1A_BAND_MEAN = np.array([5909.3921, 3405.0322], dtype=np.float32)\nS1A_BAND_STD = np.array([1507.1750, 1531.2615], dtype=np.float32)\nS1D_BAND_MEAN = np.array([5816.1382, 3277.7576], dtype=np.float32)\nS1D_BAND_STD = np.array([1554.6475, 1546.4733], dtype=np.float32)\n\nS2_BAND_ORDER = [\"B04\", \"B02\", \"B03\", \"B08\", \"B8A\", \"B05\", \"B06\", \"B07\", \"B11\", \"B12\"]\nS2_SCL_BAND = \"SCL\"\n# Matches TESSERA v2 training pipeline (tessera_preprocessing/s2_fast_processor.py::SCL_INVALID):\n# 0=NoData, 1=Saturated/Defective, 2=Dark area, 3=Cloud shadow, 8=Cloud medium, 9=Cloud high.\n# Classes 7 (Unclassified) and 10 (Thin cirrus) are kept as VALID at training time.\nS2_CLOUD_SCL_CLASSES = np.array([0, 1, 2, 3, 8, 9], dtype=np.int16)\nS1_BAND_ORDER = [\"VV\", \"VH\"]\n\nclass TemporalPositionalEncoder(nn.Module):\n    \"\"\"Sinusoidal positional encoding using the (raw integer) DOY value.\"\"\"\n\n    def __init__(self, d_model: int) -> None:\n        super().__init__()\n        self.d_model = d_model\n\n    def forward(self, doy: torch.Tensor) -> torch.Tensor:\n        position = doy.unsqueeze(-1).float()\n        div_term = torch.exp(\n            torch.arange(0, self.d_model, 2, dtype=torch.float, device=doy.device)\n            * -(math.log(10000.0) / self.d_model)\n        )\n        pe = torch.zeros(doy.shape[0], doy.shape[1], self.d_model, device=doy.device)\n        pe[:, :, 0::2] = torch.sin(position * div_term)\n        pe[:, :, 1::2] = torch.cos(position * div_term)\n        return pe\n\n\nclass AttentionPooling(nn.Module):\n    \"\"\"Plain single-head softmax attention pool over T.\"\"\"\n\n    def __init__(self, input_dim: int) -> None:\n        super().__init__()\n        self.query = nn.Linear(input_dim, 1)\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        B, T, D = x.shape\n        if T == 0:\n            return torch.zeros(B, D, device=x.device, dtype=x.dtype)\n        if T == 1:\n            return x.squeeze(1)\n        w = torch.softmax(self.query(x), dim=1)\n        return (w * x).sum(dim=1)\n\n\nclass TransformerEncoder(nn.Module):\n    \"\"\"Per-pixel band embedding + DOY positional + Transformer + attention pooling.\"\"\"\n\n    def __init__(self, band_num: int, latent_dim: int, nhead: int = 4,\n                 num_encoder_layers: int = 3, dim_feedforward: int = 1024,\n                 dropout: float = 0.1) -> None:\n        super().__init__()\n        input_dim = band_num\n        self.embedding = nn.Sequential(\n            nn.Linear(input_dim, latent_dim * 4),\n            nn.ReLU(),\n            nn.Linear(latent_dim * 4, latent_dim * 4),\n        )\n        self.temporal_encoder = TemporalPositionalEncoder(d_model=latent_dim * 4)\n\n        encoder_layer = nn.TransformerEncoderLayer(\n            d_model=latent_dim * 4, nhead=nhead,\n            dim_feedforward=dim_feedforward, dropout=dropout,\n            activation=\"relu\", batch_first=True,\n        )\n        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)\n        self.attn_pool = AttentionPooling(latent_dim * 4)\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        # x: (B, T, band_num + 1) - last channel is the (raw integer) DOY value\n        bands = x[:, :, :-1]\n        doy = x[:, :, -1]\n        bands_embedded = self.embedding(bands)\n        temporal_encoding = self.temporal_encoder(doy)\n        x = bands_embedded + temporal_encoding\n        x = self.transformer_encoder(x)\n        return self.attn_pool(x)\n\n\nclass PixelStudent(nn.Module):\n    \"\"\"2-backbone pixel encoder. emb_dim = 128 (Matryoshka-ordered).\n\n    Inputs (per pixel):\n        s2_x : (B, T_s2, 11)   10 bands + 1 DOY (raw integer 1..365)\n        s1_x : (B, T_s1,  3)    2 bands + 1 DOY (raw integer; s1a + s1d MERGED)\n\n    encode() returns (B, 128). The first K dims are usable on their own for\n    K in {16, 32, 64, 128}.\n    \"\"\"\n\n    def __init__(\n        self,\n        repr_dim: int = 128,\n        latent_dim: int = 64,\n        num_layers: int = 4,\n        nhead: int = 4,\n        dim_feedforward: int = 1024,\n        dropout: float = 0.0,\n        max_seq_len: int = 256,\n        matryoshka_dims: Tuple[int, ...] = (16, 32, 64, 128),\n    ) -> None:\n        super().__init__()\n        self.repr_dim = int(repr_dim)\n        self.matryoshka_dims = tuple(int(d) for d in matryoshka_dims)\n        for d in self.matryoshka_dims:\n            if d > repr_dim:\n                raise ValueError(f\"matryoshka cut {d} > repr_dim {repr_dim}\")\n\n        def make_enc(band_num: int) -> TransformerEncoder:\n            return TransformerEncoder(\n                band_num=band_num, latent_dim=latent_dim,\n                nhead=nhead, num_encoder_layers=num_layers,\n                dim_feedforward=dim_feedforward, dropout=dropout,\n            )\n\n        self.s2_backbone = make_enc(10)\n        self.s1_backbone = make_enc(2)\n\n        backbone_out = latent_dim * 4\n        fused_in = 2 * backbone_out\n        self.dim_reducer = nn.Sequential(\n            nn.Linear(fused_in, fused_in * 2),\n            nn.LayerNorm(fused_in * 2),\n            nn.ReLU(inplace=False),\n            nn.Dropout(0.2),\n            nn.Linear(fused_in * 2, repr_dim),\n            # Final non-affine LayerNorm: normalizes the 128-d output to\n            # per-pixel mean 0 / std 1. No learnable params.\n            nn.LayerNorm(repr_dim, elementwise_affine=False),\n        )\n\n    def encode(self, s2_x: torch.Tensor, s1_x: torch.Tensor) -> torch.Tensor:\n        s2 = self.s2_backbone(s2_x)\n        s1 = self.s1_backbone(s1_x)\n        fused = torch.cat([s2, s1], dim=-1)\n        return self.dim_reducer(fused)\n\n    def forward(self, s2_x: torch.Tensor, s1_x: torch.Tensor) -> torch.Tensor:\n        return self.encode(s2_x, s1_x)\n\n\ndef load_model(ckpt_source, device: torch.device = torch.device(\"cpu\")):\n    \"\"\"Load a pretrained pixel student (encoder) from a .pt file path or file-like object.\n\n    Uses ``weights_only=True`` so a malicious checkpoint cannot execute arbitrary\n    code via pickle. The TESSERA payload is ``{\"args\": {...}, \"model\": state_dict}``\n    which contains only safe types.\n    \"\"\"\n    payload = torch.load(ckpt_source, map_location=device, weights_only=True)\n    cfg = payload.get(\"args\", {}) or {}\n    matryoshka_dims = tuple(\n        int(d) for d in str(cfg.get(\"matryoshka_dims\", \"16,32,64,128\")).split(\",\")\n    )\n    model = PixelStudent(\n        repr_dim=int(cfg.get(\"repr_dim\", 128)),\n        latent_dim=int(cfg.get(\"latent_dim\", 64)),\n        num_layers=int(cfg.get(\"num_layers\", 4)),\n        nhead=int(cfg.get(\"nhead\", 4)),\n        dim_feedforward=int(cfg.get(\"dim_feedforward\", 1024)),\n        dropout=0.0,\n        matryoshka_dims=matryoshka_dims,\n    ).to(device)\n    model.load_state_dict(payload[\"model\"])\n    model.eval()\n    return model\n\n\n# =============================================================================\n# Vendored from tessera_infer_v2/student/infer.py\n# =============================================================================\nBIN_EDGES = np.array(list(range(8, 257, 8)), dtype=np.int64)  # [8, 16, 24, ..., 256]\n\n\ndef _vec_get_bin_size(n_obs: np.ndarray) -> np.ndarray:\n    \"\"\"Vectorized: smallest bin edge >= n_obs, clamped to [0, max_edge].\"\"\"\n    idx = np.searchsorted(BIN_EDGES, n_obs, side=\"left\")\n    idx = np.clip(idx, 0, len(BIN_EDGES) - 1)\n    return np.where(n_obs <= 0, 0, BIN_EDGES[idx])\n\n\ndef _pad_pattern(n: int, B: int) -> np.ndarray:\n    \"\"\"(B,) int64 indices into [0, n) reproducing the training pad_to_bin.\"\"\"\n    if n == 0:\n        return np.zeros(B, dtype=np.int64)\n    if n >= B:\n        return np.linspace(0, n - 1, B, dtype=np.int64)\n    remain = B - n\n    if remain <= n:\n        groups = np.array_split(np.arange(n), remain)\n        fill = np.array([gp[len(gp) // 2] for gp in groups], dtype=np.int64)\n    else:\n        fill = (np.arange(remain) % n).astype(np.int64)\n    return np.concatenate([np.arange(n, dtype=np.int64), fill])\n\n\ndef _build_source_indices(valid_per_pix: np.ndarray, B: int) -> np.ndarray:\n    \"\"\"valid_per_pix: (G, T) bool. Returns (G, B) int64.\"\"\"\n    G, T = valid_per_pix.shape\n    src = np.zeros((G, B), dtype=np.int64)\n    if G == 0 or B == 0:\n        return src\n    n_per = valid_per_pix.sum(axis=1).astype(np.int64)\n    sorted_pos = np.argsort(~valid_per_pix, axis=1, kind=\"stable\").astype(np.int64)\n    unique_n, inverse = np.unique(n_per, return_inverse=True)\n    for ki, n_val in enumerate(unique_n):\n        n = int(n_val)\n        if n == 0:\n            continue\n        pix = np.where(inverse == ki)[0]\n        pattern = _pad_pattern(n, B)\n        src[pix] = sorted_pos[pix][:, pattern]\n    return src\n\n\n@torch.no_grad()\ndef encode_pixels(\n    model,\n    s2_bands: np.ndarray,\n    s2_doys: np.ndarray,\n    s1_asc_bands: Optional[np.ndarray] = None,\n    s1_asc_doys: Optional[np.ndarray] = None,\n    s1_desc_bands: Optional[np.ndarray] = None,\n    s1_desc_doys: Optional[np.ndarray] = None,\n    s2_masks: Optional[np.ndarray] = None,\n    batch_pixels: int = 1024,\n    device: torch.device = torch.device(\"cpu\"),\n    standardize: bool = True,\n    context: Optional[dict] = None,\n) -> np.ndarray:\n    \"\"\"Encode B independent pixels' time series into 128-d embeddings.\n\n    Args:\n        s2_bands     : (B, T_s2, 10)\n        s2_doys      : (B, T_s2) or (T_s2,) ints (1..365)\n        s1_asc_bands : (B, T_s1a, 2) raw (or None)\n        s1_asc_doys  : (B, T_s1a) or (T_s1a,)\n        s1_desc_bands: (B, T_s1d, 2) raw (or None)\n        s1_desc_doys : (B, T_s1d) or (T_s1d,)\n        s2_masks     : (B, T_s2) 1=valid, 0=cloud (or None -> all valid)\n    Returns: (B, 128) float32.\n    \"\"\"\n    B = s2_bands.shape[0]\n    out = np.empty((B, model.repr_dim), dtype=np.float32)\n    if B == 0:\n        return out\n\n    T_s2 = s2_bands.shape[1]\n\n    # Build per-pixel S1 (merged) arrays. asc and desc each have their own\n    # mean/std - z-score per-source BEFORE concatenation so the merged S1\n    # stream the model consumes is already standardized.\n    if s1_asc_bands is not None and s1_asc_bands.size > 0:\n        s1a_b = s1_asc_bands.astype(np.float32)\n        s1a_valid = np.any((s1a_b != 0) & ~np.isnan(s1a_b), axis=-1)\n        s1a_b = np.nan_to_num(s1a_b, nan=0.0)\n        if standardize:\n            s1a_b = (s1a_b - S1A_BAND_MEAN) / (S1A_BAND_STD + 1e-9)\n        if s1_asc_doys.ndim == 1:\n            s1a_d = np.broadcast_to(s1_asc_doys[None, :], (B, s1_asc_doys.shape[0])).copy()\n        else:\n            s1a_d = s1_asc_doys\n    else:\n        s1a_b = np.zeros((B, 0, 2), dtype=np.float32)\n        s1a_d = np.zeros((B, 0), dtype=np.float32)\n        s1a_valid = np.zeros((B, 0), dtype=bool)\n\n    if s1_desc_bands is not None and s1_desc_bands.size > 0:\n        s1d_b = s1_desc_bands.astype(np.float32)\n        s1d_valid = np.any((s1d_b != 0) & ~np.isnan(s1d_b), axis=-1)\n        s1d_b = np.nan_to_num(s1d_b, nan=0.0)\n        if standardize:\n            s1d_b = (s1d_b - S1D_BAND_MEAN) / (S1D_BAND_STD + 1e-9)\n        if s1_desc_doys.ndim == 1:\n            s1d_d = np.broadcast_to(s1_desc_doys[None, :], (B, s1_desc_doys.shape[0])).copy()\n        else:\n            s1d_d = s1_desc_doys\n    else:\n        s1d_b = np.zeros((B, 0, 2), dtype=np.float32)\n        s1d_d = np.zeros((B, 0), dtype=np.float32)\n        s1d_valid = np.zeros((B, 0), dtype=bool)\n\n    if s1a_b.shape[1] + s1d_b.shape[1] > 0:\n        s1_b_merged = np.concatenate([s1a_b, s1d_b], axis=1)\n        s1_d_merged = np.concatenate([s1a_d, s1d_d], axis=1)\n    else:\n        s1_b_merged = np.zeros((B, 0, 2), dtype=np.float32)\n        s1_d_merged = np.zeros((B, 0), dtype=np.float32)\n\n    if s2_masks is not None:\n        s2_v = s2_masks.astype(bool)\n    else:\n        s2_v = np.ones((B, T_s2), dtype=bool)\n    s1_v = (np.concatenate([s1a_valid, s1d_valid], axis=1)\n            if (s1a_valid.shape[1] + s1d_valid.shape[1]) > 0\n            else np.zeros((B, 0), dtype=bool))\n\n    n_s2 = s2_v.sum(axis=1)\n    n_s1 = s1_v.sum(axis=1)\n    s2_bin = _vec_get_bin_size(n_s2).astype(np.int32)\n    s1_bin = _vec_get_bin_size(n_s1).astype(np.int32)\n    keys = s2_bin * 1000 + s1_bin\n    unique_keys, inverse = np.unique(keys, return_inverse=True)\n\n    for ki, key in enumerate(unique_keys):\n        s2_b_size = int(key // 1000)\n        s1_b_size = int(key % 1000)\n        idxs = np.where(inverse == ki)[0]\n        if s2_b_size == 0 and s1_b_size == 0:\n            continue\n        s2_B = max(s2_b_size, 1)\n        s1_B = max(s1_b_size, 1)\n        for s in range(0, idxs.size, batch_pixels):\n            chunk = idxs[s: s + batch_pixels]\n            G = len(chunk)\n            s2_in = np.zeros((G, s2_B, 11), dtype=np.float32)\n            s1_in = np.zeros((G, s1_B, 3), dtype=np.float32)\n\n            if s2_b_size > 0:\n                src = _build_source_indices(s2_v[chunk], s2_B)\n                gathered = np.take_along_axis(\n                    s2_bands[chunk], src[:, :, None].repeat(10, axis=2), axis=1\n                )\n                if standardize:\n                    gathered = (gathered - S2_BAND_MEAN) / (S2_BAND_STD + 1e-9)\n                s2_in[:, :, :10] = gathered\n                if s2_doys.ndim == 1:\n                    s2_doys_pix = np.broadcast_to(s2_doys[None, :], (G, T_s2))\n                else:\n                    s2_doys_pix = s2_doys[chunk]\n                s2_in[:, :, 10] = np.take_along_axis(s2_doys_pix, src, axis=1).astype(np.float32)\n\n            if s1_b_size > 0:\n                src = _build_source_indices(s1_v[chunk], s1_B)\n                gathered = np.take_along_axis(\n                    s1_b_merged[chunk], src[:, :, None].repeat(2, axis=2), axis=1\n                )\n                s1_in[:, :, :2] = gathered\n                s1_in[:, :, 2] = np.take_along_axis(s1_d_merged[chunk], src, axis=1).astype(np.float32)\n\n            s2_t = torch.from_numpy(s2_in).to(device, non_blocking=True)\n            s1_t = torch.from_numpy(s1_in).to(device, non_blocking=True)\n            emb = model.encode(s2_t, s1_t)\n            out[chunk] = emb.float().cpu().numpy()\n    return out\n\n\n@torch.no_grad()\ndef encode_tile(\n    model,\n    s2_bands: np.ndarray,\n    s2_doys: np.ndarray,\n    s2_masks: Optional[np.ndarray] = None,\n    s1_asc_bands: Optional[np.ndarray] = None,\n    s1_asc_doys: Optional[np.ndarray] = None,\n    s1_desc_bands: Optional[np.ndarray] = None,\n    s1_desc_doys: Optional[np.ndarray] = None,\n    batch_pixels: int = 1024,\n    device: torch.device = torch.device(\"cpu\"),\n    standardize: bool = True,\n    context: Optional[dict] = None,\n) -> np.ndarray:\n    \"\"\"Encode one tile into an (H, W, 128) embedding map.\n\n    Args:\n        s2_bands     : (T_s2, H, W, 10)  raw reflectance\n        s2_doys      : (T_s2,)           day-of-year per S2 frame\n        s2_masks     : (T_s2, H, W) or None (1=valid)\n        s1_asc_bands : (T_s1a, H, W, 2) optional\n        s1_asc_doys  : (T_s1a,)         optional\n        s1_desc_bands: (T_s1d, H, W, 2) optional\n        s1_desc_doys : (T_s1d,)         optional\n    Returns: (H, W, 128) float32.\n    \"\"\"\n    T_s2, H, W, _ = s2_bands.shape\n    out = np.empty((H, W, model.repr_dim), dtype=np.float32)\n\n    # Spatial tiling: process rows in chunks so we never materialize the full\n    # (H*W, T, C) flat array (which is a copy because of transpose+reshape).\n    # ROW_CHUNK * W pixels per iteration keeps peak memory bounded regardless\n    # of the openEO chunk size passed in.\n    ROW_CHUNK = max(1, min(H, max(1, 16384 // max(W, 1))))\n\n    for y0 in range(0, H, ROW_CHUNK):\n        y1 = min(H, y0 + ROW_CHUNK)\n        h = y1 - y0\n        N = h * W\n\n        s2_flat = s2_bands[:, y0:y1, :, :].transpose(1, 2, 0, 3).reshape(N, T_s2, 10)\n        s2_masks_flat = (\n            s2_masks[:, y0:y1, :].transpose(1, 2, 0).reshape(N, T_s2)\n            if s2_masks is not None else None\n        )\n\n        if s1_asc_bands is not None and s1_asc_bands.size > 0:\n            Ta = s1_asc_bands.shape[0]\n            s1a_flat = s1_asc_bands[:, y0:y1, :, :].transpose(1, 2, 0, 3).reshape(N, Ta, 2)\n            s1a_doys_flat = np.broadcast_to(s1_asc_doys[None, :], (N, Ta))\n        else:\n            s1a_flat = None\n            s1a_doys_flat = None\n\n        if s1_desc_bands is not None and s1_desc_bands.size > 0:\n            Td = s1_desc_bands.shape[0]\n            s1d_flat = s1_desc_bands[:, y0:y1, :, :].transpose(1, 2, 0, 3).reshape(N, Td, 2)\n            s1d_doys_flat = np.broadcast_to(s1_desc_doys[None, :], (N, Td))\n        else:\n            s1d_flat = None\n            s1d_doys_flat = None\n\n        emb = encode_pixels(\n            model, s2_flat, s2_doys,\n            s1_asc_bands=s1a_flat, s1_asc_doys=s1a_doys_flat,\n            s1_desc_bands=s1d_flat, s1_desc_doys=s1d_doys_flat,\n            s2_masks=s2_masks_flat,\n            batch_pixels=batch_pixels, device=device, standardize=standardize,\n            context=context,\n        )\n        out[y0:y1] = emb.reshape(h, W, model.repr_dim)\n    return out\n\n\n# =============================================================================\n# openEO entry points.\n# =============================================================================\n@functools.lru_cache(maxsize=1)\ndef _load_model_from_url(url: str):\n    req = urllib.request.Request(url, headers={\"User-Agent\": \"tessera-udf/1\"})\n    last_err = None\n    for attempt in range(3):\n        try:\n            with urllib.request.urlopen(req, timeout=120) as resp:\n                data = resp.read()\n            break\n        except Exception as e:  # noqa: BLE001 - retry on any network error\n            last_err = e\n            if attempt < 2:\n                time.sleep(2 ** attempt)\n    else:\n        raise RuntimeError(f\"Failed to download weights from {url}: {last_err}\")\n    return load_model(io.BytesIO(data), device=torch.device(\"cpu\"))\n\n\ndef _get_model(context: dict):\n    url = (context or {}).get(\"weights_url\")\n    if not url:\n        raise ValueError(\n            \"context['weights_url'] is required, e.g. openeo.UDF.from_file(..., \"\n            \"context={'weights_url': '<url to a student_*.pt checkpoint>'})\"\n        )\n    return _load_model_from_url(url)\n\n\ndef apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:\n    # This UDF collapses the time dimension into 128 output bands, so it must\n    # be invoked via apply_dimension(dimension=\"t\", target_dimension=\"bands\")\n    # (see TesseraEmbedding.ipynb). The metadata rename below assumes t is\n    # already gone by the time the callback runs.\n    model = _get_model(context)\n    band_names = [f\"tessera_{i}\" for i in range(model.repr_dim)]\n    return metadata.rename_labels(dimension=\"bands\", target=band_names)\n\n\ndef _tessera_doy_values(t_coord_values: np.ndarray) -> np.ndarray:\n    \"\"\"Convert timestamps to TESSERA DOY values in [1, 365].\n\n    TESSERA was trained with calendar-day DOY. Leap day (366) is folded to 365\n    so leap and non-leap years stay on the same positional scale.\n    \"\"\"\n    t_index = pd.DatetimeIndex(t_coord_values)\n    doy = t_index.dayofyear.to_numpy().astype(np.float32)\n    return np.minimum(doy, 365.0)\n\n\ndef apply_datacube(cube: XarrayDataCube, context: dict) -> XarrayDataCube:\n    model = _get_model(context)\n    da = cube.get_array()  # dims: t, bands, y, x\n\n    available = set(da.coords[\"bands\"].values.tolist())\n    required = (\n        set(S2_BAND_ORDER)\n        | {S2_SCL_BAND}\n        | {f\"{b}_ASC\" for b in S1_BAND_ORDER}\n        | {f\"{b}_DESC\" for b in S1_BAND_ORDER}\n    )\n    missing = required - available\n    if missing:\n        raise ValueError(\n            f\"Input cube is missing required bands: {sorted(missing)}. \"\n            f\"Expected S2 bands {S2_BAND_ORDER} + SCL, S1 asc VV_ASC/VH_ASC, \"\n            f\"S1 desc VV_DESC/VH_DESC. Got: {sorted(available)}.\"\n        )\n\n    doy = _tessera_doy_values(da.coords[\"t\"].values)\n\n    def select(band_names, label: str):\n        sub = da.sel(bands=band_names)\n        valid = sub.notnull().any(dim=[\"bands\", \"y\", \"x\"]).values\n        idx = np.where(valid)[0]\n        arr = sub.isel(t=idx).transpose(\"t\", \"y\", \"x\", \"bands\").values.astype(np.float32)\n        return arr, doy[idx]\n\n    # 1) Prune merge-introduced NaN-only dates first by selecting S2-native dates.\n    # 2) Then apply cloud masking from SCL to create cloud NaNs.\n    s2_with_scl, s2_doys = select(S2_BAND_ORDER + [S2_SCL_BAND], \"s2\")\n    s2_bands_raw = s2_with_scl[:, :, :, :len(S2_BAND_ORDER)]\n    s2_scl = s2_with_scl[:, :, :, len(S2_BAND_ORDER)]\n    # Treat SCL NaN as \"invalid\" (nodata) rather than letting float->int16 UB\n    # decide. Class 0 is \"no data\" in SCL, but we also mark it invalid below.\n    scl_nan = np.isnan(s2_scl)\n    scl_int = np.where(scl_nan, 0, s2_scl).astype(np.int16)\n    cloudy = np.isin(scl_int, S2_CLOUD_SCL_CLASSES) | scl_nan\n    s2_bands_masked = np.where(cloudy[:, :, :, None], np.nan, s2_bands_raw)\n    s2_masks = ~np.isnan(s2_bands_masked).any(axis=-1)  # bool (T, H, W)\n    s2_bands = np.nan_to_num(s2_bands_masked)\n\n    s1a_names = [f\"{b}_ASC\" for b in S1_BAND_ORDER]\n    s1d_names = [f\"{b}_DESC\" for b in S1_BAND_ORDER]\n    s1a_bands, s1a_doys = select(s1a_names, \"s1_asc\")\n    s1d_bands, s1d_doys = select(s1d_names, \"s1_desc\")\n    s1a_bands = np.nan_to_num(s1a_bands)\n    s1d_bands = np.nan_to_num(s1d_bands)\n\n    embedding = encode_tile(\n        model, s2_bands, s2_doys, s2_masks=s2_masks,\n        s1_asc_bands=s1a_bands, s1_asc_doys=s1a_doys,\n        s1_desc_bands=s1d_bands, s1_desc_doys=s1d_doys,\n        device=torch.device(\"cpu\"),\n        context=context,\n    )  # (H, W, repr_dim)\n\n    result = xr.DataArray(\n        embedding.transpose(2, 0, 1),\n        dims=[\"bands\", \"y\", \"x\"],\n        coords={\"bands\": [f\"tessera_{i}\" for i in range(model.repr_dim)], \"y\": da.coords[\"y\"], \"x\": da.coords[\"x\"]},\n    )\n    return XarrayDataCube(result)\n"
-                            },
-                            "result": true
-                        }
-                    }
-                },
-                "target_dimension": "bands"
-            }
-        },
-        "saveresult1": {
-            "process_id": "save_result",
-            "arguments": {
-                "data": {
-                    "from_node": "applydimension1"
-                },
-                "format": "NetCDF",
-                "options": {}
+              }
             },
-            "result": true
+            "multiply1": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": 20,
+                "y": {
+                  "from_node": "log1"
+                }
+              }
+            },
+            "add1": {
+              "process_id": "add",
+              "arguments": {
+                "x": {
+                  "from_node": "multiply1"
+                },
+                "y": 50
+              }
+            },
+            "multiply2": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": {
+                  "from_node": "add1"
+                },
+                "y": 200
+              }
+            },
+            "clip1": {
+              "process_id": "clip",
+              "arguments": {
+                "max": 32767,
+                "min": 0,
+                "x": {
+                  "from_node": "multiply2"
+                }
+              },
+              "result": true
+            }
+          }
         }
+      }
+    },
+    "renamelabels1": {
+      "process_id": "rename_labels",
+      "arguments": {
+        "data": {
+          "from_node": "apply1"
+        },
+        "dimension": "bands",
+        "target": [
+          "VV_ASC",
+          "VH_ASC"
+        ]
+      }
+    },
+    "resamplecubespatial1": {
+      "process_id": "resample_cube_spatial",
+      "arguments": {
+        "data": {
+          "from_node": "renamelabels1"
+        },
+        "method": "cubic",
+        "target": {
+          "from_node": "loadcollection1"
+        }
+      }
+    },
+    "mergecubes1": {
+      "process_id": "merge_cubes",
+      "arguments": {
+        "cube1": {
+          "from_node": "loadcollection1"
+        },
+        "cube2": {
+          "from_node": "resamplecubespatial1"
+        }
+      }
+    },
+    "loadcollection3": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "VV",
+          "VH"
+        ],
+        "id": "SENTINEL1_GRD",
+        "properties": {
+          "sat:orbit_state": {
+            "process_graph": {
+              "eq2": {
+                "process_id": "eq",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": "DESCENDING"
+                },
+                "result": true
+              }
+            }
+          }
+        },
+        "spatial_extent": {
+          "west": 4.56,
+          "south": 43.61,
+          "east": 4.69,
+          "north": 43.7,
+          "crs": 4326
+        },
+        "temporal_extent": [
+          "2025-01-01",
+          "2025-12-31"
+        ]
+      }
+    },
+    "sarbackscatter2": {
+      "process_id": "sar_backscatter",
+      "arguments": {
+        "coefficient": "gamma0-ellipsoid",
+        "contributing_area": false,
+        "data": {
+          "from_node": "loadcollection3"
+        },
+        "elevation_model": null,
+        "ellipsoid_incidence_angle": false,
+        "local_incidence_angle": false,
+        "mask": false,
+        "noise_removal": true
+      }
+    },
+    "apply2": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "sarbackscatter2"
+        },
+        "process": {
+          "process_graph": {
+            "log2": {
+              "process_id": "log",
+              "arguments": {
+                "base": 10,
+                "x": {
+                  "from_parameter": "x"
+                }
+              }
+            },
+            "multiply3": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": 20,
+                "y": {
+                  "from_node": "log2"
+                }
+              }
+            },
+            "add2": {
+              "process_id": "add",
+              "arguments": {
+                "x": {
+                  "from_node": "multiply3"
+                },
+                "y": 50
+              }
+            },
+            "multiply4": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": {
+                  "from_node": "add2"
+                },
+                "y": 200
+              }
+            },
+            "clip2": {
+              "process_id": "clip",
+              "arguments": {
+                "max": 32767,
+                "min": 0,
+                "x": {
+                  "from_node": "multiply4"
+                }
+              },
+              "result": true
+            }
+          }
+        }
+      }
+    },
+    "renamelabels2": {
+      "process_id": "rename_labels",
+      "arguments": {
+        "data": {
+          "from_node": "apply2"
+        },
+        "dimension": "bands",
+        "target": [
+          "VV_DESC",
+          "VH_DESC"
+        ]
+      }
+    },
+    "resamplecubespatial2": {
+      "process_id": "resample_cube_spatial",
+      "arguments": {
+        "data": {
+          "from_node": "renamelabels2"
+        },
+        "method": "cubic",
+        "target": {
+          "from_node": "loadcollection1"
+        }
+      }
+    },
+    "mergecubes2": {
+      "process_id": "merge_cubes",
+      "arguments": {
+        "cube1": {
+          "from_node": "mergecubes1"
+        },
+        "cube2": {
+          "from_node": "resamplecubespatial2"
+        }
+      }
+    },
+    "applydimension1": {
+      "process_id": "apply_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "mergecubes2"
+        },
+        "dimension": "t",
+        "process": {
+          "process_graph": {
+            "runudf1": {
+              "process_id": "run_udf",
+              "arguments": {
+                "context": {
+                  "weights_url": "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt"
+                },
+                "data": {
+                  "from_parameter": "data"
+                },
+                "runtime": "Python",
+                "udf": "\"\"\"openEO UDF: TESSERA v2 \"student\" pixel embeddings from Sentinel-1/2.\n\nThis vendors (with minor adaptations noted inline) the model definition and\ninference helpers from `tessera_infer_v2/student/{model.py,infer.py}` in\nhttps://github.com/ucam-eo/tessera, so the UDF only needs torch + numpy - no\ncustom reimplementation of the forward pass. See that repo for the original,\nauthoritative source and license.\n\nTorch is not part of the default openEO UDF sandbox, so it must be supplied\nvia the \"udf-dependency-archives\" job option, e.g.:\n\n    job_options = {\n        \"udf-dependency-archives\": [\n            \"https://s3.waw3-1.cloudferro.com/project_dependencies/torch_deps_python311.zip#feature_deps\",\n        ],\n    }\n\nThe checkpoint itself (a `student_*.pt` file) is downloaded by the UDF at\nruntime from a URL passed via context, e.g.:\n\n    openeo.UDF.from_file(\"udf_tessera_embedding.py\",\n                          context={\"weights_url\": \"https://.../student_nano.pt\"})\n\nExpects the merged input cube to contain (at least) these bands, produced by\nmerge_cubes() of three separately-loaded collections (see TesseraEmbedding.ipynb):\n    S2:        B04, B02, B03, B08, B8A, B05, B06, B07, B11, B12, SCL\n    S1 asc:    VV_ASC, VH_ASC\n    S1 desc:   VV_DESC, VH_DESC\nBecause merge_cubes() unions the \"t\" dimension, a given band's source can be\nall-NaN on dates that belong to another source. This UDF first prunes those\nsource-mismatch dates per source, then applies SCL-based cloud masking on S2\n(SCL classes 7/8/9) so cloud NaNs don't interfere with source-date pruning.\n\"\"\"\nimport functools\nimport io\nimport math\nimport os\nimport sys\nimport time\nimport urllib.request\nfrom typing import Optional, Tuple\n\n# Torch is supplied via the \"udf-dependency-archives\" job option, which\n# extracts the archive to ./feature_deps. Guard so this file stays importable\n# in other contexts (tests, local runs) where that directory doesn't exist.\n_DEPS_DIR = os.environ.get(\"TESSERA_TORCH_DEPS_DIR\", \"feature_deps\")\nif os.path.isdir(_DEPS_DIR):\n    sys.path.insert(0, _DEPS_DIR)\n\nimport numpy as np\nimport pandas as pd\nimport torch\nimport torch.nn as nn\nimport xarray as xr\nfrom openeo.metadata import CubeMetadata\nfrom openeo.udf import XarrayDataCube\n\n# Keep per-worker CPU usage predictable inside the openEO sandbox.\ntorch.set_num_threads(2)\ntry:\n    torch.set_num_interop_threads(2)\nexcept RuntimeError:\n    # set_num_interop_threads must be called before any parallel work; if the\n    # module is re-imported in the same process it will raise. Safe to ignore.\n    pass\n\n# =============================================================================\n# Vendored from tessera_infer_v2/student/model.py\n# =============================================================================\nS2_BAND_MEAN = np.array(\n    [1633.0042, 1341.1090, 1539.5536, 3054.8269, 3117.4658,\n     2004.1648, 2694.7275, 2945.1504, 2266.6079, 1657.3094],\n    dtype=np.float32,\n)\nS2_BAND_STD = np.array(\n    [1999.4603, 2014.7549, 1929.2201, 1754.2493, 1649.9807,\n     1936.8988, 1748.6041, 1708.6991, 1207.5250, 1108.6046],\n    dtype=np.float32,\n)\nS1A_BAND_MEAN = np.array([5909.3921, 3405.0322], dtype=np.float32)\nS1A_BAND_STD = np.array([1507.1750, 1531.2615], dtype=np.float32)\nS1D_BAND_MEAN = np.array([5816.1382, 3277.7576], dtype=np.float32)\nS1D_BAND_STD = np.array([1554.6475, 1546.4733], dtype=np.float32)\n\nS2_BAND_ORDER = [\"B04\", \"B02\", \"B03\", \"B08\", \"B8A\", \"B05\", \"B06\", \"B07\", \"B11\", \"B12\"]\nS2_SCL_BAND = \"SCL\"\n# Matches TESSERA v2 training pipeline (tessera_preprocessing/s2_fast_processor.py::SCL_INVALID):\n# 0=NoData, 1=Saturated/Defective, 2=Dark area, 3=Cloud shadow, 8=Cloud medium, 9=Cloud high.\n# Classes 7 (Unclassified) and 10 (Thin cirrus) are kept as VALID at training time.\nS2_CLOUD_SCL_CLASSES = np.array([0, 1, 2, 3, 8, 9], dtype=np.int16)\nS1_BAND_ORDER = [\"VV\", \"VH\"]\n\nclass TemporalPositionalEncoder(nn.Module):\n    \"\"\"Sinusoidal positional encoding using the (raw integer) DOY value.\"\"\"\n\n    def __init__(self, d_model: int) -> None:\n        super().__init__()\n        self.d_model = d_model\n\n    def forward(self, doy: torch.Tensor) -> torch.Tensor:\n        position = doy.unsqueeze(-1).float()\n        div_term = torch.exp(\n            torch.arange(0, self.d_model, 2, dtype=torch.float, device=doy.device)\n            * -(math.log(10000.0) / self.d_model)\n        )\n        pe = torch.zeros(doy.shape[0], doy.shape[1], self.d_model, device=doy.device)\n        pe[:, :, 0::2] = torch.sin(position * div_term)\n        pe[:, :, 1::2] = torch.cos(position * div_term)\n        return pe\n\n\nclass AttentionPooling(nn.Module):\n    \"\"\"Plain single-head softmax attention pool over T.\"\"\"\n\n    def __init__(self, input_dim: int) -> None:\n        super().__init__()\n        self.query = nn.Linear(input_dim, 1)\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        B, T, D = x.shape\n        if T == 0:\n            return torch.zeros(B, D, device=x.device, dtype=x.dtype)\n        if T == 1:\n            return x.squeeze(1)\n        w = torch.softmax(self.query(x), dim=1)\n        return (w * x).sum(dim=1)\n\n\nclass TransformerEncoder(nn.Module):\n    \"\"\"Per-pixel band embedding + DOY positional + Transformer + attention pooling.\"\"\"\n\n    def __init__(self, band_num: int, latent_dim: int, nhead: int = 4,\n                 num_encoder_layers: int = 3, dim_feedforward: int = 1024,\n                 dropout: float = 0.1) -> None:\n        super().__init__()\n        input_dim = band_num\n        self.embedding = nn.Sequential(\n            nn.Linear(input_dim, latent_dim * 4),\n            nn.ReLU(),\n            nn.Linear(latent_dim * 4, latent_dim * 4),\n        )\n        self.temporal_encoder = TemporalPositionalEncoder(d_model=latent_dim * 4)\n\n        encoder_layer = nn.TransformerEncoderLayer(\n            d_model=latent_dim * 4, nhead=nhead,\n            dim_feedforward=dim_feedforward, dropout=dropout,\n            activation=\"relu\", batch_first=True,\n        )\n        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)\n        self.attn_pool = AttentionPooling(latent_dim * 4)\n\n    def forward(self, x: torch.Tensor) -> torch.Tensor:\n        # x: (B, T, band_num + 1) - last channel is the (raw integer) DOY value\n        bands = x[:, :, :-1]\n        doy = x[:, :, -1]\n        bands_embedded = self.embedding(bands)\n        temporal_encoding = self.temporal_encoder(doy)\n        x = bands_embedded + temporal_encoding\n        x = self.transformer_encoder(x)\n        return self.attn_pool(x)\n\n\nclass PixelStudent(nn.Module):\n    \"\"\"2-backbone pixel encoder. emb_dim = 128 (Matryoshka-ordered).\n\n    Inputs (per pixel):\n        s2_x : (B, T_s2, 11)   10 bands + 1 DOY (raw integer 1..365)\n        s1_x : (B, T_s1,  3)    2 bands + 1 DOY (raw integer; s1a + s1d MERGED)\n\n    encode() returns (B, 128). The first K dims are usable on their own for\n    K in {16, 32, 64, 128}.\n    \"\"\"\n\n    def __init__(\n        self,\n        repr_dim: int = 128,\n        latent_dim: int = 64,\n        num_layers: int = 4,\n        nhead: int = 4,\n        dim_feedforward: int = 1024,\n        dropout: float = 0.0,\n        max_seq_len: int = 256,\n        matryoshka_dims: Tuple[int, ...] = (16, 32, 64, 128),\n    ) -> None:\n        super().__init__()\n        self.repr_dim = int(repr_dim)\n        self.matryoshka_dims = tuple(int(d) for d in matryoshka_dims)\n        for d in self.matryoshka_dims:\n            if d > repr_dim:\n                raise ValueError(f\"matryoshka cut {d} > repr_dim {repr_dim}\")\n\n        def make_enc(band_num: int) -> TransformerEncoder:\n            return TransformerEncoder(\n                band_num=band_num, latent_dim=latent_dim,\n                nhead=nhead, num_encoder_layers=num_layers,\n                dim_feedforward=dim_feedforward, dropout=dropout,\n            )\n\n        self.s2_backbone = make_enc(10)\n        self.s1_backbone = make_enc(2)\n\n        backbone_out = latent_dim * 4\n        fused_in = 2 * backbone_out\n        self.dim_reducer = nn.Sequential(\n            nn.Linear(fused_in, fused_in * 2),\n            nn.LayerNorm(fused_in * 2),\n            nn.ReLU(inplace=False),\n            nn.Dropout(0.2),\n            nn.Linear(fused_in * 2, repr_dim),\n            # Final non-affine LayerNorm: normalizes the 128-d output to\n            # per-pixel mean 0 / std 1. No learnable params.\n            nn.LayerNorm(repr_dim, elementwise_affine=False),\n        )\n\n    def encode(self, s2_x: torch.Tensor, s1_x: torch.Tensor) -> torch.Tensor:\n        s2 = self.s2_backbone(s2_x)\n        s1 = self.s1_backbone(s1_x)\n        fused = torch.cat([s2, s1], dim=-1)\n        return self.dim_reducer(fused)\n\n    def forward(self, s2_x: torch.Tensor, s1_x: torch.Tensor) -> torch.Tensor:\n        return self.encode(s2_x, s1_x)\n\n\ndef load_model(ckpt_source, device: torch.device = torch.device(\"cpu\")):\n    \"\"\"Load a pretrained pixel student (encoder) from a .pt file path or file-like object.\n\n    Uses ``weights_only=True`` so a malicious checkpoint cannot execute arbitrary\n    code via pickle. The TESSERA payload is ``{\"args\": {...}, \"model\": state_dict}``\n    which contains only safe types.\n    \"\"\"\n    payload = torch.load(ckpt_source, map_location=device, weights_only=True)\n    cfg = payload.get(\"args\", {}) or {}\n    matryoshka_dims = tuple(\n        int(d) for d in str(cfg.get(\"matryoshka_dims\", \"16,32,64,128\")).split(\",\")\n    )\n    model = PixelStudent(\n        repr_dim=int(cfg.get(\"repr_dim\", 128)),\n        latent_dim=int(cfg.get(\"latent_dim\", 64)),\n        num_layers=int(cfg.get(\"num_layers\", 4)),\n        nhead=int(cfg.get(\"nhead\", 4)),\n        dim_feedforward=int(cfg.get(\"dim_feedforward\", 1024)),\n        dropout=0.0,\n        matryoshka_dims=matryoshka_dims,\n    ).to(device)\n    model.load_state_dict(payload[\"model\"])\n    model.eval()\n    return model\n\n\n# =============================================================================\n# Vendored from tessera_infer_v2/student/infer.py\n# =============================================================================\nBIN_EDGES = np.array(list(range(8, 257, 8)), dtype=np.int64)  # [8, 16, 24, ..., 256]\n\n\ndef _vec_get_bin_size(n_obs: np.ndarray) -> np.ndarray:\n    \"\"\"Vectorized: smallest bin edge >= n_obs, clamped to [0, max_edge].\"\"\"\n    idx = np.searchsorted(BIN_EDGES, n_obs, side=\"left\")\n    idx = np.clip(idx, 0, len(BIN_EDGES) - 1)\n    return np.where(n_obs <= 0, 0, BIN_EDGES[idx])\n\n\ndef _pad_pattern(n: int, B: int) -> np.ndarray:\n    \"\"\"(B,) int64 indices into [0, n) reproducing the training pad_to_bin.\"\"\"\n    if n == 0:\n        return np.zeros(B, dtype=np.int64)\n    if n >= B:\n        return np.linspace(0, n - 1, B, dtype=np.int64)\n    remain = B - n\n    if remain <= n:\n        groups = np.array_split(np.arange(n), remain)\n        fill = np.array([gp[len(gp) // 2] for gp in groups], dtype=np.int64)\n    else:\n        fill = (np.arange(remain) % n).astype(np.int64)\n    return np.concatenate([np.arange(n, dtype=np.int64), fill])\n\n\ndef _build_source_indices(valid_per_pix: np.ndarray, B: int) -> np.ndarray:\n    \"\"\"valid_per_pix: (G, T) bool. Returns (G, B) int64.\"\"\"\n    G, T = valid_per_pix.shape\n    src = np.zeros((G, B), dtype=np.int64)\n    if G == 0 or B == 0:\n        return src\n    n_per = valid_per_pix.sum(axis=1).astype(np.int64)\n    sorted_pos = np.argsort(~valid_per_pix, axis=1, kind=\"stable\").astype(np.int64)\n    unique_n, inverse = np.unique(n_per, return_inverse=True)\n    for ki, n_val in enumerate(unique_n):\n        n = int(n_val)\n        if n == 0:\n            continue\n        pix = np.where(inverse == ki)[0]\n        pattern = _pad_pattern(n, B)\n        src[pix] = sorted_pos[pix][:, pattern]\n    return src\n\n\n@torch.no_grad()\ndef encode_pixels(\n    model,\n    s2_bands: np.ndarray,\n    s2_doys: np.ndarray,\n    s1_asc_bands: Optional[np.ndarray] = None,\n    s1_asc_doys: Optional[np.ndarray] = None,\n    s1_desc_bands: Optional[np.ndarray] = None,\n    s1_desc_doys: Optional[np.ndarray] = None,\n    s2_masks: Optional[np.ndarray] = None,\n    batch_pixels: int = 1024,\n    device: torch.device = torch.device(\"cpu\"),\n    standardize: bool = True,\n    context: Optional[dict] = None,\n) -> np.ndarray:\n    \"\"\"Encode B independent pixels' time series into 128-d embeddings.\n\n    Args:\n        s2_bands     : (B, T_s2, 10)\n        s2_doys      : (B, T_s2) or (T_s2,) ints (1..365)\n        s1_asc_bands : (B, T_s1a, 2) raw (or None)\n        s1_asc_doys  : (B, T_s1a) or (T_s1a,)\n        s1_desc_bands: (B, T_s1d, 2) raw (or None)\n        s1_desc_doys : (B, T_s1d) or (T_s1d,)\n        s2_masks     : (B, T_s2) 1=valid, 0=cloud (or None -> all valid)\n    Returns: (B, 128) float32.\n    \"\"\"\n    B = s2_bands.shape[0]\n    out = np.empty((B, model.repr_dim), dtype=np.float32)\n    if B == 0:\n        return out\n\n    T_s2 = s2_bands.shape[1]\n\n    # Build per-pixel S1 (merged) arrays. asc and desc each have their own\n    # mean/std - z-score per-source BEFORE concatenation so the merged S1\n    # stream the model consumes is already standardized.\n    if s1_asc_bands is not None and s1_asc_bands.size > 0:\n        s1a_b = s1_asc_bands.astype(np.float32)\n        s1a_valid = np.any((s1a_b != 0) & ~np.isnan(s1a_b), axis=-1)\n        s1a_b = np.nan_to_num(s1a_b, nan=0.0)\n        if standardize:\n            s1a_b = (s1a_b - S1A_BAND_MEAN) / (S1A_BAND_STD + 1e-9)\n        if s1_asc_doys.ndim == 1:\n            s1a_d = np.broadcast_to(s1_asc_doys[None, :], (B, s1_asc_doys.shape[0])).copy()\n        else:\n            s1a_d = s1_asc_doys\n    else:\n        s1a_b = np.zeros((B, 0, 2), dtype=np.float32)\n        s1a_d = np.zeros((B, 0), dtype=np.float32)\n        s1a_valid = np.zeros((B, 0), dtype=bool)\n\n    if s1_desc_bands is not None and s1_desc_bands.size > 0:\n        s1d_b = s1_desc_bands.astype(np.float32)\n        s1d_valid = np.any((s1d_b != 0) & ~np.isnan(s1d_b), axis=-1)\n        s1d_b = np.nan_to_num(s1d_b, nan=0.0)\n        if standardize:\n            s1d_b = (s1d_b - S1D_BAND_MEAN) / (S1D_BAND_STD + 1e-9)\n        if s1_desc_doys.ndim == 1:\n            s1d_d = np.broadcast_to(s1_desc_doys[None, :], (B, s1_desc_doys.shape[0])).copy()\n        else:\n            s1d_d = s1_desc_doys\n    else:\n        s1d_b = np.zeros((B, 0, 2), dtype=np.float32)\n        s1d_d = np.zeros((B, 0), dtype=np.float32)\n        s1d_valid = np.zeros((B, 0), dtype=bool)\n\n    if s1a_b.shape[1] + s1d_b.shape[1] > 0:\n        s1_b_merged = np.concatenate([s1a_b, s1d_b], axis=1)\n        s1_d_merged = np.concatenate([s1a_d, s1d_d], axis=1)\n    else:\n        s1_b_merged = np.zeros((B, 0, 2), dtype=np.float32)\n        s1_d_merged = np.zeros((B, 0), dtype=np.float32)\n\n    if s2_masks is not None:\n        s2_v = s2_masks.astype(bool)\n    else:\n        s2_v = np.ones((B, T_s2), dtype=bool)\n    s1_v = (np.concatenate([s1a_valid, s1d_valid], axis=1)\n            if (s1a_valid.shape[1] + s1d_valid.shape[1]) > 0\n            else np.zeros((B, 0), dtype=bool))\n\n    n_s2 = s2_v.sum(axis=1)\n    n_s1 = s1_v.sum(axis=1)\n    s2_bin = _vec_get_bin_size(n_s2).astype(np.int32)\n    s1_bin = _vec_get_bin_size(n_s1).astype(np.int32)\n    keys = s2_bin * 1000 + s1_bin\n    unique_keys, inverse = np.unique(keys, return_inverse=True)\n\n    for ki, key in enumerate(unique_keys):\n        s2_b_size = int(key // 1000)\n        s1_b_size = int(key % 1000)\n        idxs = np.where(inverse == ki)[0]\n        if s2_b_size == 0 and s1_b_size == 0:\n            continue\n        s2_B = max(s2_b_size, 1)\n        s1_B = max(s1_b_size, 1)\n        for s in range(0, idxs.size, batch_pixels):\n            chunk = idxs[s: s + batch_pixels]\n            G = len(chunk)\n            s2_in = np.zeros((G, s2_B, 11), dtype=np.float32)\n            s1_in = np.zeros((G, s1_B, 3), dtype=np.float32)\n\n            if s2_b_size > 0:\n                src = _build_source_indices(s2_v[chunk], s2_B)\n                gathered = np.take_along_axis(\n                    s2_bands[chunk], src[:, :, None].repeat(10, axis=2), axis=1\n                )\n                if standardize:\n                    gathered = (gathered - S2_BAND_MEAN) / (S2_BAND_STD + 1e-9)\n                s2_in[:, :, :10] = gathered\n                if s2_doys.ndim == 1:\n                    s2_doys_pix = np.broadcast_to(s2_doys[None, :], (G, T_s2))\n                else:\n                    s2_doys_pix = s2_doys[chunk]\n                s2_in[:, :, 10] = np.take_along_axis(s2_doys_pix, src, axis=1).astype(np.float32)\n\n            if s1_b_size > 0:\n                src = _build_source_indices(s1_v[chunk], s1_B)\n                gathered = np.take_along_axis(\n                    s1_b_merged[chunk], src[:, :, None].repeat(2, axis=2), axis=1\n                )\n                s1_in[:, :, :2] = gathered\n                s1_in[:, :, 2] = np.take_along_axis(s1_d_merged[chunk], src, axis=1).astype(np.float32)\n\n            s2_t = torch.from_numpy(s2_in).to(device, non_blocking=True)\n            s1_t = torch.from_numpy(s1_in).to(device, non_blocking=True)\n            emb = model.encode(s2_t, s1_t)\n            out[chunk] = emb.float().cpu().numpy()\n    return out\n\n\n@torch.no_grad()\ndef encode_tile(\n    model,\n    s2_bands: np.ndarray,\n    s2_doys: np.ndarray,\n    s2_masks: Optional[np.ndarray] = None,\n    s1_asc_bands: Optional[np.ndarray] = None,\n    s1_asc_doys: Optional[np.ndarray] = None,\n    s1_desc_bands: Optional[np.ndarray] = None,\n    s1_desc_doys: Optional[np.ndarray] = None,\n    batch_pixels: int = 1024,\n    device: torch.device = torch.device(\"cpu\"),\n    standardize: bool = True,\n    context: Optional[dict] = None,\n) -> np.ndarray:\n    \"\"\"Encode one tile into an (H, W, 128) embedding map.\n\n    Args:\n        s2_bands     : (T_s2, H, W, 10)  raw reflectance\n        s2_doys      : (T_s2,)           day-of-year per S2 frame\n        s2_masks     : (T_s2, H, W) or None (1=valid)\n        s1_asc_bands : (T_s1a, H, W, 2) optional\n        s1_asc_doys  : (T_s1a,)         optional\n        s1_desc_bands: (T_s1d, H, W, 2) optional\n        s1_desc_doys : (T_s1d,)         optional\n    Returns: (H, W, 128) float32.\n    \"\"\"\n    T_s2, H, W, _ = s2_bands.shape\n    out = np.empty((H, W, model.repr_dim), dtype=np.float32)\n\n    # Spatial tiling: process rows in chunks so we never materialize the full\n    # (H*W, T, C) flat array (which is a copy because of transpose+reshape).\n    # ROW_CHUNK * W pixels per iteration keeps peak memory bounded regardless\n    # of the openEO chunk size passed in.\n    ROW_CHUNK = max(1, min(H, max(1, 16384 // max(W, 1))))\n\n    for y0 in range(0, H, ROW_CHUNK):\n        y1 = min(H, y0 + ROW_CHUNK)\n        h = y1 - y0\n        N = h * W\n\n        s2_flat = s2_bands[:, y0:y1, :, :].transpose(1, 2, 0, 3).reshape(N, T_s2, 10)\n        s2_masks_flat = (\n            s2_masks[:, y0:y1, :].transpose(1, 2, 0).reshape(N, T_s2)\n            if s2_masks is not None else None\n        )\n\n        if s1_asc_bands is not None and s1_asc_bands.size > 0:\n            Ta = s1_asc_bands.shape[0]\n            s1a_flat = s1_asc_bands[:, y0:y1, :, :].transpose(1, 2, 0, 3).reshape(N, Ta, 2)\n            s1a_doys_flat = np.broadcast_to(s1_asc_doys[None, :], (N, Ta))\n        else:\n            s1a_flat = None\n            s1a_doys_flat = None\n\n        if s1_desc_bands is not None and s1_desc_bands.size > 0:\n            Td = s1_desc_bands.shape[0]\n            s1d_flat = s1_desc_bands[:, y0:y1, :, :].transpose(1, 2, 0, 3).reshape(N, Td, 2)\n            s1d_doys_flat = np.broadcast_to(s1_desc_doys[None, :], (N, Td))\n        else:\n            s1d_flat = None\n            s1d_doys_flat = None\n\n        emb = encode_pixels(\n            model, s2_flat, s2_doys,\n            s1_asc_bands=s1a_flat, s1_asc_doys=s1a_doys_flat,\n            s1_desc_bands=s1d_flat, s1_desc_doys=s1d_doys_flat,\n            s2_masks=s2_masks_flat,\n            batch_pixels=batch_pixels, device=device, standardize=standardize,\n            context=context,\n        )\n        out[y0:y1] = emb.reshape(h, W, model.repr_dim)\n    return out\n\n\n# =============================================================================\n# openEO entry points.\n# =============================================================================\n@functools.lru_cache(maxsize=1)\ndef _load_model_from_url(url: str):\n    req = urllib.request.Request(url, headers={\"User-Agent\": \"tessera-udf/1\"})\n    last_err = None\n    for attempt in range(3):\n        try:\n            with urllib.request.urlopen(req, timeout=120) as resp:\n                data = resp.read()\n            break\n        except Exception as e:  # noqa: BLE001 - retry on any network error\n            last_err = e\n            if attempt < 2:\n                time.sleep(2 ** attempt)\n    else:\n        raise RuntimeError(f\"Failed to download weights from {url}: {last_err}\")\n    return load_model(io.BytesIO(data), device=torch.device(\"cpu\"))\n\n\ndef _get_model(context: dict):\n    url = (context or {}).get(\"weights_url\")\n    if not url:\n        raise ValueError(\n            \"context['weights_url'] is required, e.g. openeo.UDF.from_file(..., \"\n            \"context={'weights_url': '<url to a student_*.pt checkpoint>'})\"\n        )\n    return _load_model_from_url(url)\n\n\ndef apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:\n    # This UDF collapses the time dimension into 128 output bands, so it must\n    # be invoked via apply_dimension(dimension=\"t\", target_dimension=\"bands\")\n    # (see TesseraEmbedding.ipynb). The metadata rename below assumes t is\n    # already gone by the time the callback runs.\n    model = _get_model(context)\n    band_names = [f\"tessera_{i}\" for i in range(model.repr_dim)]\n    return metadata.rename_labels(dimension=\"bands\", target=band_names)\n\n\ndef _tessera_doy_values(t_coord_values: np.ndarray) -> np.ndarray:\n    \"\"\"Convert timestamps to TESSERA DOY values in [1, 365].\n\n    TESSERA was trained with calendar-day DOY. Leap day (366) is folded to 365\n    so leap and non-leap years stay on the same positional scale.\n    \"\"\"\n    t_index = pd.DatetimeIndex(t_coord_values)\n    doy = t_index.dayofyear.to_numpy().astype(np.float32)\n    return np.minimum(doy, 365.0)\n\n\ndef apply_datacube(cube: XarrayDataCube, context: dict) -> XarrayDataCube:\n    model = _get_model(context)\n    da = cube.get_array()  # dims: t, bands, y, x\n\n    available = set(da.coords[\"bands\"].values.tolist())\n    required = (\n        set(S2_BAND_ORDER)\n        | {S2_SCL_BAND}\n        | {f\"{b}_ASC\" for b in S1_BAND_ORDER}\n        | {f\"{b}_DESC\" for b in S1_BAND_ORDER}\n    )\n    missing = required - available\n    if missing:\n        raise ValueError(\n            f\"Input cube is missing required bands: {sorted(missing)}. \"\n            f\"Expected S2 bands {S2_BAND_ORDER} + SCL, S1 asc VV_ASC/VH_ASC, \"\n            f\"S1 desc VV_DESC/VH_DESC. Got: {sorted(available)}.\"\n        )\n\n    doy = _tessera_doy_values(da.coords[\"t\"].values)\n\n    def select(band_names, label: str):\n        sub = da.sel(bands=band_names)\n        valid = sub.notnull().any(dim=[\"bands\", \"y\", \"x\"]).values\n        idx = np.where(valid)[0]\n        arr = sub.isel(t=idx).transpose(\"t\", \"y\", \"x\", \"bands\").values.astype(np.float32)\n        return arr, doy[idx]\n\n    # 1) Prune merge-introduced NaN-only dates first by selecting S2-native dates.\n    # 2) Then apply cloud masking from SCL to create cloud NaNs.\n    s2_with_scl, s2_doys = select(S2_BAND_ORDER + [S2_SCL_BAND], \"s2\")\n    s2_bands_raw = s2_with_scl[:, :, :, :len(S2_BAND_ORDER)]\n    s2_scl = s2_with_scl[:, :, :, len(S2_BAND_ORDER)]\n    # Treat SCL NaN as \"invalid\" (nodata) rather than letting float->int16 UB\n    # decide. Class 0 is \"no data\" in SCL, but we also mark it invalid below.\n    scl_nan = np.isnan(s2_scl)\n    scl_int = np.where(scl_nan, 0, s2_scl).astype(np.int16)\n    cloudy = np.isin(scl_int, S2_CLOUD_SCL_CLASSES) | scl_nan\n    s2_bands_masked = np.where(cloudy[:, :, :, None], np.nan, s2_bands_raw)\n    s2_masks = ~np.isnan(s2_bands_masked).any(axis=-1)  # bool (T, H, W)\n    s2_bands = np.nan_to_num(s2_bands_masked)\n\n    s1a_names = [f\"{b}_ASC\" for b in S1_BAND_ORDER]\n    s1d_names = [f\"{b}_DESC\" for b in S1_BAND_ORDER]\n    s1a_bands, s1a_doys = select(s1a_names, \"s1_asc\")\n    s1d_bands, s1d_doys = select(s1d_names, \"s1_desc\")\n    s1a_bands = np.nan_to_num(s1a_bands)\n    s1d_bands = np.nan_to_num(s1d_bands)\n\n    embedding = encode_tile(\n        model, s2_bands, s2_doys, s2_masks=s2_masks,\n        s1_asc_bands=s1a_bands, s1_asc_doys=s1a_doys,\n        s1_desc_bands=s1d_bands, s1_desc_doys=s1d_doys,\n        device=torch.device(\"cpu\"),\n        context=context,\n    )  # (H, W, repr_dim)\n\n    result = xr.DataArray(\n        embedding.transpose(2, 0, 1),\n        dims=[\"bands\", \"y\", \"x\"],\n        coords={\"bands\": [f\"tessera_{i}\" for i in range(model.repr_dim)], \"y\": da.coords[\"y\"], \"x\": da.coords[\"x\"]},\n    )\n    return XarrayDataCube(result)\n"
+              },
+              "result": true
+            }
+          }
+        },
+        "target_dimension": "bands"
+      }
+    },
+    "saveresult1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": {
+          "from_node": "applydimension1"
+        },
+        "format": "NetCDF",
+        "options": {}
+      },
+      "result": true
     }
+  }
 }
