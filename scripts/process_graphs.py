@@ -14,9 +14,9 @@ deployment and a Zenodo release produce the same layout from one base URL:
     normal publish   https://danlooo.github.io/fair-geo-fm/main
     Zenodo release   https://zenodo.org/records/<record-id>/files
 
-The rendered ``process_graph.json`` is committed for the default Pages base so
-the repository and local VitePress builds can serve it. ``build`` verifies that
-it matches the template; the publish workflows re-render it for their target.
+The rendered ``process_graph.json`` is generated from the template on demand
+and in CI; it is not committed. ``build`` renders it and verifies the runtime
+reference; the publish workflows write it for their target base URL.
 
 This module is imported by ``build-process-graph.py`` and
 ``publish-release.py``; it is not a standalone script.

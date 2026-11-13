@@ -2,9 +2,9 @@ name: build
 
 # First stage of the build -> publish pipeline. Everything that can be
 # validated without publishing lives here:
-#   - process graphs: fails when a model's committed process_graph.json no
-#     longer matches process_graph.json.j2 + udf.py (see
-#     scripts/build-process-graph.py)
+#   - process graphs: renders each model's process_graph.json from
+#     process_graph.json.j2 + udf.py and fails when the render or its runtime
+#     reference is invalid (see scripts/build-process-graph.py)
 #   - dependency archives: builds every runtimes/*/requirements.txt into a
 #     deterministic dependencies.zip and smoke-tests the imports on the pinned
 #     Python. Publishing is deliberately not automated; see publish.yml.
@@ -38,11 +38,11 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Check inlined UDFs are up to date
+      - name: Render and validate process graphs
         run: |
           set -euo pipefail
           found=0
-          stale=()
+          failed=()
           for dir in models/*/; do
             [ -f "$dir/udf.py" ] || continue
             if [ ! -f "$dir/process_graph.json.j2" ]; then
@@ -51,16 +51,16 @@ jobs:
             fi
             found=$((found + 1))
             if ! uv run scripts/build-process-graph.py "${dir%/}" --check; then
-              stale+=("${dir%/}")
+              failed+=("${dir%/}")
             fi
           done
           if [ "$found" -eq 0 ]; then
-            echo "no model directories with udf.py and process_graph.json found" >&2
+            echo "no model directories with udf.py and process_graph.json.j2 found" >&2
             exit 1
           fi
-          if [ ${#stale[@]} -gt 0 ]; then
+          if [ ${#failed[@]} -gt 0 ]; then
             echo
-            echo "stale process_graph.json in: ${stale[*]}" >&2
+            echo "process graph check failed in: ${failed[*]}" >&2
             echo "run: uv run scripts/build-process-graph.py <dir>" >&2
             exit 1
           fi

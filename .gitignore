@@ -1,6 +1,9 @@
 __pycache__/
 *.pyc
 
+# Rendered from process_graph.json.j2 by scripts/build-process-graph.py.
+models/*/process_graph.json
+
 # Built UDF dependency archives are served from object storage / Pages, not git.
 runtimes/*/dependencies.zip
 checksums.sha256

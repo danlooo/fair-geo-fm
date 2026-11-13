@@ -24,9 +24,9 @@ Conventions for the models and runtimes in this repository.
   - `process_graph.json.j2` — the Jinja2 template, maintained by hand; source of
     truth for the graph structure and its published URLs
   - `process_graph.json` — generated from the template, `udf.py` and
-    `runtime.txt` by `scripts/build-process-graph.py`; never edit it by hand.
-    It is committed for the default GitHub Pages base so the repository and
-    local site builds can serve it, and CI fails when it is stale.
+    `runtime.txt` by `scripts/build-process-graph.py`; never edit it by hand
+    and do not commit it. CI renders it to validate the template, and the
+    publish workflows render it for the served site and release.
   - `udf.py` — UDF source, when the UDF is specific to this model
   - `example.py` — sample call
   - `README.md`

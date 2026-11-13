@@ -29,9 +29,11 @@ Usage:
         --base-url https://zenodo.org/records/123456/files \\
         --output /tmp/release/models/tessera_v2/process_graph.json
 
-``--check`` writes nothing and exits non-zero when the committed
-``process_graph.json`` is stale or the runtime reference is invalid, for CI or
-a pre-commit hook.
+``--check`` writes nothing. It always renders the template (validating the
+graph structure, the inlined UDF and the runtime reference) and exits non-zero
+when an existing ``process_graph.json`` no longer matches the template. A
+missing generated file is fine: ``process_graph.json`` is rendered from the
+template rather than committed.
 """
 
 from __future__ import annotations
@@ -57,6 +59,12 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
     print(f"runtime archive: {archive_url}")
 
     if check:
+        # process_graph.json is generated from the template, so a fresh
+        # checkout has no copy to compare. Rendering above already validated
+        # the template, the inlined UDF and the runtime reference.
+        if not graph_path.is_file():
+            print(f"{graph_path} is generated from the template; nothing to compare")
+            return 0
         # Tolerate a missing or extra trailing newline in the file on disk.
         if graph_path.read_text(encoding="utf-8").rstrip("\n") != text.rstrip("\n"):
             print(
@@ -91,7 +99,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--check", action="store_true",
-        help="only verify that process_graph.json is up to date",
+        help="render without writing; fail if an existing process_graph.json is stale",
     )
     args = parser.parse_args()
     raise SystemExit(build(args.process_dir, args.base_url, args.check, args.output))
