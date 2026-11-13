@@ -32,7 +32,7 @@ read from ``ZENODO_ACCESS_TOKEN`` by default.
 Usage:
     uv run scripts/publish-release.py \\
         --title "fair-geo-fm v0.2" --version v0.2 \\
-        --creators-json '[{"name":"Loos, Daniel"}]'
+        --creators-json '[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'
 
 Runtime archives (``runtimes/*/dependencies.zip``) must already be built, e.g.
 with ``scripts/create-python-dependency-archive.py``.
@@ -56,7 +56,7 @@ import requests
 from process_graphs import render, validate_runtime_reference
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CREATORS = [{"name": "Loos, Daniel"}]
+DEFAULT_CREATORS = [{"name": "Loos, Daniel", "orcid": "0000-0002-4024-4443"}]
 # Zenodo serves ``application/json`` in its retired deposition shape by
 # default; this media type selects the native InvenioRDM representation.
 INVENIO_ACCEPT = "application/vnd.inveniordm.v1+json"
@@ -114,7 +114,11 @@ def draft_doi(draft: dict) -> str | None:
 
 
 def creators_metadata(creators: list[dict]) -> list[dict]:
-    """Translate ``[{name: "Loos, Daniel"}]`` to the InvenioRDM creator shape."""
+    """Translate ``[{name: "Loos, Daniel", orcid: "..."}]`` to the InvenioRDM shape.
+
+    ``orcid`` is optional and becomes a creator identifier, so Zenodo links the
+    record to the ORCID profile.
+    """
     translated = []
     for creator in creators:
         if "person_or_org" in creator:
@@ -125,6 +129,10 @@ def creators_metadata(creators: list[dict]) -> list[dict]:
             family_name, given_name = creator["name"].split(", ", 1)
             person["family_name"] = family_name
             person["given_name"] = given_name
+        if creator.get("orcid"):
+            person["identifiers"] = [
+                {"identifier": creator["orcid"], "scheme": "orcid"}
+            ]
         translated.append({"person_or_org": person})
     return translated
 
@@ -315,7 +323,10 @@ def main() -> None:
     parser.add_argument("--description", default="", help="Zenodo record description")
     parser.add_argument(
         "--creators-json", default=json.dumps(DEFAULT_CREATORS),
-        help='Zenodo creators as JSON, e.g. \'[{"name": "Loos, Daniel"}]\'',
+        help=(
+            "Zenodo creators as JSON, e.g. "
+            '\'[{"name": "Loos, Daniel", "orcid": "0000-0002-4024-4443"}]\''
+        ),
     )
     parser.add_argument(
         "--api-url", default=os.environ.get("ZENODO_API_URL", "https://zenodo.org/api"),

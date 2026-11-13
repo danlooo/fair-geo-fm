@@ -45,9 +45,9 @@ on:
         default: true
         type: boolean
       creators:
-        description: 'Zenodo creators as JSON, e.g. [{"name":"Loos, Daniel"}]'
+        description: 'Zenodo creators as JSON, e.g. [{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'
         required: false
-        default: '[{"name":"Loos, Daniel"}]'
+        default: '[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'
         type: string
       deposition_id:
         description: "Retry an existing draft deposition id (empty = create a new record)"
@@ -106,7 +106,7 @@ jobs:
           ZENODO_API_URL: ${{ vars.ZENODO_API_URL || 'https://zenodo.org/api' }}
           RELEASE_TITLE: '${{ github.event.release.name || github.event.release.tag_name || inputs.tag }}'
           RELEASE_DESCRIPTION: '${{ github.event.release.body || '''' }}'
-          CREATORS: '${{ github.event_name == ''workflow_dispatch'' && inputs.creators || ''[{"name":"Loos, Daniel"}]'' }}'
+          CREATORS: '${{ github.event_name == ''workflow_dispatch'' && inputs.creators || ''[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'' }}'
           DRY_RUN: '${{ github.event_name == ''workflow_dispatch'' && inputs.dry_run || ''false'' }}'
           DEPOSITION_ID: ${{ inputs.deposition_id }}
         run: |
