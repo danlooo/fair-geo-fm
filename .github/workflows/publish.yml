@@ -11,6 +11,9 @@ name: publish
 #       https://danlooo.github.io/fair-geo-fm/          -> /v0.1/
 #       https://danlooo.github.io/fair-geo-fm/v0.1/
 #       https://danlooo.github.io/fair-geo-fm/main/
+#     The site also serves the build job's runtime archives under the current
+#     version, e.g. /v0.1/runtimes/py311-torch231.zip; the archives come from
+#     the build run of that version's commit, so they match its requirements.
 #   - dependency archives are never released automatically. A maintainer runs
 #     `workflow_dispatch` with `target: runtime` to build, smoke-test, and
 #     publish one runtime. Releases are content-addressed with their sha256, so
@@ -97,6 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
     concurrency:
@@ -124,10 +128,14 @@ jobs:
           if [ -n "$newest" ]; then
             echo "DOCS_CURRENT_VERSION=$newest" >> "$GITHUB_ENV"
             echo "DOCS_CURRENT_REF=refs/tags/$newest" >> "$GITHUB_ENV"
+            # The archives published next to this version must come from the
+            # same commit as its pages, so remember which build to ask.
+            echo "DOCS_CURRENT_SHA=$(git rev-parse "refs/tags/$newest^{commit}")" >> "$GITHUB_ENV"
           else
             # Before the first release the default branch is the current version.
             echo "DOCS_CURRENT_VERSION=${{ github.event.repository.default_branch }}" >> "$GITHUB_ENV"
             echo "DOCS_CURRENT_REF=origin/${{ github.event.repository.default_branch }}" >> "$GITHUB_ENV"
+            echo "DOCS_CURRENT_SHA=${{ github.sha }}" >> "$GITHUB_ENV"
           fi
 
       - uses: actions/setup-node@v4
@@ -138,6 +146,30 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: Download dependency archives
+        # The site serves the built runtime archives under the current version,
+        # e.g. /v0.1/runtimes/py311-torch231.zip. They are git-ignored, so take
+        # them from the artifact the build job produced for the commit that
+        # version is built from; prepare-docs copies them into docs/public.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          run_id="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?head_sha=$DOCS_CURRENT_SHA&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')"
+          if [ -z "$run_id" ]; then
+            echo "::warning::no successful build run for $DOCS_CURRENT_SHA; publishing the site without dependency archives"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/archives"
+          if ! gh run download "$run_id" --name dependency-archives --dir "$RUNNER_TEMP/archives"; then
+            echo "::warning::build run $run_id has no dependency-archives artifact (expired?); publishing the site without dependency archives"
+            exit 0
+          fi
+          cp -a "$RUNNER_TEMP/archives/." .
+          find runtimes -name dependencies.zip -printf '%p (%s bytes)\n'
 
       - name: Build all versions
         # prepare-docs copies the canonical pages into docs/src, checks out each

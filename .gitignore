@@ -1,8 +1,13 @@
 __pycache__/
 *.pyc
 
-# Built UDF dependency archives are served from object storage, not git.
+# Built UDF dependency archives are served from object storage / Pages, not git.
 runtimes/*/dependencies.zip
+checksums.sha256
+
+# Downloaded GitHub Actions artifacts, not sources.
+dependency-archives/
+github-pages/
 
 # VitePress site (documentation is built in CI).
 node_modules/

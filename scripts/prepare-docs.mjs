@@ -7,7 +7,9 @@
 //
 //   docs/src/                 the current version (the newest v* tag)
 //   docs/archive/<ref>/       every other branch and v* tag
-//   docs/public/<ref>/        non-markdown process files served next to pages
+//   docs/public/<ref>/        non-markdown process files served next to pages,
+//                             plus the built runtime archives for the current
+//                             version (runtimes/<name>.zip)
 //
 // The current version is the newest v* tag, so the site root redirects to that
 // tag's URL (e.g. /v0.1/). Set DOCS_CURRENT_VERSION to override the name; the
@@ -153,6 +155,33 @@ function siteAssets(root) {
   return assets;
 }
 
+// Built runtime archives, as site path -> source file.
+//
+// They are build outputs (runtimes/<name>/requirements.txt zipped into
+// <name>/dependencies.zip by scripts/create-python-dependency-archive.py) and
+// are git-ignored, so they are never present in a ref worktree. CI downloads
+// the build job's dependency-archives artifact into the checkout before running
+// this script; read them from there. They are served as <name>.zip under the
+// current version's pages, e.g. /v0.1/runtimes/py311-torch231.zip.
+//
+// Only the current version gets them: copying an archive into every archived
+// version would multiply the site size (the torch archive alone is ~160 MB and
+// a Pages site is capped at 1 GB) and would misattribute a rebuild as that old
+// version's archive.
+function runtimeAssets() {
+  const assets = new Map();
+  const runtimes = join(repoRoot, "runtimes");
+  if (!existsSync(runtimes)) return assets;
+  for (const entry of readdirSync(runtimes, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const archive = join(runtimes, entry.name, "dependencies.zip");
+    if (existsSync(archive)) {
+      assets.set(join("runtimes", `${entry.name}.zip`), archive);
+    }
+  }
+  return assets;
+}
+
 // Map canonical repository paths to site paths for one version.
 // Model READMEs are the source of truth for their pages, so they become
 // index.md; VitePress serves them as directory indexes.
@@ -241,7 +270,10 @@ if (withArchives) rmSync(publicDir, { recursive: true, force: true });
 
 function writeCurrentVersion(root) {
   writeTree(sitePages(root), sourcesDir);
-  writeTree(siteAssets(root), join(publicDir, currentVersion));
+  writeTree(
+    new Map([...siteAssets(root), ...runtimeAssets()]),
+    join(publicDir, currentVersion),
+  );
 }
 
 // Returns false when ref has no documentation site, so the caller falls back to
