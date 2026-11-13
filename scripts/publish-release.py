@@ -60,6 +60,7 @@ from pathlib import Path
 import requests
 
 from process_graphs import (
+    CONCEPT_DOI,
     SITE_BASE_URL,
     render,
     render_readme,
@@ -70,7 +71,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CREATORS = [{"name": "Loos, Daniel", "orcid": "0000-0002-4024-4443"}]
 # Concept (root) DOI of the fair-geo-fm record. Every release is published as a
 # new version of this record, so this DOI always resolves to the latest version.
-DEFAULT_CONCEPT_DOI = "10.5281/zenodo.24193626"
+# Defined in scripts/process_graphs.py, which also renders the model READMEs.
+DEFAULT_CONCEPT_DOI = CONCEPT_DOI
 # Zenodo serves ``application/json`` in its retired deposition shape by
 # default; this media type selects the native InvenioRDM representation.
 INVENIO_ACCEPT = "application/vnd.inveniordm.v1+json"
@@ -256,7 +258,9 @@ def stage_source_archive(version: str, staging: Path) -> tuple[str, Path]:
     return key, target
 
 
-def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, Path]]:
+def stage_files(
+    base_url: str, staging: Path, version: str, doi: str
+) -> list[tuple[str, Path]]:
     """Render graphs and collect code/runtime/source files as (Zenodo key, path)."""
     staged: list[tuple[str, Path]] = []
 
@@ -280,12 +284,14 @@ def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, P
         staged.append((target.relative_to(staging).as_posix(), target))
 
         # The page's copy-paste examples link to this record's graph, while its
-        # documentation URL stays on the versioned Pages site.
+        # documentation and DOI links describe this version on the Pages site.
         readme_text, readme_target_url = render_readme(
             process_dir,
             base_url,
             f"{SITE_BASE_URL}/{version}",
             release=True,
+            release_version=version,
+            doi=doi,
         )
         readme_target = target.parent / "README.md"
         readme_target.write_text(readme_text, encoding="utf-8")
@@ -597,7 +603,7 @@ def main() -> None:
         base_url = record_files_url(api, record_id)
         staging = Path(tempfile.mkdtemp(prefix="zenodo-release-"))
         try:
-            staged = stage_files(base_url, staging, args.version)
+            staged = stage_files(base_url, staging, args.version, doi)
             upload_files(session, api, record_id, staged)
         finally:
             shutil.rmtree(staging, ignore_errors=True)

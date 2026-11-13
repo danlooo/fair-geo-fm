@@ -282,21 +282,25 @@ function writeUnversionedRedirects() {
 }
 
 // Released tags are archived on Zenodo as versions of one concept record.
-// Kept in sync with DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
+// Kept in sync with CONCEPT_DOI in scripts/process_graphs.py and
+// DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
 const zenodoConceptId =
   process.env.DOCS_ZENODO_CONCEPT_ID || "24193626";
+const zenodoConceptDoi =
+  process.env.DOCS_ZENODO_CONCEPT_DOI || `10.5281/zenodo.${zenodoConceptId}`;
 const zenodoApiUrl = (
   process.env.DOCS_ZENODO_API_URL || "https://zenodo.org/api"
 ).replace(/\/+$/, "");
 const zenodoSiteUrl = zenodoApiUrl.replace(/\/api$/, "");
 
 // Tag -> public file base of its Zenodo version, e.g.
-// v0.1.0 -> https://zenodo.org/records/24193627/files. One unauthenticated
-// request; a failure degrades to the staging /main base instead of breaking
-// the docs build. ``all_versions=true`` is required: without it the search
-// endpoint only returns the latest version of the concept record.
-async function fetchZenodoFilesBases() {
-  const bases = new Map();
+// v0.1.0 -> https://zenodo.org/records/24193627/files, plus that version's DOI
+// for the model page header. One unauthenticated request; a failure degrades to
+// the staging /main base and the concept DOI instead of breaking the docs
+// build. ``all_versions=true`` is required: without it the search endpoint only
+// returns the latest version of the concept record.
+async function fetchZenodoReleases() {
+  const releases = new Map();
   const query = `parent.id:${zenodoConceptId}`;
   try {
     const response = await fetch(
@@ -317,17 +321,20 @@ async function fetchZenodoFilesBases() {
     for (const hit of body?.hits?.hits ?? []) {
       const version = hit?.metadata?.version;
       if (typeof version === "string" && version) {
-        bases.set(version, `${zenodoSiteUrl}/records/${hit.id}/files`);
+        releases.set(version, {
+          filesBase: `${zenodoSiteUrl}/records/${hit.id}/files`,
+          doi: typeof hit.doi === "string" ? hit.doi : "",
+        });
       }
     }
-    console.log(`prepare-docs: resolved ${bases.size} Zenodo release(s)`);
+    console.log(`prepare-docs: resolved ${releases.size} Zenodo release(s)`);
   } catch (error) {
     warn(
       `could not resolve Zenodo releases (${error.message}); ` +
-        "tagged versions link to the staging base",
+        "tagged versions link to the staging base and the concept DOI",
     );
   }
-  return bases;
+  return releases;
 }
 
 // The variables a model README template can use, mirroring the ones in
@@ -337,15 +344,26 @@ async function fetchZenodoFilesBases() {
 // v* tags and false for branches, so archived templates that gate development
 // notices on it still render; the current template relies on the site-wide
 // banner in docs/.vitepress/theme/PreviewBanner.vue instead.
+// ``release_version`` / ``release_url`` / ``doi`` describe the release the page
+// advertises: a tag page links itself, a branch page (main) links the newest
+// release, the same one the site root redirects to. Only a release has a DOI,
+// so ``doi`` stays empty on a branch page and the template omits that link.
 function modelTemplateValues(version, model) {
-  const filesBaseUrl = zenodoFilesBases.get(version) ?? `${siteBaseUrl}/main`;
+  const isRelease = /^v\d+(?:\.\d+)*$/.test(version);
+  const releaseVersion = isRelease ? version : newestTag() || version;
+  const release = zenodoReleases.get(releaseVersion);
+  const filesBaseUrl =
+    zenodoReleases.get(version)?.filesBase ?? `${siteBaseUrl}/main`;
   const docsBaseUrl = `${siteBaseUrl}/${version}`;
   return {
     base_url: filesBaseUrl,
     model,
-    release: /^v\d+(?:\.\d+)*$/.test(version),
+    release: isRelease,
     process_graph_url: `${filesBaseUrl}/models/${model}/process_graph.json`,
     docs_url: `${docsBaseUrl}/models/${model}/`,
+    release_version: releaseVersion,
+    release_url: `${siteBaseUrl}/${releaseVersion}/models/${model}/`,
+    doi: isRelease ? release?.doi || zenodoConceptDoi : "",
   };
 }
 
@@ -353,7 +371,7 @@ function modelTemplateValues(version, model) {
 // one link at the tag's Zenodo version record so old release pages are
 // reproducible too; other staging links in the snapshot stay untouched.
 function rewriteLegacyModelGraphUrl(text, version, model) {
-  const releaseBaseUrl = zenodoFilesBases.get(version);
+  const releaseBaseUrl = zenodoReleases.get(version)?.filesBase;
   if (!releaseBaseUrl) return text;
   return text.replaceAll(
     `${siteBaseUrl}/main/models/${model}/process_graph.json`,
@@ -361,35 +379,54 @@ function rewriteLegacyModelGraphUrl(text, version, model) {
   );
 }
 
-// Minimal Jinja2 subset: ``{{ name }}`` variables and one
-// ``{% if [not] name %} ... {% endif %}`` block. Archived refs may still gate
-// a development notice on ``release`` (see modelTemplateValues). An unknown
-// variable is an error rather than a published page that keeps a literal
-// ``{{ ... }}``.
+// Tags created before README.md.j2 gained its release header still publish a
+// model page without one. Add the same line the template renders, right below
+// the page title, so every published model page advertises the release it
+// documents -- including the current version, which is read from its tag.
+// A preview ref (main) gets the release link without a DOI.
+function ensureReleaseHeader(text, version, model) {
+  const { release_version: releaseVersion, release_url: releaseUrl, doi } =
+    modelTemplateValues(version, model);
+  const link = `[Release ${releaseVersion}](${releaseUrl})`;
+  if (text.includes(link)) return text;
+  const lines = text.split("\n");
+  if (!lines[0].startsWith("# ")) return text;
+  const header = doi ? `${link} | [DOI ${doi}](https://doi.org/${doi})` : link;
+  return [lines[0], "", header, ...lines.slice(1)].join("\n");
+}
+
+// Minimal Jinja2 subset: ``{{ name }}`` variables and ``{% if [not] name %} ...
+// {% endif %}`` blocks, inline or spanning whole lines. An unknown variable is
+// an error rather than a published page that keeps a literal ``{{ ... }}``.
 function renderModelTemplate(text, version, model, source) {
   const values = modelTemplateValues(version, model);
-  const renderConditionals = text.replace(
-    /\n?\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}\n?/g,
-    (match, negated, name, body) => {
-      if (!(name in values)) {
-        throw new Error(
-          `prepare-docs: ${source}: unknown template variable ${name}`,
-        );
-      }
-      const show = negated ? !values[name] : Boolean(values[name]);
-      return show ? body : "";
-    },
+  const value = (name) => {
+    if (!(name in values)) {
+      throw new Error(
+        `prepare-docs: ${source}: unknown template variable ${name}`,
+      );
+    }
+    return values[name];
+  };
+  const shown = (negated, name) => {
+    const current = value(name);
+    return negated ? !current : Boolean(current);
+  };
+
+  // Tags that occupy their own lines own those lines, so a hidden block leaves
+  // no blank line behind.
+  let rendered = text.replace(
+    /^[ \t]*\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*%\}[ \t]*\n([\s\S]*?)^[ \t]*\{%\s*endif\s*%\}[ \t]*\n/gm,
+    (match, negated, name, body) => (shown(negated, name) ? body : ""),
   );
-  return renderConditionals.replace(
+  // Inline tags are part of a line, so keep the rest of it, newline included.
+  rendered = rendered.replace(
+    /\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}/g,
+    (match, negated, name, body) => (shown(negated, name) ? body : ""),
+  );
+  return rendered.replace(
     /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g,
-    (match, name) => {
-      if (!(name in values)) {
-        throw new Error(
-          `prepare-docs: ${source}: unknown template variable ${name}`,
-        );
-      }
-      return values[name];
-    },
+    (match, name) => value(name),
   );
 }
 
@@ -449,6 +486,7 @@ function writeTree(pages, destination, version) {
       }
       const modelPage = /^models\/([^/]+)\/index\.md$/.exec(to);
       if (modelPage) {
+        text = ensureReleaseHeader(text, version, modelPage[1]);
         text = rewriteLegacyModelGraphUrl(text, version, modelPage[1]);
       }
       writeFileSync(target, text);
@@ -517,8 +555,8 @@ function writeCurrentVersionFrom(ref) {
 }
 
 // Resolve the version records before rendering pages, so a tag's README links
-// to that tag's record rather than the concept/root DOI.
-const zenodoFilesBases = await fetchZenodoFilesBases();
+// to that tag's record and DOI rather than the concept/root DOI.
+const zenodoReleases = await fetchZenodoReleases();
 
 let fromRef = false;
 if (currentRef) {

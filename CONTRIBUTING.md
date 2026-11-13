@@ -41,8 +41,14 @@ Conventions for the models and runtimes in this repository.
   a base URL and exposes `{{ runtime_url }}` (the dependency archive, with
   `#feature_deps`), `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`.
   `README.md.j2` exposes `{{ process_graph_url }}` (the same published graph
-  URL the process graph template uses), `{{ base_url }}`, `{{ model }}` and
-  `{{ docs_url }}` (the version's documentation page, with a trailing `/`).
+  URL the process graph template uses), `{{ base_url }}`, `{{ model }}`,
+  `{{ docs_url }}` (the version's documentation page, with a trailing `/`), and
+  the release its header advertises: `{{ release_version }}`, `{{ release_url }}`
+  (that release's documentation page, with a trailing `/`) and `{{ doi }}` (that
+  release's version DOI, empty on a preview page because only a release has one).
+  A tag page advertises its own release, a branch page
+  (`main`) the newest `v*` tag, and the release README uploaded to Zenodo the
+  record it belongs to; never write `v0.1.2` or a DOI into the template.
   The same layout is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
   - release: `https://zenodo.org/records/<record-id>/files`
@@ -181,9 +187,13 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - Documentation is versioned by git ref. The site root redirects to the newest
   `v*` tag, which is the current version; `main` and every older tag are
   published under `/<ref>/` and listed in the version switcher.
-- A released tag's model page links to that tag's Zenodo version record; the
-  docs build resolves the version records from the concept record through the
-  Zenodo API and falls back to the staging base if that lookup fails.
+- A released tag's model page links to that tag's Zenodo version record and shows
+  that version's DOI; a branch page (`main`) shows the newest release and links
+  its page, but no DOI, because only a release has one. The docs build resolves
+  the version records and DOIs from the concept record through the Zenodo API and
+  falls back to the staging base and the concept DOI if that lookup fails. Refs
+  that predate the header in `README.md.j2` get the same line inserted by
+  `scripts/prepare-docs.mjs`, so no published model page is missing it.
 - `publish-release` dispatches `publish` after the Zenodo record is published,
   so the tag page is rebuilt against the new version record/DOI instead of the
   staging URLs from the deployment that ran when the tag was pushed. A
@@ -191,8 +201,9 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - The staging process graph is served at the fixed `/main/models/<model>/`
   path on Pages. `prepare-docs.mjs` copies the rendered default-branch graph
   there, because a ref worktree never contains the git-ignored build output.
-- After a successful release, update the model page and `example.py` to show the
-  DOI URL, and quote the runtime sha256 in its README.
+- After a successful release, point `example.py` at the released DOI URL and
+  quote the runtime sha256 in the model README; the model page header follows the
+  release automatically.
   `scripts/build-process-graph.py --check` enforces that the committed
   `process_graph.json` matches the template and that its archive URL ends with
   `runtimes/<runtime>.zip#feature_deps`.
