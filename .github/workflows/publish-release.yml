@@ -1,9 +1,9 @@
 name: publish-release
 
 # Archive a released version on Zenodo. A maintainer creates the GitHub release
-# by hand (that is the release decision); this workflow uploads the rendered
-# process graphs and the runtime archives to one Zenodo record and turns the
-# release into a citable DOI:
+# by hand (that is the release decision); this workflow adds a new version to
+# the project's concept record (10.5281/zenodo.24193626) and uploads the
+# rendered process graphs and runtime archives to it:
 #
 #   https://zenodo.org/records/<record-id>/files/models/<model>/process_graph.json
 #   https://zenodo.org/records/<record-id>/files/runtimes/<runtime>.zip
@@ -50,7 +50,7 @@ on:
         default: '[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'
         type: string
       deposition_id:
-        description: "Retry an existing draft deposition id (empty = create a new record)"
+        description: "Retry an existing draft version id (empty = open a new version of the concept record)"
         required: false
         default: ""
         type: string
@@ -104,12 +104,17 @@ jobs:
         env:
           ZENODO_ACCESS_TOKEN: ${{ secrets.ZENODO_ACCESS_TOKEN }}
           ZENODO_API_URL: ${{ vars.ZENODO_API_URL || 'https://zenodo.org/api' }}
+          ZENODO_CONCEPT_DOI: ${{ vars.ZENODO_CONCEPT_DOI || '10.5281/zenodo.24193626' }}
           CREATORS: '${{ github.event_name == ''workflow_dispatch'' && inputs.creators || ''[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'' }}'
           DRY_RUN: '${{ github.event_name == ''workflow_dispatch'' && inputs.dry_run || ''false'' }}'
           DEPOSITION_ID: ${{ inputs.deposition_id }}
         run: |
           set -euo pipefail
-          args=(--version "$VERSION" --creators-json "$CREATORS")
+          args=(
+            --version "$VERSION"
+            --concept-doi "$ZENODO_CONCEPT_DOI"
+            --creators-json "$CREATORS"
+          )
           if [ -n "$DEPOSITION_ID" ]; then
             args+=(--deposition-id "$DEPOSITION_ID")
           fi

@@ -16,11 +16,13 @@ the ref being released. It is uploaded under the same path Zenodo's GitHub
 integration would use, so the record is self-contained and citable.
 
 That rules out Zenodo's automatic GitHub integration, which only archives a
-repository snapshot under its own paths. This script creates a draft record
-through Zenodo's InvenioRDM API, reserves its DOI before uploading, renders
-every process graph with the record's file URL as the base URL, uploads all
-files, and publishes the record last so a partially uploaded record never goes
-live.
+repository snapshot under its own paths. This script opens a new version of the
+project's existing concept record (``--concept-doi``, default
+``10.5281/zenodo.24193626``) through Zenodo's InvenioRDM API, reserves the
+version DOI before uploading, renders every process graph with the record's
+file URL as the base URL, uploads all files, and publishes the version last so
+a partially uploaded record never goes live. The concept DOI therefore always
+resolves to the latest release.
 
 The old deposition bucket API (``PUT /api/files/<bucket>/<key>``) is no longer
 served by Zenodo; files are uploaded to the draft record instead, as documented
@@ -59,6 +61,9 @@ from process_graphs import render, validate_runtime_reference
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CREATORS = [{"name": "Loos, Daniel", "orcid": "0000-0002-4024-4443"}]
+# Concept (root) DOI of the fair-geo-fm record. Every release is published as a
+# new version of this record, so this DOI always resolves to the latest version.
+DEFAULT_CONCEPT_DOI = "10.5281/zenodo.24193626"
 # Zenodo serves ``application/json`` in its retired deposition shape by
 # default; this media type selects the native InvenioRDM representation.
 INVENIO_ACCEPT = "application/vnd.inveniordm.v1+json"
@@ -113,6 +118,31 @@ def draft_doi(draft: dict) -> str | None:
     doi = (draft.get("pids") or {}).get("doi") or {}
     identifier = doi.get("identifier") if isinstance(doi, dict) else None
     return identifier or draft.get("doi") or (draft.get("metadata") or {}).get("doi")
+
+
+def normalize_doi(doi: str) -> str:
+    """Strip a resolver prefix and trailing slash from a DOI."""
+    cleaned = doi.strip().rstrip("/")
+    for prefix in ("https://doi.org/", "http://doi.org/", "doi:"):
+        if cleaned.lower().startswith(prefix):
+            cleaned = cleaned[len(prefix):]
+            break
+    return cleaned
+
+
+def concept_record_id(doi: str) -> str:
+    """The Zenodo record id in a concept DOI.
+
+    ``10.5281/zenodo.24193626`` -> ``24193626``. Requesting that id from the
+    InvenioRDM API redirects to the latest published version of the concept.
+    """
+    recid = doi.rstrip("/").rsplit("/", 1)[-1].rsplit(".", 1)[-1]
+    if not recid.isdigit():
+        raise SystemExit(
+            f"--concept-doi must be a Zenodo concept DOI such as "
+            f"{DEFAULT_CONCEPT_DOI}, got {doi!r}"
+        )
+    return recid
 
 
 def release_title(version: str) -> str:
@@ -362,8 +392,19 @@ def main() -> None:
         help="environment variable holding the Zenodo access token",
     )
     parser.add_argument(
+        "--concept-doi",
+        default=os.environ.get("ZENODO_CONCEPT_DOI", DEFAULT_CONCEPT_DOI),
+        help=(
+            "concept (root) DOI to add a new version to "
+            f"(default: {DEFAULT_CONCEPT_DOI}; override for the sandbox)"
+        ),
+    )
+    parser.add_argument(
         "--deposition-id", type=int,
-        help="reuse an existing unpublished draft record instead of creating one",
+        help=(
+            "reuse an existing unpublished version draft instead of opening a "
+            "new version of --concept-doi"
+        ),
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -443,13 +484,65 @@ def main() -> None:
                     (legacy.get("metadata") or {}).get("prereserve_doi") or {}
                 ).get("doi")
         else:
+            # Add the release to the existing concept record rather than
+            # creating a new root record. ``/api/records/<concept-id>``
+            # redirects to the latest published version.
+            concept_id = concept_record_id(args.concept_doi)
+            latest = api_request(
+                session, "GET", f"{api}/records/{concept_id}",
+                accept=INVENIO_ACCEPT,
+            )
+            latest_version = (latest.get("metadata") or {}).get("version")
+            parent = latest.get("parent") or {}
+            parent_id = str(parent.get("id") or concept_id)
+            parent_doi = (
+                ((parent.get("pids") or {}).get("doi") or {}).get("identifier")
+            )
+            if parent_doi and normalize_doi(parent_doi) != normalize_doi(
+                args.concept_doi
+            ):
+                raise SystemExit(
+                    f"record {latest.get('id')} belongs to concept DOI "
+                    f"{parent_doi}, not {args.concept_doi}; refusing to create "
+                    "a version"
+                )
+            if latest_version == args.version:
+                raise SystemExit(
+                    f"{args.concept_doi} already has {args.version} as its "
+                    "latest version; create a new GitHub release instead of "
+                    "re-running this one"
+                )
+            print(
+                f"opening a new version of {args.concept_doi} after record "
+                f"{latest.get('id')} (version {latest_version or 'unknown'})"
+            )
+            try:
+                draft = api_request(
+                    session, "POST", f"{api}/records/{latest['id']}/versions",
+                    accept=INVENIO_ACCEPT,
+                )
+            except ApiError as error:
+                hint = (
+                    "\nIf a draft version already exists, rerun with "
+                    "--deposition-id set to that draft's id."
+                    if error.status in (400, 409)
+                    else ""
+                )
+                raise SystemExit(
+                    f"could not open a new version of {args.concept_doi}: "
+                    f"{error}{hint}"
+                )
+            created_parent = str((draft.get("parent") or {}).get("id") or "")
+            if created_parent and created_parent != parent_id:
+                raise SystemExit(
+                    "refusing to publish: Zenodo created the draft under "
+                    f"concept record {created_parent}, expected {parent_id}"
+                )
+            # A new-version draft drops version and publication_date, so write
+            # this release's metadata onto the draft before uploading.
             draft = api_request(
-                session, "POST", f"{api}/records",
-                json_body={
-                    "access": {"record": "public", "files": "public"},
-                    "files": {"enabled": True},
-                    "metadata": metadata,
-                },
+                session, "PUT", f"{api}/records/{draft['id']}/draft",
+                json_body={"metadata": metadata},
                 accept=INVENIO_ACCEPT,
             )
             doi = draft_doi(draft)

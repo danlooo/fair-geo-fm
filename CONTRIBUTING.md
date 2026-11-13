@@ -105,10 +105,13 @@ release.
 
 Releases are never automatic. A maintainer creates a GitHub release by hand,
 which is the release decision, and the `publish-release` workflow archives the
-tag on Zenodo. It refuses to guess URLs: it creates a draft record through
-Zenodo's InvenioRDM API, reserves its DOI first, renders every process graph
-against the record's file URL, uploads the graphs, the runtime archives and a
-source archive of the released commit, and publishes the record last. Each
+tag on Zenodo. It refuses to guess URLs: it opens a new version of the
+project's concept record (**10.5281/zenodo.24193626**) through Zenodo's
+InvenioRDM API, reserves the version DOI first, renders every process graph
+against the version's file URL, uploads the graphs, the runtime archives and a
+source archive of the released commit, and publishes the version last. Every
+release therefore adds a version to the same root record; the concept DOI
+always resolves to the latest version. Each
 model contributes only its rendered `process_graph.json`; the UDF is embedded
 in it, and `udf.py` / `example.py` / `runtime.txt` stay in the source archive.
 The resulting record has many files under custom paths —
@@ -134,7 +137,10 @@ Add the repository secret **`ZENODO_ACCESS_TOKEN`** (Settings → Secrets and
 variables → Actions). Create it at <https://zenodo.org/account/settings/applications/>
 with the `deposit:write` and `deposit:actions` scopes. The optional repository
 variable **`ZENODO_API_URL`** overrides the API base; set it to
-`https://sandbox.zenodo.org/api` to rehearse against the Zenodo sandbox.
+`https://sandbox.zenodo.org/api` to rehearse against the Zenodo sandbox. When
+rehearsing against the sandbox, also set **`ZENODO_CONCEPT_DOI`** to the
+sandbox concept record's DOI; it defaults to the production record
+`10.5281/zenodo.24193626`.
 
 ### Publishing a release
 
@@ -155,10 +161,12 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - `dry_run` defaults to `true` for `workflow_dispatch`. It reserves a DOI,
   renders and uploads every file, writes the planned URLs to the run summary,
   and deletes the draft. `ZENODO_API_URL` can point at the sandbox.
-- Creating a new GitHub release always creates a new Zenodo record and DOI.
-  Re-running a failed upload against the same deposition should use
-  `--deposition-id` (the draft id is printed and written to the run summary);
-  do not run the published event twice by hand.
+- Creating a new GitHub release adds a new version to the same Zenodo concept
+  record and gives that version its own DOI. The concept DOI
+  `10.5281/zenodo.24193626` always resolves to the latest version. Re-running a
+  failed upload against the same draft should use `--deposition-id` (the draft
+  id is printed and written to the run summary); re-running a release that was
+  already published is refused, because its version is already the latest.
 - Documentation is versioned by git ref. The site root redirects to the newest
   `v*` tag, which is the current version; `main` and every older tag are
   published under `/<ref>/` and listed in the version switcher.

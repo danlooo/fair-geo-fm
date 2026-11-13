@@ -1,6 +1,6 @@
 # fair-geo-fm
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24193627.svg)](https://doi.org/10.5281/zenodo.24193627)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24193626.svg)](https://doi.org/10.5281/zenodo.24193626)
 [![docs stable](https://img.shields.io/badge/docs-stable-brightgreen)](https://danlooo.github.io/fair-geo-fm/)
 [![docs dev](https://img.shields.io/badge/docs-dev-blue)](https://danlooo.github.io/fair-geo-fm/main/)
 
