@@ -104,17 +104,12 @@ jobs:
         env:
           ZENODO_ACCESS_TOKEN: ${{ secrets.ZENODO_ACCESS_TOKEN }}
           ZENODO_API_URL: ${{ vars.ZENODO_API_URL || 'https://zenodo.org/api' }}
-          RELEASE_TITLE: '${{ github.event.release.name || github.event.release.tag_name || inputs.tag }}'
-          RELEASE_DESCRIPTION: '${{ github.event.release.body || '''' }}'
           CREATORS: '${{ github.event_name == ''workflow_dispatch'' && inputs.creators || ''[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'' }}'
           DRY_RUN: '${{ github.event_name == ''workflow_dispatch'' && inputs.dry_run || ''false'' }}'
           DEPOSITION_ID: ${{ inputs.deposition_id }}
         run: |
           set -euo pipefail
-          args=(--title "$RELEASE_TITLE" --version "$VERSION" --creators-json "$CREATORS")
-          if [ -n "$RELEASE_DESCRIPTION" ]; then
-            args+=(--description "$RELEASE_DESCRIPTION")
-          fi
+          args=(--version "$VERSION" --creators-json "$CREATORS")
           if [ -n "$DEPOSITION_ID" ]; then
             args+=(--deposition-id "$DEPOSITION_ID")
           fi

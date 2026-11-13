@@ -30,9 +30,11 @@ The token needs the ``deposit:write`` and ``deposit:actions`` scopes and is
 read from ``ZENODO_ACCESS_TOKEN`` by default.
 
 Usage:
-    uv run scripts/publish-release.py \\
-        --title "fair-geo-fm v0.2" --version v0.2 \\
+    uv run scripts/publish-release.py --version v0.2 \\
         --creators-json '[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'
+
+The title defaults to ``fair-geo-fm <version>`` and the description to an HTML
+blurb linking the project, openEO, and the documentation site for that version.
 
 Runtime archives (``runtimes/*/dependencies.zip``) must already be built, e.g.
 with ``scripts/create-python-dependency-archive.py``.
@@ -111,6 +113,23 @@ def draft_doi(draft: dict) -> str | None:
     doi = (draft.get("pids") or {}).get("doi") or {}
     identifier = doi.get("identifier") if isinstance(doi, dict) else None
     return identifier or draft.get("doi") or (draft.get("metadata") or {}).get("doi")
+
+
+def release_title(version: str) -> str:
+    """Zenodo record title, e.g. ``fair-geo-fm v0.2``."""
+    return f"fair-geo-fm {version}"
+
+
+def release_description(version: str) -> str:
+    """Zenodo record description as HTML, linking the project and its docs."""
+    site = f"https://danlooo.github.io/fair-geo-fm/{version}"
+    return (
+        '<p><a href="https://github.com/danlooo/fair-geo-fm">'
+        "FAIR geospatial foundation models</a>, ready to use in "
+        '<a href="https://openeo.org">openEO</a>. '
+        "This dataset contains openEO process graphs, runtimes and code used at "
+        f'<a href="{site}">{site}</a>.</p>'
+    )
 
 
 def creators_metadata(creators: list[dict]) -> list[dict]:
@@ -318,9 +337,15 @@ def write_summary(lines: list[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--title", required=True, help="Zenodo record title")
+    parser.add_argument(
+        "--title", default=None,
+        help="Zenodo record title (default: 'fair-geo-fm <version>')",
+    )
     parser.add_argument("--version", required=True, help="version string, e.g. the release tag")
-    parser.add_argument("--description", default="", help="Zenodo record description")
+    parser.add_argument(
+        "--description", default=None,
+        help="Zenodo record description as HTML (default: project blurb linking the docs)",
+    )
     parser.add_argument(
         "--creators-json", default=json.dumps(DEFAULT_CREATORS),
         help=(
@@ -357,15 +382,11 @@ def main() -> None:
     if not isinstance(creators, list) or not creators:
         raise SystemExit("--creators-json must be a non-empty JSON list")
 
-    description = args.description.strip()
-    provenance = (
-        f"Released from https://github.com/{os.environ.get('GITHUB_REPOSITORY', 'danlooo/fair-geo-fm')}"
-        f"/tree/{args.version}."
-    )
-    description = f"{description}\n\n{provenance}" if description else provenance
+    description = args.description or release_description(args.version)
+    title = args.title or release_title(args.version)
 
     metadata = {
-        "title": args.title,
+        "title": title,
         "version": args.version,
         "description": description,
         "creators": creators_metadata(creators),
