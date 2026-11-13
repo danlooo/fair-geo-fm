@@ -7,6 +7,10 @@ name: publish-release
 #
 #   https://doi.org/<doi>/models/<model>/process_graph.json
 #   https://doi.org/<doi>/runtimes/<runtime>.zip
+#   https://doi.org/<doi>/danlooo/fair-geo-fm-<version>.zip
+#
+# The last file is the complete source tree exported with `git archive` from
+# the released ref, so the record also archives the code that produced it.
 #
 # The DOI is reserved before anything is uploaded and is used as the base URL
 # when the process graphs are rendered, so the graph shipped in the record

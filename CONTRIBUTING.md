@@ -95,7 +95,7 @@ Two publication targets share one layout, selected by a base URL:
 | Target | Base URL | Contents |
 | --- | --- | --- |
 | Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives |
-| Release (`publish-release`) | `https://doi.org/<doi>` | process graphs, UDF code, runtime archives |
+| Release (`publish-release`) | `https://doi.org/<doi>` | process graphs, UDF code, runtime archives, full source archive |
 
 The staging target is rebuilt automatically after every successful push build.
 Nothing is published unless the `build` workflow succeeded for the commit, so a
@@ -107,17 +107,21 @@ Releases are never automatic. A maintainer creates a GitHub release by hand,
 which is the release decision, and the `publish-release` workflow archives the
 tag on Zenodo. It refuses to guess URLs: it creates a deposition, reserves its
 DOI first, renders every process graph with that DOI as the base URL, uploads
-the graphs, the UDF code and the runtime archives, and publishes the record
-last. The resulting record has many files under custom paths —
+the graphs, the UDF code, the runtime archives and a source archive of the
+released commit, and publishes the record last. The resulting record has many
+files under custom paths —
 
     https://doi.org/<doi>/models/tessera_v2/process_graph.json
     https://doi.org/<doi>/models/tessera_v2/udf.py
     https://doi.org/<doi>/runtimes/py311-torch231.zip
+    https://doi.org/<doi>/danlooo/fair-geo-fm-v0.2.zip
 
 — so Zenodo's automatic GitHub integration cannot be used; it archives one
-repository snapshot under its own paths. The workflow talks to the Zenodo REST
-API (<https://developers.zenodo.org/>) through
-`scripts/publish-release.py`.
+repository snapshot under its own paths and cannot add the rendered graphs.
+The source archive is exported with `git archive` from the released tag and
+uploaded under the path the GitHub integration would have used, so the record
+is self-contained. The workflow talks to the Zenodo REST API
+(<https://developers.zenodo.org/>) through `scripts/publish-release.py`.
 
 ### Zenodo credentials
 

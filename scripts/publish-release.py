@@ -9,6 +9,11 @@ Zenodo records can hold many files, which is what the published layout needs:
 
     https://doi.org/<doi>/models/tessera_v2/process_graph.json
     https://doi.org/<doi>/runtimes/py311-torch231.zip
+    https://doi.org/<doi>/danlooo/fair-geo-fm-v0.2.zip
+
+The last file is the complete source tree exported with ``git archive`` from
+the ref being released. It is uploaded under the same path Zenodo's GitHub
+integration would use, so the record is self-contained and citable.
 
 That rules out Zenodo's automatic GitHub integration, which only archives a
 repository snapshot under its own paths. This script creates a deposition,
@@ -35,6 +40,7 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -69,8 +75,42 @@ def api_request(method: str, url: str, token: str, *, body: dict | None = None,
     return json.loads(payload) if payload else {}
 
 
-def stage_files(base_url: str, staging: Path) -> list[tuple[str, Path]]:
-    """Render graphs and collect code/runtime files as (Zenodo key, path)."""
+def source_archive_key(version: str) -> str:
+    """Zenodo file key for the source archive, e.g. ``danlooo/fair-geo-fm-v0.2.zip``."""
+    slug = os.environ.get("GITHUB_REPOSITORY", "danlooo/fair-geo-fm")
+    # Tags may contain slashes; keep the archive a single directory below the
+    # record root, like GitHub's own source archives.
+    safe_version = version.replace("/", "-")
+    return f"{slug}-{safe_version}.zip"
+
+
+def stage_source_archive(version: str, staging: Path) -> tuple[str, Path]:
+    """Export the tracked sources at HEAD as a zip for the Zenodo record.
+
+    ``git archive`` only includes committed files, so the archive matches the
+    release ref the workflow checked out and excludes build output such as
+    ``node_modules`` or ``runtimes/*/dependencies.zip``.
+    """
+    key = source_archive_key(version)
+    prefix = f"{Path(key).stem}/"
+    result = subprocess.run(
+        ["git", "archive", "--format=zip", f"--prefix={prefix}", "HEAD"],
+        cwd=REPO_ROOT, capture_output=True,
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            "git archive failed; the source archive must be exported from a "
+            f"git checkout:\n{result.stderr.decode('utf-8', 'replace')}"
+        )
+    target = staging / key
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(result.stdout)
+    print(f"exported source archive {key} -> {target.relative_to(staging)}")
+    return key, target
+
+
+def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, Path]]:
+    """Render graphs and collect code/runtime/source files as (Zenodo key, path)."""
     staged: list[tuple[str, Path]] = []
 
     models = REPO_ROOT / "models"
@@ -104,6 +144,8 @@ def stage_files(base_url: str, staging: Path) -> list[tuple[str, Path]]:
                 f"scripts/create-python-dependency-archive.py before releasing"
             )
         staged.append((f"runtimes/{runtime_dir.name}.zip", archive))
+
+    staged.append(stage_source_archive(version, staging))
 
     return staged
 
@@ -211,7 +253,7 @@ def main() -> None:
 
     staging = Path(tempfile.mkdtemp(prefix="zenodo-release-"))
     try:
-        staged = stage_files(base_url, staging)
+        staged = stage_files(base_url, staging, args.version)
         bucket = deposition["links"]["bucket"]
         for key, source in staged:
             upload(bucket, key, source, token)
