@@ -36,23 +36,24 @@ Reference a model's process graph by URL as its `namespace`:
 embeddings = connection.datacube_from_process(
     "tessera_v2_embeddings",
     namespace=(
-        "https://raw.githubusercontent.com/danlooo/fair-geo-fm/"
-        "<commit>/models/tessera_v2/process_graph.json"
+        "https://doi.org/<doi>/models/tessera_v2/process_graph.json"
     ),
     spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
     temporal_extent=["2023-08-01", "2023-09-30"],
 )
 ```
 
-Replace `<commit>` with a commit or tag from
-[fair-geo-fm](https://github.com/danlooo/fair-geo-fm/commits/main). See
-[TESSERA v2 embeddings](/models/tessera_v2/) for the complete example and
+Replace `<doi>` with the DOI shown on the model's page. Released versions are
+archived on Zenodo. For unreleased staging builds use
+<https://danlooo.github.io/fair-geo-fm/main/models/tessera_v2/process_graph.json>.
+See [TESSERA v2 embeddings](/models/tessera_v2/) for the complete example and
 parameters.
 
 ## Reproducibility
 
-- Pin `namespace` to a commit or tag, never to a branch, so stored jobs keep
-  resolving to the same process graph.
+- Pin `namespace` to a release DOI, never to a branch, so stored jobs keep
+  resolving to the same process graph. The staging site is overwritten on every
+  deployment.
 - One embedding per process graph: do not pack several models into one UDP.
 - A process id encodes its major model version (`tessera_v2_embeddings`), so
   versions can be used side by side.

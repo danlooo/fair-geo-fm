@@ -136,9 +136,10 @@ function modelSourceDir(root) {
   return existsSync(join(root, "models")) ? "models" : "processes";
 }
 
-// Non-markdown files in each model directory (process_graph.json, udf.py,
-// example.py, runtime.txt). They are served next to the model page, e.g.
-// /<version>/models/tessera_v2/process_graph.json.
+// Non-markdown, non-template files in each model directory
+// (process_graph.json, udf.py, example.py, runtime.txt). They are served next
+// to the model page, e.g. /<version>/models/tessera_v2/process_graph.json.
+// The .j2 source templates are build inputs, not public assets.
 function siteAssets(root) {
   const assets = new Map();
   const source = modelSourceDir(root);
@@ -148,7 +149,7 @@ function siteAssets(root) {
     if (!entry.isDirectory()) continue;
     const dir = join("models", entry.name);
     for (const file of filesBelow(join(root, source, entry.name))) {
-      if (file.endsWith(".md")) continue;
+      if (file.endsWith(".md") || file.endsWith(".j2")) continue;
       assets.set(join(dir, file), join(root, source, entry.name, file));
     }
   }
@@ -267,8 +268,8 @@ function refsToArchive() {
   ])
     .split("\n")
     .filter(Boolean)) {
-    // Only release tags are documentation versions; content-addressed archive
-    // releases such as py311-torch231-<sha> are not.
+    // Only release tags are documentation versions; other tags (if any) are
+    // not published as site versions.
     if (!name.startsWith("v")) continue;
     // A branch and a tag with the same name are one version; the branch wins.
     if (name !== currentVersion && !refs.has(name)) refs.set(name, name);

@@ -2,8 +2,9 @@ name: build
 
 # First stage of the build -> publish pipeline. Everything that can be
 # validated without publishing lives here:
-#   - process graphs: fails when a model's process_graph.json no longer matches
-#     its udf.py (see scripts/build-process-graph.py)
+#   - process graphs: fails when a model's committed process_graph.json no
+#     longer matches process_graph.json.j2 + udf.py (see
+#     scripts/build-process-graph.py)
 #   - dependency archives: builds every runtimes/*/requirements.txt into a
 #     deterministic dependencies.zip and smoke-tests the imports on the pinned
 #     Python. Publishing is deliberately not automated; see publish.yml.
@@ -44,7 +45,10 @@ jobs:
           stale=()
           for dir in models/*/; do
             [ -f "$dir/udf.py" ] || continue
-            [ -f "$dir/process_graph.json" ] || continue
+            if [ ! -f "$dir/process_graph.json.j2" ]; then
+              echo "$dir has udf.py but no process_graph.json.j2" >&2
+              exit 1
+            fi
             found=$((found + 1))
             if ! uv run scripts/build-process-graph.py "${dir%/}" --check; then
               stale+=("${dir%/}")

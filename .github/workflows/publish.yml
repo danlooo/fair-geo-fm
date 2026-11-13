@@ -1,52 +1,35 @@
 name: publish
 
-# Second stage of the build -> publish pipeline. Nothing is published unless a
-# `build` run for the commit has completed successfully, so a commit that breaks
-# a process graph or dependency archive is never deployed.
-#   - every successful push build publishes the documentation site: the newest
-#     v* tag is the current version and the site root redirects to it; every
-#     other branch and v* tag that contains a site is archived into the same build
-#     by scripts/prepare-docs.mjs, so all versions are published at once and the
-#     version switcher links between them:
-#       https://danlooo.github.io/fair-geo-fm/          -> /v0.1/
-#       https://danlooo.github.io/fair-geo-fm/v0.1/
-#       https://danlooo.github.io/fair-geo-fm/main/
-#     The site also serves the build job's runtime archives for the default
-#     branch at a fixed path, e.g. /main/runtimes/py311-torch231.zip, replacing
-#     them on every deployment. Released versions are archived on Zenodo.
-#   - dependency archives are never released automatically. A maintainer runs
-#     `workflow_dispatch` with `target: runtime` to build, smoke-test, and
-#     publish one runtime. Releases are content-addressed with their sha256, so
-#     unchanged bytes resolve to the existing release and nothing is
-#     overwritten; `tag` (e.g. `staging`) selects a mutable prerelease instead.
-#   - `workflow_dispatch` with `target: docs` republishes the site by hand.
+# Second stage of the build -> publish pipeline for the staging site. Nothing is
+# published unless a `build` run for the commit has completed successfully, so a
+# commit that breaks a process graph or dependency archive is never deployed.
+#
+# Every successful push build publishes the documentation site and the
+# staging process graphs and runtimes: the newest v* tag is the current version
+# and the site root redirects to it; every other branch and v* tag that
+# contains a site is archived into the same build by
+# scripts/prepare-docs.mjs, so all versions are published at once and the
+# version switcher links between them:
+#
+#   https://danlooo.github.io/fair-geo-fm/          -> /v0.1/
+#   https://danlooo.github.io/fair-geo-fm/v0.1/
+#   https://danlooo.github.io/fair-geo-fm/main/
+#
+# The default branch is the staging target. Process graphs are rendered from
+# models/*/process_graph.json.j2 with this base URL, and the build job's runtime
+# archives are served at a fixed path, replacing them on every deployment:
+#
+#   https://danlooo.github.io/fair-geo-fm/main/models/<model>/process_graph.json
+#   https://danlooo.github.io/fair-geo-fm/main/runtimes/<runtime>.zip
+#
+# Released, citable versions are uploaded to Zenodo by publish-release.yml after
+# a maintainer creates a GitHub release. `workflow_dispatch` republishes the
+# site by hand.
 on:
   workflow_run:
     workflows: [build]
     types: [completed]
   workflow_dispatch:
-    inputs:
-      target:
-        description: "What to publish"
-        required: true
-        default: docs
-        type: choice
-        options: [docs, runtime, all]
-      runtime:
-        description: "Runtime directory under runtimes/"
-        required: false
-        default: py311-torch231
-        type: string
-      tag:
-        description: "Mutable prerelease tag, e.g. staging (empty = content-addressed)"
-        required: false
-        default: ""
-        type: string
-      dry_run:
-        description: "Build and verify only; do not create a release"
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -92,11 +75,7 @@ jobs:
 
   documentation:
     needs: verify-build
-    if: |
-      needs.verify-build.outputs.ok == 'true' &&
-      (github.event_name == 'workflow_run' ||
-       (github.event_name == 'workflow_dispatch' &&
-        (inputs.target == 'docs' || inputs.target == 'all')))
+    if: needs.verify-build.outputs.ok == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -139,9 +118,24 @@ jobs:
           node-version: 22
           cache: npm
 
+      - uses: astral-sh/setup-uv@v6
+
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
+
+      - name: Render staging process graphs
+        # The template is the source of truth; this writes the default-branch
+        # copy that prepare-docs serves. The base URL matches the Pages layout
+        # of a project site.
+        env:
+          BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main
+        run: |
+          set -euo pipefail
+          for dir in models/*/; do
+            [ -f "$dir/process_graph.json.j2" ] || continue
+            uv run scripts/build-process-graph.py "${dir%/}" --base-url "$BASE_URL"
+          done
 
       - name: Download dependency archives
         # The site serves the built runtime archives for the default branch at
@@ -198,180 +192,3 @@ jobs:
         uses: actions/deploy-pages@v4
         env:
           GITHUB_SHA: ${{ steps.version.outputs.sha }}
-
-  runtime:
-    name: publish runtime archives
-    needs: verify-build
-    # Releases are never created automatically. A maintainer publishes one
-    # runtime on purpose, and only after a build of the checked-out commit has
-    # passed (verify-build); the archive is then rebuilt and smoke-tested here.
-    if: |
-      needs.verify-build.outputs.ok == 'true' &&
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'runtime' || inputs.target == 'all')
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: write
-    concurrency:
-      group: ${{ github.workflow }}-${{ inputs.runtime }}
-      cancel-in-progress: false
-    environment: publish
-    env:
-      RUNTIME: ${{ inputs.runtime }}
-      RELEASE_TAG: ${{ inputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-          cache-dependency-glob: "runtimes/*/requirements.txt"
-
-      - name: Build archive
-        run: |
-          set -euo pipefail
-          if [[ ! "$RUNTIME" =~ ^[A-Za-z0-9._-]+$ ]]; then
-            echo "invalid runtime name: $RUNTIME" >&2
-            exit 1
-          fi
-          requirements="runtimes/$RUNTIME/requirements.txt"
-          if [ ! -f "$requirements" ]; then
-            echo "no such runtime: $requirements" >&2
-            exit 1
-          fi
-          uv run scripts/create-python-dependency-archive.py \
-            --requirements "$requirements" \
-            --output-file "runtimes/$RUNTIME/dependencies.zip"
-
-      - name: Verify on the pinned Python version
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libgomp1  # torch CPU
-          version="$(sed -E 's/^py([0-9])([0-9]+).*/\1.\2/' <<<"$RUNTIME")"
-          uv python install "$version"
-          python="$(uv python find "$version")"
-
-          workdir="$(mktemp -d)"
-          unzip -q "runtimes/$RUNTIME/dependencies.zip" -d "$workdir"
-
-          "$python" - "$workdir" <<'PY'
-          import importlib
-          import pathlib
-          import sys
-
-          root = pathlib.Path(sys.argv[1])
-          sys.path.insert(0, str(root))
-          modules = sorted(
-              path.name
-              for path in root.iterdir()
-              if path.is_dir() and (path / "__init__.py").is_file()
-          )
-          if not modules:
-              raise SystemExit(f"archive root has no importable packages: {root}")
-          for module in modules:
-              importlib.import_module(module)
-          print(f"imported {len(modules)} packages: {', '.join(modules)}")
-          PY
-
-          rm -rf "$workdir"
-
-      - name: Compute release name
-        id: artifact
-        run: |
-          set -euo pipefail
-          digest="$(sha256sum "runtimes/$RUNTIME/dependencies.zip" | cut -d' ' -f1)"
-          short="${digest:0:16}"
-          if [ -n "$RELEASE_TAG" ]; then
-            if [[ ! "$RELEASE_TAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
-              echo "invalid tag: $RELEASE_TAG" >&2
-              exit 1
-            fi
-            tag="$RELEASE_TAG"
-            asset="$RUNTIME.zip"
-            mutable=true
-          else
-            tag="$RUNTIME-$short"
-            asset="$RUNTIME-$short.zip"
-            mutable=false
-          fi
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "asset=$asset" >> "$GITHUB_OUTPUT"
-          echo "mutable=$mutable" >> "$GITHUB_OUTPUT"
-          cp "runtimes/$RUNTIME/dependencies.zip" "$RUNNER_TEMP/$asset"
-
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DRY_RUN: ${{ inputs.dry_run }}
-          DIGEST: ${{ steps.artifact.outputs.digest }}
-          TAG: ${{ steps.artifact.outputs.tag }}
-          ASSET: ${{ steps.artifact.outputs.asset }}
-          MUTABLE: ${{ steps.artifact.outputs.mutable }}
-        run: |
-          set -euo pipefail
-          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
-
-          {
-            echo "### dependency archive"
-            echo
-            echo "- runtime: \`$RUNTIME\`"
-            echo "- sha256: \`$DIGEST\`"
-            echo "- release: \`$TAG\`"
-            echo "- mutable: $MUTABLE"
-            echo "- url: $url#feature_deps"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$DRY_RUN" = "true" ]; then
-            echo "dry run: would publish $TAG with $ASSET (mutable=$MUTABLE)"
-            exit 0
-          fi
-
-          if [ "$MUTABLE" = "true" ]; then
-            if gh release view "$TAG" >/dev/null 2>&1; then
-              echo "mutable release $TAG exists; replacing $ASSET"
-              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET" --clobber
-            else
-              gh release create "$TAG" \
-                --title "$TAG" \
-                --prerelease \
-                --latest=false \
-                --notes "Mutable staging release for \`runtimes/$RUNTIME\`; the asset is replaced on each publish.
-
-          sha256: \`$DIGEST\`
-          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`" \
-                "$RUNNER_TEMP/$ASSET"
-            fi
-            exit 0
-          fi
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "release $TAG exists; not overwriting"
-            mkdir -p "$RUNNER_TEMP/existing"
-            if gh release download "$TAG" --pattern "$ASSET" --dir "$RUNNER_TEMP/existing"; then
-              echo "$DIGEST  $RUNNER_TEMP/existing/$ASSET" | sha256sum -c -
-            else
-              echo "asset missing from existing release; uploading it"
-              gh release upload "$TAG" "$RUNNER_TEMP/$ASSET"
-            fi
-            exit 0
-          fi
-
-          notes="Content-addressed dependency archive for \`runtimes/$RUNTIME\`.
-
-          sha256: \`$DIGEST\`
-          built from \`$GITHUB_REPOSITORY@$GITHUB_SHA\`
-
-          Use as a job option:
-
-          \`\`\`
-          \"udf-dependency-archives\": [\"$url#feature_deps\"]
-          \`\`\`"
-
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes "$notes" \
-            --latest=false \
-            "$RUNNER_TEMP/$ASSET"

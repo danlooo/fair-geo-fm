@@ -1,98 +1,60 @@
 #!/usr/bin/env python3
-"""Inline a process directory's ``udf.py`` into its ``process_graph.json``.
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["jinja2"]
+# ///
+"""Render a model's ``process_graph.json`` from ``process_graph.json.j2``.
 
-A remote process definition has to carry the UDF as inline source: a relative
-path in ``udf`` is resolved against the *user's* server-side workspace, not the
-repository, and URL UDFs are backend-specific. So ``udf.py`` is the source of
-truth for the code, ``process_graph.json`` is the source of truth for the graph
-structure, and this script keeps the ``udf`` argument of the ``run_udf`` node in
-sync with the file.
+``udf.py`` is the source of truth for the UDF code and
+``process_graph.json.j2`` is the source of truth for the graph structure and
+its published URLs. A remote process definition has to carry the UDF as inline
+source, so the template receives it as ``udf_json``; the archive URL is
+rendered from ``runtime.txt`` plus the target base URL.
 
-If the directory also has a ``runtime.txt``, it holds the one runtime name the
-process needs (e.g. ``py311-torch231``). The script requires that name to match
-a directory under ``runtimes/`` and to be a substring of one of the
-``default_job_options["udf-dependency-archives"]`` URLs (e.g.
-``https://github.com/.../releases/download/main/py311-torch231.zip#feature_deps``),
-so the runtime directory, the published archive and the process graph cannot
-drift apart.
+Two publication targets share the same layout:
+
+    GitHub Pages (normal publish)
+        https://danlooo.github.io/fair-geo-fm/main/models/<model>/process_graph.json
+        https://danlooo.github.io/fair-geo-fm/main/runtimes/<runtime>.zip
+    Zenodo (manual release)
+        https://doi.org/<doi>/models/<model>/process_graph.json
+        https://doi.org/<doi>/runtimes/<runtime>.zip
+
+``udf-dependency-archives`` entries always carry the ``#feature_deps`` suffix.
 
 Usage:
     uv run scripts/build-process-graph.py models/tessera_v2
     uv run scripts/build-process-graph.py models/tessera_v2 --check
+    uv run scripts/build-process-graph.py models/tessera_v2 \\
+        --base-url https://doi.org/10.5281/zenodo.123456 \\
+        --output /tmp/release/models/tessera_v2/process_graph.json
 
-``--check`` writes nothing and exits non-zero when ``process_graph.json`` is
-stale or the runtime reference is invalid, for CI or a pre-commit hook.
+``--check`` writes nothing and exits non-zero when the committed
+``process_graph.json`` is stale or the runtime reference is invalid, for CI or
+a pre-commit hook.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
-from typing import Iterator
+
+from process_graphs import DEFAULT_BASE_URL, render, validate_runtime_reference
 
 
-def find_run_udf_nodes(node: object) -> Iterator[dict]:
-    """Yield every ``run_udf`` node in a (nested) process graph."""
-    if isinstance(node, dict):
-        if node.get("process_id") == "run_udf":
-            yield node
-        for value in node.values():
-            yield from find_run_udf_nodes(value)
-    elif isinstance(node, list):
-        for value in node:
-            yield from find_run_udf_nodes(value)
-
-
-def check_runtime_reference(process_dir: Path, graph: dict) -> list[str]:
-    """Validate ``runtime.txt`` against ``runtimes/`` and the job options."""
-    runtime_file = process_dir / "runtime.txt"
-    if not runtime_file.is_file():
-        return []
-
-    name = runtime_file.read_text(encoding="utf-8").strip()
-    if not name or any(character.isspace() for character in name):
-        return [f"{runtime_file}: expected a single runtime name, found {name!r}"]
-
-    problems = []
-    repo_root = process_dir.resolve().parent.parent
-    if not (repo_root / "runtimes" / name).is_dir():
-        problems.append(
-            f"{runtime_file} refers to runtime {name!r}, but runtimes/{name}/ does not exist"
-        )
-
-    archives = (graph.get("default_job_options") or {}).get("udf-dependency-archives") or []
-    if not archives:
-        problems.append(f"{runtime_file}: default_job_options has no udf-dependency-archives")
-    elif not any(name in archive_url for archive_url in archives):
-        problems.append(
-            f"{runtime_file} names runtime {name!r}, which is not a substring of any URL in "
-            f"default_job_options['udf-dependency-archives']: {archives}"
-        )
-    return problems
-
-
-def build(process_dir: Path, check: bool) -> int:
-    udf_path = process_dir / "udf.py"
+def build(process_dir: Path, base_url: str, check: bool, output: Path | None) -> int:
     graph_path = process_dir / "process_graph.json"
+    text, graph, graph_url, archive_url = render(process_dir, base_url)
 
-    graph = json.loads(graph_path.read_text(encoding="utf-8"))
-
-    problems = check_runtime_reference(process_dir, graph)
+    problems = validate_runtime_reference(process_dir, graph, archive_url)
     if problems:
         for problem in problems:
             print(problem, file=sys.stderr)
         return 1
 
-    nodes = list(find_run_udf_nodes(graph))
-    if len(nodes) != 1:
-        raise SystemExit(
-            f"{graph_path}: expected exactly one run_udf node, found {len(nodes)}"
-        )
-    nodes[0].setdefault("arguments", {})["udf"] = udf_path.read_text(encoding="utf-8")
-
-    text = json.dumps(graph, indent=2, ensure_ascii=False) + "\n"
+    print(f"process graph: {graph_url}")
+    print(f"runtime archive: {archive_url}")
 
     if check:
         # Tolerate a missing or extra trailing newline in the file on disk.
@@ -106,8 +68,10 @@ def build(process_dir: Path, check: bool) -> int:
         print(f"{graph_path} is up to date")
         return 0
 
-    graph_path.write_text(text, encoding="utf-8")
-    print(f"wrote {graph_path}")
+    target = output or graph_path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text, encoding="utf-8")
+    print(f"wrote {target}")
     return 0
 
 
@@ -115,14 +79,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "process_dir", type=Path,
-        help="process directory containing udf.py and process_graph.json",
+        help="process directory containing process_graph.json.j2 and udf.py",
+    )
+    parser.add_argument(
+        "--base-url", default=DEFAULT_BASE_URL,
+        help=f"URL the model and runtimes are published under (default: {DEFAULT_BASE_URL})",
+    )
+    parser.add_argument(
+        "--output", type=Path,
+        help="write the rendered graph here instead of <process_dir>/process_graph.json",
     )
     parser.add_argument(
         "--check", action="store_true",
         help="only verify that process_graph.json is up to date",
     )
     args = parser.parse_args()
-    raise SystemExit(build(args.process_dir, args.check))
+    raise SystemExit(build(args.process_dir, args.base_url, args.check, args.output))
 
 
 if __name__ == "__main__":

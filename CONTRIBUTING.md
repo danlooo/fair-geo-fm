@@ -6,7 +6,7 @@ Conventions for the models and runtimes in this repository.
 
 - Each process is a user-defined process (UDP) served through the
   [openEO remote process definition extension](https://api.openeo.org/extensions/remote-process-definition/0.1.0).
-  Callers set `namespace` to the process's `process_graph.json` in this repo.
+  Callers set `namespace` to the URL of the exported `process_graph.json`.
 - One directory per major model version, so versions can be used side by side:
   `models/tessera_v2/`, `models/tessera_v1/`.
 - Put the major version in the process id, not in a parameter:
@@ -21,16 +21,29 @@ Conventions for the models and runtimes in this repository.
 - Use openEO-friendly file names with underscores. Process ids must match
   `^\w+$`, so no hyphens or dots.
 - Inside a version directory, use role names rather than repeating the id:
-  - `process_graph.json` — the UDP definition served as the remote namespace,
-    maintained by hand
+  - `process_graph.json.j2` — the Jinja2 template, maintained by hand; source of
+    truth for the graph structure and its published URLs
+  - `process_graph.json` — generated from the template, `udf.py` and
+    `runtime.txt` by `scripts/build-process-graph.py`; never edit it by hand.
+    It is committed for the default GitHub Pages base so the repository and
+    local site builds can serve it, and CI fails when it is stale.
   - `udf.py` — UDF source, when the UDF is specific to this model
   - `example.py` — sample call
   - `README.md`
 - Inline the UDF in `process_graph.json` so one URL resolves the whole process.
+  The template receives it as `{{ udf_json }}`, which the build script fills
+  from `udf.py`; do not paste the UDF into the template.
   If it grows too large to maintain inline, reference `udf.py` by URL from
   `run_udf` instead.
-- Point `namespace` at a commit or tag, not at a branch, so stored jobs stay
-  reproducible.
+- Do not hardcode publication URLs. The template is rendered for a base URL and
+  exposes `{{ runtime_url }}` (the dependency archive, with `#feature_deps`),
+  `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`. The same layout
+  is used for the staging Pages site and for a Zenodo release:
+  - staging: `https://danlooo.github.io/fair-geo-fm/main`
+  - release: `https://doi.org/<doi>`
+- Reference a released model by its DOI URL in `namespace`, not by a branch, so
+  stored jobs stay reproducible. The staging URL is overwritten on every
+  deployment and is only for checking a change before a release.
 - Do not end `namespace` or `links` URLs with a trailing `/`. Documentation
   page URLs do end with `/` because VitePress serves each process page as a
   directory index.
@@ -56,17 +69,19 @@ Conventions for the models and runtimes in this repository.
   `--extra-index-url`.
 - `uv run scripts/create-python-dependency-archive.py --requirements
   runtimes/py311-torch231/requirements.txt --output-file
-  runtimes/py311-torch231/dependencies.zip` writes that file; upload it to
-  object storage and never overwrite a published archive.
+  runtimes/py311-torch231/dependencies.zip` writes that file. It is git-ignored;
+  CI rebuilds it from the pinned `requirements.txt` for each publication.
 - Pin `runtime` and `version` in `run_udf` and reference the archive from the
   process's `default_job_options` via `udf-dependency-archives`, so interpreter
-  and archive move together.
-- CI also publishes the archive on the documentation site at a fixed
-  `/main/runtimes/<runtime>.zip`, e.g.
-  <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-torch231.zip>. It is
-  built from the default branch and **overwritten on every deployment**, so the
-  URL always yields the current `main` archive rather than a snapshot. It is
-  deliberately not versioned: released versions will be archived on Zenodo.
+  and archive move together. Entries always carry the `#feature_deps` suffix,
+  which tells openEO to extract the archive into the UDF's `feature_deps/`
+  directory instead of replacing the sandbox's own dependencies.
+- The URL comes from the template's `{{ runtime_url }}`, not from a literal:
+  - staging: <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-torch231.zip>
+  - release: `https://doi.org/<doi>/runtimes/py311-torch231.zip`
+- The staging archive is built from the default branch and **overwritten on
+  every deployment**, so the URL always yields the current `main` archive rather
+  than a snapshot. The Zenodo copy is immutable and carries the release DOI.
 - Prefer object storage for production. A Pages site is capped at 1 GB and
   roughly 100 GB/month of bandwidth, so a handful of `py311-torch231` (~160 MB)
   downloads exhaust the monthly budget, and Pages does not content-address the
@@ -75,56 +90,71 @@ Conventions for the models and runtimes in this repository.
 
 ## Releases
 
-Archives are published by the `publish` workflow, never by hand and never by
-committing the zip. The workflow refuses to publish unless a successful `build`
-exists for the checked-out commit, so archives are released only after the
-process graphs and archives pass CI. Releases themselves are never automatic:
-run `workflow_dispatch` with `target: runtime` to publish one runtime on
-purpose. Documentation, by contrast, is published automatically after every
-successful push build.
+Two publication targets share one layout, selected by a base URL:
 
-Documentation is versioned by git ref. The site root redirects to the newest
-`v*` tag, which is the current version; `main` and every older tag are
-published under `/<ref>/` and listed in the version switcher. Tag the default
-branch to release a new version of the site.
+| Target | Base URL | Contents |
+| --- | --- | --- |
+| Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives |
+| Release (`publish-release`) | `https://doi.org/<doi>` | process graphs, UDF code, runtime archives |
+
+The staging target is rebuilt automatically after every successful push build.
+Nothing is published unless the `build` workflow succeeded for the commit, so a
+broken process graph or archive is never deployed. Staging URLs are
+**overwritten on every deployment** and are only for checking a change before a
+release.
+
+Releases are never automatic. A maintainer creates a GitHub release by hand,
+which is the release decision, and the `publish-release` workflow archives the
+tag on Zenodo. It refuses to guess URLs: it creates a deposition, reserves its
+DOI first, renders every process graph with that DOI as the base URL, uploads
+the graphs, the UDF code and the runtime archives, and publishes the record
+last. The resulting record has many files under custom paths —
+
+    https://doi.org/<doi>/models/tessera_v2/process_graph.json
+    https://doi.org/<doi>/models/tessera_v2/udf.py
+    https://doi.org/<doi>/runtimes/py311-torch231.zip
+
+— so Zenodo's automatic GitHub integration cannot be used; it archives one
+repository snapshot under its own paths. The workflow talks to the Zenodo REST
+API (<https://developers.zenodo.org/>) through
+`scripts/publish-release.py`.
+
+### Zenodo credentials
+
+Add the repository secret **`ZENODO_ACCESS_TOKEN`** (Settings → Secrets and
+variables → Actions). Create it at <https://zenodo.org/account/settings/applications/>
+with the `deposit:write` and `deposit:actions` scopes. The optional repository
+variable **`ZENODO_API_URL`** overrides the API base; set it to
+`https://sandbox.zenodo.org/api` to rehearse against the Zenodo sandbox.
+
+### Publishing a release
 
 ```sh
-# dry run first: builds and verifies, publishes nothing
-gh workflow run "publish" \
-  -f target=runtime -f runtime=py311-torch231 -F dry_run=true
+# 1. tag and create the GitHub release (the release decision)
+gh release create v0.2 --generate-notes
 
-# immutable, content-addressed release
-gh workflow run "publish" \
-  -f target=runtime -f runtime=py311-torch231 -F dry_run=false
+# 2. rehearse: reserve a DOI, render and upload, then delete the draft
+gh workflow run "publish-release" -f tag=v0.2 -F dry_run=true
 
-# mutable staging release, for checking that a backend can fetch the URL
-gh workflow run "publish" \
-  -f target=runtime -f runtime=py311-torch231 -f tag=staging -F dry_run=false
+# 3. publish for real, or let the `release: published` event do it
+gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 ```
 
-- `workflow_dispatch` only fires once the workflow file is on the default
-  branch, and the job waits for approval by the `publish` environment.
-- `dry_run` defaults to `true`. It runs the whole build and import check and
-  writes the planned release name and URL to the run summary.
-- With `tag` empty the release is **immutable and content-addressed**: tag and
-  asset are `<runtime>-<sha256[:16]>`. Rerunning with identical bytes verifies
-  the existing asset instead of overwriting it, and changed bytes produce a new
-  release, so a published URL always resolves to the same zip.
-- With `tag: staging` the workflow maintains a **mutable prerelease** under
-  that tag with a single `<runtime>.zip` asset, replaced on every run. It is
-  meant to unblock a backend that cannot be allowlisted for object storage yet;
-  do not reference it from a process you want reproducible.
-- Release downloads redirect to `objects.githubusercontent.com`. Confirm the
-  target backend can follow that before pointing a process at the URL; the
-  object-storage rule above still applies to production.
-- The documentation deployment carries the built archives as well, so
-  `/main/runtimes/py311-torch231.zip` exists after any successful push build.
-  `prepare-docs.mjs` copies them into `docs/public/main/runtimes/` before
-  VitePress runs; without the build artifact the site is still deployed, just
-  without the archive (the workflow emits a warning).
-- After publishing, write the content-addressed URL to the process's
-  `runtime.txt`, copy it verbatim into
-  `default_job_options["udf-dependency-archives"]`, and update the sha256 quoted
-  in its README. `scripts/build-process-graph.py --check` enforces that the URL
-  is listed in the job options and that its asset name (`<runtime>.zip`) matches
-  a directory under `runtimes/`.
+- Creating the release normally triggers the workflow automatically. The
+  `workflow_dispatch` form is for retries and rehearsals.
+- The job waits for approval by the protected `release` environment.
+- `dry_run` defaults to `true` for `workflow_dispatch`. It reserves a DOI,
+  renders and uploads every file, writes the planned URLs to the run summary,
+  and deletes the draft. `ZENODO_API_URL` can point at the sandbox.
+- Creating a new GitHub release always creates a new Zenodo record and DOI.
+  Re-running a failed upload against the same deposition should use
+  `--deposition-id` (the draft id is printed and written to the run summary);
+  do not run the published event twice by hand.
+- Documentation is versioned by git ref. The site root redirects to the newest
+  `v*` tag, which is the current version; `main` and every older tag are
+  published under `/<ref>/` and listed in the version switcher.
+- After a successful release, update the model page and `example.py` to show the
+  DOI URL, and quote the runtime sha256 in its README.
+  `scripts/build-process-graph.py --check` enforces that the committed
+  `process_graph.json` matches the template and that its archive URL ends with
+  `runtimes/<runtime>.zip#feature_deps`.

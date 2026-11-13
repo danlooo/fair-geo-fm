@@ -1,0 +1,118 @@
+name: publish-release
+
+# Archive a released version on Zenodo. A maintainer creates the GitHub release
+# by hand (that is the release decision); this workflow uploads the process
+# graphs, the UDF code and the runtime archives to one Zenodo record and turns
+# the release into a citable DOI:
+#
+#   https://doi.org/<doi>/models/<model>/process_graph.json
+#   https://doi.org/<doi>/runtimes/<runtime>.zip
+#
+# The DOI is reserved before anything is uploaded and is used as the base URL
+# when the process graphs are rendered, so the graph shipped in the record
+# references the record's own runtime URL. The record is published last.
+#
+# Zenodo's automatic GitHub integration cannot be used: it archives a single
+# repository snapshot under Zenodo's own paths, while the layout above needs
+# several files under custom paths. Hence scripts/publish-release.py talks to
+# the REST API at <https://developers.zenodo.org/>.
+#
+# Authentication: the repository secret ZENODO_ACCESS_TOKEN, with the
+# `deposit:write` and `deposit:actions` scopes.
+#
+# `workflow_dispatch` re-runs a release. dry_run defaults to true: it creates a
+# deposition, reserves a DOI, renders and uploads everything, then deletes the
+# draft. Set ZENODO_API_URL to the sandbox API to test without touching the
+# production record space.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release"
+        required: true
+        type: string
+      dry_run:
+        description: "Render and upload, then delete the draft instead of publishing"
+        required: false
+        default: true
+        type: boolean
+      creators:
+        description: 'Zenodo creators as JSON, e.g. [{"name":"Loos, Daniel"}]'
+        required: false
+        default: '[{"name":"Loos, Daniel"}]'
+        type: string
+      deposition_id:
+        description: "Retry an existing draft deposition id (empty = create a new record)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  zenodo:
+    name: upload release to Zenodo
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Protect the record space with required reviewers, like the old publish
+    # environment: releases are never automatic.
+    environment: release
+    env:
+      VERSION: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "runtimes/*/requirements.txt"
+
+      - name: Build runtime archives
+        # Published archives are built from the released tag, not taken from a
+        # branch artifact, and are deterministic for a pinned requirements.txt.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          requirements=(runtimes/*/requirements.txt)
+          if [ ${#requirements[@]} -eq 0 ]; then
+            echo "no runtimes/*/requirements.txt found" >&2
+            exit 1
+          fi
+          for req in "${requirements[@]}"; do
+            uv run scripts/create-python-dependency-archive.py \
+              --requirements "$req" \
+              --output-file "$(dirname "$req")/dependencies.zip"
+          done
+
+      - name: Upload to Zenodo
+        env:
+          ZENODO_ACCESS_TOKEN: ${{ secrets.ZENODO_ACCESS_TOKEN }}
+          ZENODO_API_URL: ${{ vars.ZENODO_API_URL || 'https://zenodo.org/api' }}
+          RELEASE_TITLE: '${{ github.event.release.name || github.event.release.tag_name || inputs.tag }}'
+          RELEASE_DESCRIPTION: '${{ github.event.release.body || '''' }}'
+          CREATORS: '${{ github.event_name == ''workflow_dispatch'' && inputs.creators || ''[{"name":"Loos, Daniel"}]'' }}'
+          DRY_RUN: '${{ github.event_name == ''workflow_dispatch'' && inputs.dry_run || ''false'' }}'
+          DEPOSITION_ID: ${{ inputs.deposition_id }}
+        run: |
+          set -euo pipefail
+          args=(--title "$RELEASE_TITLE" --version "$VERSION" --creators-json "$CREATORS")
+          if [ -n "$RELEASE_DESCRIPTION" ]; then
+            args+=(--description "$RELEASE_DESCRIPTION")
+          fi
+          if [ -n "$DEPOSITION_ID" ]; then
+            args+=(--deposition-id "$DEPOSITION_ID")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          uv run scripts/publish-release.py "${args[@]}"

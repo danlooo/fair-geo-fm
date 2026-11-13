@@ -26,7 +26,7 @@ On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins
   "process_graph": {
     "tessera_v2_embeddings1": {
       "process_id": "tessera_v2_embeddings",
-      "namespace": "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
+      "namespace": "https://danlooo.github.io/fair-geo-fm/main/models/tessera_v2/process_graph.json",
       "description": "Documentation: https://danlooo.github.io/fair-geo-fm/models/tessera_v2/",
       "arguments": {
         "spatial_extent": {
@@ -60,7 +60,7 @@ connection.authenticate_oidc()
 
 embeddings = connection.datacube_from_process(
     "tessera_v2_embeddings",
-    namespace="https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
+    namespace="https://danlooo.github.io/fair-geo-fm/main/models/tessera_v2/process_graph.json",
     spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
     temporal_extent=["2025-01-01", "2026-01-01"],
 )
@@ -82,7 +82,7 @@ login()
 # (Open-EO/openeo-r-client#143), so fetch the definition and bind its
 # parameters locally instead.
 definition <- jsonlite::fromJSON(
-  "https://raw.githubusercontent.com/danlooo/fair-geo-fm/main/models/tessera_v2/process_graph.json",
+  "https://danlooo.github.io/fair-geo-fm/main/models/tessera_v2/process_graph.json",
   simplifyVector = FALSE
 )
 definition$parameters <- NULL
