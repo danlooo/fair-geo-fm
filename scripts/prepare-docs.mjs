@@ -7,9 +7,9 @@
 //
 //   docs/src/                 the current version (the newest v* tag)
 //   docs/archive/<ref>/       every other branch and v* tag
-//   docs/public/<ref>/        non-markdown process files served next to pages,
-//                             plus the built runtime archives for the current
-//                             version (runtimes/<name>.zip)
+//   docs/public/<ref>/        non-markdown process files served next to pages
+//   docs/public/main/runtimes/  built runtime archives for the default branch,
+//                             overwritten on every deployment
 //
 // The current version is the newest v* tag, so the site root redirects to that
 // tag's URL (e.g. /v0.1/). Set DOCS_CURRENT_VERSION to override the name; the
@@ -161,13 +161,7 @@ function siteAssets(root) {
 // <name>/dependencies.zip by scripts/create-python-dependency-archive.py) and
 // are git-ignored, so they are never present in a ref worktree. CI downloads
 // the build job's dependency-archives artifact into the checkout before running
-// this script; read them from there. They are served as <name>.zip under the
-// current version's pages, e.g. /v0.1/runtimes/py311-torch231.zip.
-//
-// Only the current version gets them: copying an archive into every archived
-// version would multiply the site size (the torch archive alone is ~160 MB and
-// a Pages site is capped at 1 GB) and would misattribute a rebuild as that old
-// version's archive.
+// this script; read them from there.
 function runtimeAssets() {
   const assets = new Map();
   const runtimes = join(repoRoot, "runtimes");
@@ -180,6 +174,25 @@ function runtimeAssets() {
     }
   }
   return assets;
+}
+
+// Serve the archives at a fixed /main/ path, independent of the documentation
+// version, replacing them on every deployment: released versions are archived
+// elsewhere (Zenodo), so Pages only ever carries the latest default-branch
+// build. e.g. /fair-geo-fm/main/runtimes/py311-torch231.zip.
+function writeRuntimeAssets() {
+  const assets = runtimeAssets();
+  if (assets.size === 0) return;
+  // Copy rather than writeTree: docs/public/main may already hold the archived
+  // main branch's pages and model files, which writeTree would remove.
+  for (const [to, from] of assets) {
+    const target = join(publicDir, "main", to);
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(from, target);
+  }
+  console.log(
+    `prepare-docs: wrote ${assets.size} runtime archive(s) under docs/public/main`,
+  );
 }
 
 // Map canonical repository paths to site paths for one version.
@@ -270,10 +283,7 @@ if (withArchives) rmSync(publicDir, { recursive: true, force: true });
 
 function writeCurrentVersion(root) {
   writeTree(sitePages(root), sourcesDir);
-  writeTree(
-    new Map([...siteAssets(root), ...runtimeAssets()]),
-    join(publicDir, currentVersion),
-  );
+  writeTree(siteAssets(root), join(publicDir, currentVersion));
 }
 
 // Returns false when ref has no documentation site, so the caller falls back to
@@ -307,6 +317,7 @@ if (fromRef) {
 }
 
 if (!withArchives) {
+  writeRuntimeAssets();
   process.exit(0);
 }
 
@@ -344,3 +355,6 @@ for (const { name, ref } of refsToArchive()) {
 
 mkdirSync(archiveDir, { recursive: true });
 console.log(`prepare-docs: archived ${archived} ref(s)`);
+
+// Last, so an archived `main` version written above does not replace them.
+writeRuntimeAssets();

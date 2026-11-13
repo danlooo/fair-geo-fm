@@ -61,16 +61,15 @@ Conventions for the models and runtimes in this repository.
 - Pin `runtime` and `version` in `run_udf` and reference the archive from the
   process's `default_job_options` via `udf-dependency-archives`, so interpreter
   and archive move together.
-- CI also publishes the archive on the documentation site as
-  `runtimes/<runtime>.zip` under the current version, e.g.
-  <https://danlooo.github.io/fair-geo-fm/v0.1/runtimes/py311-torch231.zip>. The
-  file is the `dependency-archives` artifact of the build run for the current
-  version's commit, so it matches that ref's `requirements.txt`. The URL follows
-  the newest `v*` tag: it moves when a new version is tagged, and the file is
-  replaced whenever the site is rebuilt from changed requirements.
+- CI also publishes the archive on the documentation site at a fixed
+  `/main/runtimes/<runtime>.zip`, e.g.
+  <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-torch231.zip>. It is
+  built from the default branch and **overwritten on every deployment**, so the
+  URL always yields the current `main` archive rather than a snapshot. It is
+  deliberately not versioned: released versions will be archived on Zenodo.
 - Prefer object storage for production. A Pages site is capped at 1 GB and
   roughly 100 GB/month of bandwidth, so a handful of `py311-torch231` (~160 MB)
-  downloads exhaust the monthly budget, and Pages cannot content-address an
+  downloads exhaust the monthly budget, and Pages does not content-address the
   archive. Do not serve archives from GitHub raw or LFS either: raw is capped at
   100 MiB and LFS is bandwidth-metered.
 
@@ -119,8 +118,8 @@ gh workflow run "publish" \
   target backend can follow that before pointing a process at the URL; the
   object-storage rule above still applies to production.
 - The documentation deployment carries the built archives as well, so
-  `/v0.1/runtimes/py311-torch231.zip` exists after any successful push build.
-  `prepare-docs.mjs` copies them into `docs/public/<version>/runtimes/` before
+  `/main/runtimes/py311-torch231.zip` exists after any successful push build.
+  `prepare-docs.mjs` copies them into `docs/public/main/runtimes/` before
   VitePress runs; without the build artifact the site is still deployed, just
   without the archive (the workflow emits a warning).
 - After publishing, write the content-addressed URL to the process's
