@@ -3,7 +3,7 @@
 # requires-python = ">=3.12"
 # dependencies = ["jinja2", "requests"]
 # ///
-"""Upload a model release (process graphs, UDF code, runtimes) to Zenodo.
+"""Upload a model release (process graphs and runtimes) to Zenodo.
 
 Zenodo records can hold many files, which is what the published layout needs:
 
@@ -181,13 +181,10 @@ def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, P
         target.write_text(text, encoding="utf-8")
         print(f"rendered {graph_url} -> {target.relative_to(staging)}")
         print(f"  runtime archive: {archive_url}")
+        # The UDF source is embedded in the rendered graph. The record keeps
+        # only the graph per model; udf.py/example.py/runtime.txt stay in the
+        # source archive.
         staged.append((target.relative_to(staging).as_posix(), target))
-
-        for name in ("udf.py", "example.py", "runtime.txt"):
-            source = process_dir / name
-            if source.is_file():
-                relative = f"models/{process_dir.name}/{name}"
-                staged.append((relative, source))
 
     runtimes = REPO_ROOT / "runtimes"
     for runtime_dir in sorted(path for path in runtimes.iterdir() if path.is_dir()):

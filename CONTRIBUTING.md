@@ -95,7 +95,7 @@ Two publication targets share one layout, selected by a base URL:
 | Target | Base URL | Contents |
 | --- | --- | --- |
 | Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives |
-| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, UDF code, runtime archives, full source archive |
+| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, runtime archives, full source archive |
 
 The staging target is rebuilt automatically after every successful push build.
 Nothing is published unless the `build` workflow succeeded for the commit, so a
@@ -107,12 +107,13 @@ Releases are never automatic. A maintainer creates a GitHub release by hand,
 which is the release decision, and the `publish-release` workflow archives the
 tag on Zenodo. It refuses to guess URLs: it creates a draft record through
 Zenodo's InvenioRDM API, reserves its DOI first, renders every process graph
-against the record's file URL, uploads the graphs, the UDF code, the runtime
-archives and a source archive of the released commit, and publishes the record
-last. The resulting record has many files under custom paths —
+against the record's file URL, uploads the graphs, the runtime archives and a
+source archive of the released commit, and publishes the record last. Each
+model contributes only its rendered `process_graph.json`; the UDF is embedded
+in it, and `udf.py` / `example.py` / `runtime.txt` stay in the source archive.
+The resulting record has many files under custom paths —
 
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
-    https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 

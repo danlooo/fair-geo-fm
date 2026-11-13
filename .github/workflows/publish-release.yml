@@ -1,9 +1,9 @@
 name: publish-release
 
 # Archive a released version on Zenodo. A maintainer creates the GitHub release
-# by hand (that is the release decision); this workflow uploads the process
-# graphs, the UDF code and the runtime archives to one Zenodo record and turns
-# the release into a citable DOI:
+# by hand (that is the release decision); this workflow uploads the rendered
+# process graphs and the runtime archives to one Zenodo record and turns the
+# release into a citable DOI:
 #
 #   https://zenodo.org/records/<record-id>/files/models/<model>/process_graph.json
 #   https://zenodo.org/records/<record-id>/files/runtimes/<runtime>.zip
