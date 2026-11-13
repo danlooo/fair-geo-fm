@@ -20,4 +20,6 @@ features:
     details: Run foundation models on demand inside an openEO batch job.
   - title: openEO native
     details: Every model is a single openEO user-defined process, optimized to run at the Copernicus Data Space Ecosystem
+  - title: FAIR principles
+    details: We ensure that all models are findable, accessible, interoperable, and reusable.
 ---
