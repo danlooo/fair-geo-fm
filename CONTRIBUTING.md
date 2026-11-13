@@ -40,7 +40,7 @@ Conventions for the models and runtimes in this repository.
   `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`. The same layout
   is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
-  - release: `https://doi.org/<doi>`
+  - release: `https://zenodo.org/records/<record-id>/files`
 - Reference a released model by its DOI URL in `namespace`, not by a branch, so
   stored jobs stay reproducible. The staging URL is overwritten on every
   deployment and is only for checking a change before a release.
@@ -78,7 +78,7 @@ Conventions for the models and runtimes in this repository.
   directory instead of replacing the sandbox's own dependencies.
 - The URL comes from the template's `{{ runtime_url }}`, not from a literal:
   - staging: <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-torch231.zip>
-  - release: `https://doi.org/<doi>/runtimes/py311-torch231.zip`
+  - release: `https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip`
 - The staging archive is built from the default branch and **overwritten on
   every deployment**, so the URL always yields the current `main` archive rather
   than a snapshot. The Zenodo copy is immutable and carries the release DOI.
@@ -95,7 +95,7 @@ Two publication targets share one layout, selected by a base URL:
 | Target | Base URL | Contents |
 | --- | --- | --- |
 | Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives |
-| Release (`publish-release`) | `https://doi.org/<doi>` | process graphs, UDF code, runtime archives, full source archive |
+| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, UDF code, runtime archives, full source archive |
 
 The staging target is rebuilt automatically after every successful push build.
 Nothing is published unless the `build` workflow succeeded for the commit, so a
@@ -105,16 +105,20 @@ release.
 
 Releases are never automatic. A maintainer creates a GitHub release by hand,
 which is the release decision, and the `publish-release` workflow archives the
-tag on Zenodo. It refuses to guess URLs: it creates a deposition, reserves its
-DOI first, renders every process graph with that DOI as the base URL, uploads
-the graphs, the UDF code, the runtime archives and a source archive of the
-released commit, and publishes the record last. The resulting record has many
-files under custom paths —
+tag on Zenodo. It refuses to guess URLs: it creates a draft record through
+Zenodo's InvenioRDM API, reserves its DOI first, renders every process graph
+against the record's file URL, uploads the graphs, the UDF code, the runtime
+archives and a source archive of the released commit, and publishes the record
+last. The resulting record has many files under custom paths —
 
-    https://doi.org/<doi>/models/tessera_v2/process_graph.json
-    https://doi.org/<doi>/models/tessera_v2/udf.py
-    https://doi.org/<doi>/runtimes/py311-torch231.zip
-    https://doi.org/<doi>/danlooo/fair-geo-fm-v0.2.zip
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
+    https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
+
+The DOI (`https://doi.org/<doi>`) is the citable identifier of the record but
+does not serve individual files: `doi.org` treats any suffix as part of the DOI
+and returns 404. Link files through the record URL instead.
 
 — so Zenodo's automatic GitHub integration cannot be used; it archives one
 repository snapshot under its own paths and cannot add the rendered graphs.

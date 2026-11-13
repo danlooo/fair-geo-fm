@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["jinja2"]
+# dependencies = ["jinja2", "requests"]
 # ///
 """Upload a model release (process graphs, UDF code, runtimes) to Zenodo.
 
 Zenodo records can hold many files, which is what the published layout needs:
 
-    https://doi.org/<doi>/models/tessera_v2/process_graph.json
-    https://doi.org/<doi>/runtimes/py311-torch231.zip
-    https://doi.org/<doi>/danlooo/fair-geo-fm-v0.2.zip
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
+    https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 
 The last file is the complete source tree exported with ``git archive`` from
 the ref being released. It is uploaded under the same path Zenodo's GitHub
 integration would use, so the record is self-contained and citable.
 
 That rules out Zenodo's automatic GitHub integration, which only archives a
-repository snapshot under its own paths. This script creates a deposition,
-reserves its DOI before uploading, renders every process graph with the DOI as
-the base URL, uploads all files through the bucket API, and publishes the
-record last so a partially uploaded record never goes live.
+repository snapshot under its own paths. This script creates a draft record
+through Zenodo's InvenioRDM API, reserves its DOI before uploading, renders
+every process graph with the record's file URL as the base URL, uploads all
+files, and publishes the record last so a partially uploaded record never goes
+live.
 
-The REST API used here is documented at <https://developers.zenodo.org/>.
+The old deposition bucket API (``PUT /api/files/<bucket>/<key>``) is no longer
+served by Zenodo; files are uploaded to the draft record instead, as documented
+at <https://inveniordm.docs.cern.ch/reference/rest_api_drafts_records/>.
+
 The token needs the ``deposit:write`` and ``deposit:actions`` scopes and is
 read from ``ZENODO_ACCESS_TOKEN`` by default.
 
@@ -43,36 +47,86 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import urllib.error
 import urllib.parse
-import urllib.request
 from datetime import date
 from pathlib import Path
+
+import requests
 
 from process_graphs import render, validate_runtime_reference
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CREATORS = [{"name": "Loos, Daniel"}]
+# Zenodo serves ``application/json`` in its retired deposition shape by
+# default; this media type selects the native InvenioRDM representation.
+INVENIO_ACCEPT = "application/vnd.inveniordm.v1+json"
 
 
-def api_request(method: str, url: str, token: str, *, body: dict | None = None,
-                data: bytes | None = None, content_type: str | None = None) -> dict:
+class ApiError(Exception):
+    """A non-2xx response from the Zenodo API."""
+
+    def __init__(self, method: str, url: str, status: int, body: str):
+        super().__init__(f"{method} {url} failed: {status}\n{body}")
+        self.method = method
+        self.url = url
+        self.status = status
+        self.body = body
+
+
+def api_request(
+    session: requests.Session,
+    method: str,
+    url: str,
+    *,
+    json_body: dict | list | None = None,
+    data: object | None = None,
+    content_type: str | None = None,
+    accept: str = "application/json",
+    timeout: int = 300,
+) -> dict:
     """Call the Zenodo API and return the decoded JSON response."""
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
-    if body is not None:
-        data = json.dumps(body).encode("utf-8")
-        content_type = "application/json"
-    if data is not None:
-        headers["Content-Type"] = content_type or "application/octet-stream"
+    headers = {"Accept": accept}
+    if content_type:
+        headers["Content-Type"] = content_type
 
-    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+    response = session.request(
+        method, url, json=json_body, data=data, headers=headers, timeout=timeout
+    )
+    if not response.ok:
+        raise ApiError(method, url, response.status_code, response.text)
+    if not response.content:
+        return {}
     try:
-        with urllib.request.urlopen(request, timeout=300) as response:
-            payload = response.read()
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", "replace")
-        raise SystemExit(f"{method} {url} failed: {error.code} {error.reason}\n{detail}")
-    return json.loads(payload) if payload else {}
+        return response.json()
+    except ValueError:
+        return {}
+
+
+def draft_doi(draft: dict) -> str | None:
+    """The DOI reserved for a draft, if any.
+
+    Handles both the native InvenioRDM representation and Zenodo's legacy
+    ``application/json`` shape, which exposes the DOI at the top level.
+    """
+    doi = (draft.get("pids") or {}).get("doi") or {}
+    identifier = doi.get("identifier") if isinstance(doi, dict) else None
+    return identifier or draft.get("doi") or (draft.get("metadata") or {}).get("doi")
+
+
+def creators_metadata(creators: list[dict]) -> list[dict]:
+    """Translate ``[{name: "Loos, Daniel"}]`` to the InvenioRDM creator shape."""
+    translated = []
+    for creator in creators:
+        if "person_or_org" in creator:
+            translated.append(creator)
+            continue
+        person = {"type": "personal", "name": creator["name"]}
+        if ", " in creator["name"]:
+            family_name, given_name = creator["name"].split(", ", 1)
+            person["family_name"] = family_name
+            person["given_name"] = given_name
+        translated.append({"person_or_org": person})
+    return translated
 
 
 def source_archive_key(version: str) -> str:
@@ -150,11 +204,65 @@ def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, P
     return staged
 
 
-def upload(bucket: str, key: str, source: Path, token: str) -> None:
-    url = f"{bucket.rstrip('/')}/{urllib.parse.quote(key, safe='/')}"
-    size = source.stat().st_size
-    print(f"uploading {key} ({size} bytes)")
-    api_request("PUT", url, token, data=source.read_bytes())
+def site_url(api: str) -> str:
+    """The Zenodo web root for an API base URL."""
+    return api[: -len("/api")] if api.endswith("/api") else api
+
+
+def record_files_url(api: str, record_id: str) -> str:
+    """Base URL of a record's files, used as the rendered process-graph base."""
+    return f"{site_url(api)}/records/{record_id}/files"
+
+
+def file_url(api: str, record_id: str, key: str) -> str:
+    """Public URL for a file in the (draft) record."""
+    quoted = urllib.parse.quote(key, safe="/")
+    return f"{record_files_url(api, record_id)}/{quoted}"
+
+
+def upload_files(
+    session: requests.Session,
+    api: str,
+    record_id: str,
+    staged: list[tuple[str, Path]],
+) -> None:
+    """Initialize, upload and commit every staged file on the draft record."""
+    files_url = f"{api}/records/{record_id}/draft/files"
+
+    # A retry may target a draft that already has some of these files. Remove
+    # them first so the upload can be initialized again.
+    listing = api_request(session, "GET", files_url)
+    existing = {entry["key"] for entry in listing.get("entries", [])}
+    for key, _source in staged:
+        if key in existing:
+            quoted = urllib.parse.quote(key, safe="/")
+            print(f"replacing existing draft file {key}")
+            api_request(session, "DELETE", f"{files_url}/{quoted}")
+
+    # One request initializes all keys; uploads then stream each file so large
+    # runtime archives are never read into memory.
+    api_request(
+        session,
+        "POST",
+        files_url,
+        json_body=[{"key": key} for key, _source in staged],
+    )
+
+    for key, source in staged:
+        quoted = urllib.parse.quote(key, safe="/")
+        content_url = f"{files_url}/{quoted}/content"
+        size = source.stat().st_size
+        print(f"uploading {key} ({size} bytes)")
+        with source.open("rb") as handle:
+            api_request(
+                session,
+                "PUT",
+                content_url,
+                data=handle,
+                content_type="application/octet-stream",
+                timeout=1800,
+            )
+        api_request(session, "POST", f"{files_url}/{quoted}/commit")
 
 
 def write_github_output(values: dict[str, str]) -> None:
@@ -181,7 +289,7 @@ def main() -> None:
     parser.add_argument("--description", default="", help="Zenodo record description")
     parser.add_argument(
         "--creators-json", default=json.dumps(DEFAULT_CREATORS),
-        help='Zenodo creators as JSON, e.g. \'[{"name":"Loos, Daniel"}]\'',
+        help='Zenodo creators as JSON, e.g. \'[{"name": "Loos, Daniel"}]\'',
     )
     parser.add_argument(
         "--api-url", default=os.environ.get("ZENODO_API_URL", "https://zenodo.org/api"),
@@ -193,7 +301,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--deposition-id", type=int,
-        help="reuse an existing unpublished deposition instead of creating one",
+        help="reuse an existing unpublished draft record instead of creating one",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -222,77 +330,135 @@ def main() -> None:
     metadata = {
         "title": args.title,
         "version": args.version,
-        "upload_type": "dataset",
         "description": description,
-        "creators": creators,
+        "creators": creators_metadata(creators),
         "publication_date": date.today().isoformat(),
-        "access_right": "open",
+        "resource_type": {"id": "dataset"},
         "keywords": ["openEO", "geospatial foundation models", "embeddings"],
-        "prereserve_doi": True,
     }
 
     api = args.api_url.rstrip("/")
-    if args.deposition_id:
-        deposition = api_request(
-            "GET", f"{api}/deposit/depositions/{args.deposition_id}", token
-        )
-    else:
-        deposition = api_request(
-            "POST", f"{api}/deposit/depositions", token, body={"metadata": metadata}
-        )
+    session = requests.Session()
+    session.headers.update({
+        "Authorization": f"Bearer {token}",
+        "User-Agent": (
+            "fair-geo-fm-publish-release/1.0 "
+            f"(+https://github.com/{os.environ.get('GITHUB_REPOSITORY', 'danlooo/fair-geo-fm')})"
+        ),
+    })
 
-    deposition_id = deposition["id"]
-    doi = (deposition.get("metadata") or {}).get("prereserve_doi", {}).get("doi")
-    if not doi:
-        raise SystemExit(
-            "Zenodo did not return a pre-reserved DOI; refusing to render URLs "
-            "that would change after publication"
-        )
-    base_url = f"https://doi.org/{doi}"
-    print(f"deposition {deposition_id}, reserved DOI {doi}")
-
-    staging = Path(tempfile.mkdtemp(prefix="zenodo-release-"))
     try:
-        staged = stage_files(base_url, staging, args.version)
-        bucket = deposition["links"]["bucket"]
-        for key, source in staged:
-            upload(bucket, key, source, token)
-    finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        if args.deposition_id:
+            try:
+                draft = api_request(
+                    session, "GET", f"{api}/records/{args.deposition_id}/draft",
+                    accept=INVENIO_ACCEPT,
+                )
+            except ApiError as error:
+                if error.status != 404:
+                    raise
+                draft = {}
+            doi = draft_doi(draft)
+            if not doi:
+                # A draft created through the retired deposition API can still
+                # be read there, and carries its reserved DOI in its metadata.
+                legacy = api_request(
+                    session, "GET", f"{api}/deposit/depositions/{args.deposition_id}",
+                    accept="application/json",
+                )
+                doi = (
+                    (legacy.get("metadata") or {}).get("prereserve_doi") or {}
+                ).get("doi")
+        else:
+            draft = api_request(
+                session, "POST", f"{api}/records",
+                json_body={
+                    "access": {"record": "public", "files": "public"},
+                    "files": {"enabled": True},
+                    "metadata": metadata,
+                },
+                accept=INVENIO_ACCEPT,
+            )
+            doi = draft_doi(draft)
+            if not doi:
+                try:
+                    draft = api_request(
+                        session, "POST",
+                        f"{api}/records/{draft['id']}/draft/pids/doi",
+                        accept=INVENIO_ACCEPT,
+                    )
+                except ApiError as error:
+                    # Zenodo may have reserved the DOI already; re-read it.
+                    if error.status != 400 or "already exists" not in error.body:
+                        raise
+                    draft = api_request(
+                        session, "GET", f"{api}/records/{draft['id']}/draft",
+                        accept=INVENIO_ACCEPT,
+                    )
+                doi = draft_doi(draft)
 
-    if args.dry_run:
-        api_request("DELETE", f"{api}/deposit/depositions/{deposition_id}", token)
-        print(f"dry run: deleted draft deposition {deposition_id}")
-        published_doi = doi
-        record_url = base_url
-    else:
-        published = api_request(
-            "POST", f"{api}/deposit/depositions/{deposition_id}/actions/publish", token
+        record_id = str(draft.get("id") or args.deposition_id)
+        if not doi:
+            raise SystemExit(
+                "Zenodo did not return a pre-reserved DOI; refusing to publish "
+                "a record without a citable identifier"
+            )
+        print(f"draft record {record_id}, reserved DOI {doi}")
+
+        # Zenodo does not serve files under the DOI path (``doi.org/<doi>/...``
+        # is treated as a different DOI), so render links against the record
+        # itself. The DOI remains the citable identifier for the release.
+        base_url = record_files_url(api, record_id)
+        staging = Path(tempfile.mkdtemp(prefix="zenodo-release-"))
+        try:
+            staged = stage_files(base_url, staging, args.version)
+            upload_files(session, api, record_id, staged)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+        if args.dry_run:
+            api_request(session, "DELETE", f"{api}/records/{record_id}/draft")
+            print(f"dry run: deleted draft record {record_id}")
+            published_doi = doi
+            record_url = f"{site_url(api)}/records/{record_id}"
+        else:
+            published = api_request(
+                session, "POST", f"{api}/records/{record_id}/draft/actions/publish",
+                accept=INVENIO_ACCEPT,
+            )
+            published_doi = draft_doi(published) or published.get("doi") or doi
+            record_url = (
+                (published.get("links") or {}).get("self_html")
+                or f"{site_url(api)}/records/{record_id}"
+            )
+            print(f"published {published_doi}")
+
+        files = "\n".join(
+            f"- [{file_url(api, record_id, key)}]({file_url(api, record_id, key)})"
+            for key, _source in staged
         )
-        published_doi = published.get("doi") or doi
-        record_url = published.get("links", {}).get("record_html") or f"https://doi.org/{published_doi}"
-        print(f"published {published_doi}")
-
-    files = "\n".join(
-        f"- [{'https://doi.org/' + published_doi + '/' + key}]"
-        f"(https://doi.org/{published_doi}/{key})"
-        for key, _source in staged
-    )
-    write_summary(
-        [
-            "### Zenodo release",
-            "",
-            f"- deposition: `{deposition_id}`",
-            f"- DOI: <https://doi.org/{published_doi}>",
-            f"- record: {record_url}",
-            f"- dry run: `{args.dry_run}`",
-            "",
-            files,
-        ]
-    )
-    write_github_output(
-        {"doi": published_doi, "deposition_id": str(deposition_id), "record_url": record_url}
-    )
+        write_summary(
+            [
+                "### Zenodo release",
+                "",
+                f"- record id: `{record_id}`",
+                f"- DOI: <https://doi.org/{published_doi}>",
+                f"- record: {record_url}",
+                f"- dry run: `{args.dry_run}`",
+                "",
+                files,
+            ]
+        )
+        write_github_output(
+            {
+                "doi": published_doi,
+                "deposition_id": record_id,
+                "record_url": record_url,
+            }
+        )
+    except ApiError as error:
+        print(error, file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

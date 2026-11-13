@@ -36,7 +36,7 @@ Reference a model's process graph by URL as its `namespace`:
 embeddings = connection.datacube_from_process(
     "tessera_v2_embeddings",
     namespace=(
-        "https://doi.org/<doi>/models/tessera_v2/process_graph.json"
+        "https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json"
     ),
     spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
     temporal_extent=["2023-08-01", "2023-09-30"],

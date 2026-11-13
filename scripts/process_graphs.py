@@ -12,7 +12,7 @@ Publication URLs are themselves Jinja2 templates so a plain GitHub Pages
 deployment and a Zenodo release produce the same layout from one base URL:
 
     normal publish   https://danlooo.github.io/fair-geo-fm/main
-    Zenodo release   https://doi.org/<doi>
+    Zenodo release   https://zenodo.org/records/<record-id>/files
 
 The rendered ``process_graph.json`` is committed for the default Pages base so
 the repository and local VitePress builds can serve it. ``build`` verifies that

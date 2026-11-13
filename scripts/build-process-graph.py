@@ -17,8 +17,8 @@ Two publication targets share the same layout:
         https://danlooo.github.io/fair-geo-fm/main/models/<model>/process_graph.json
         https://danlooo.github.io/fair-geo-fm/main/runtimes/<runtime>.zip
     Zenodo (manual release)
-        https://doi.org/<doi>/models/<model>/process_graph.json
-        https://doi.org/<doi>/runtimes/<runtime>.zip
+        https://zenodo.org/records/<record-id>/files/models/<model>/process_graph.json
+        https://zenodo.org/records/<record-id>/files/runtimes/<runtime>.zip
 
 ``udf-dependency-archives`` entries always carry the ``#feature_deps`` suffix.
 
@@ -26,7 +26,7 @@ Usage:
     uv run scripts/build-process-graph.py models/tessera_v2
     uv run scripts/build-process-graph.py models/tessera_v2 --check
     uv run scripts/build-process-graph.py models/tessera_v2 \\
-        --base-url https://doi.org/10.5281/zenodo.123456 \\
+        --base-url https://zenodo.org/records/123456/files \\
         --output /tmp/release/models/tessera_v2/process_graph.json
 
 ``--check`` writes nothing and exits non-zero when the committed
