@@ -29,16 +29,21 @@ Conventions for the models and runtimes in this repository.
     publish workflows render it for the served site and release.
   - `udf.py` — UDF source, when the UDF is specific to this model
   - `example.py` — sample call
-  - `README.md`
+  - `README.md.j2` — the model's documentation page as a Jinja2 template,
+    maintained by hand; `scripts/prepare-docs.mjs` renders it to the page's
+    `index.md` for the version being published
 - Inline the UDF in `process_graph.json` so one URL resolves the whole process.
   The template receives it as `{{ udf_json }}`, which the build script fills
   from `udf.py`; do not paste the UDF into the template.
   If it grows too large to maintain inline, reference `udf.py` by URL from
   `run_udf` instead.
-- Do not hardcode publication URLs. The template is rendered for a base URL and
-  exposes `{{ runtime_url }}` (the dependency archive, with `#feature_deps`),
-  `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`. The same layout
-  is used for the staging Pages site and for a Zenodo release:
+- Do not hardcode publication URLs. The process graph template is rendered for
+  a base URL and exposes `{{ runtime_url }}` (the dependency archive, with
+  `#feature_deps`), `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`.
+  `README.md.j2` is rendered for the documentation version and exposes
+  `{{ base_url }}`, `{{ process_graph_url }}` and `{{ docs_url }}` (the model's
+  documentation page, with a trailing `/`). The same layout is used for the
+  staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
   - release: `https://zenodo.org/records/<record-id>/files`
 - Reference a released model by its DOI URL in `namespace`, not by a branch, so

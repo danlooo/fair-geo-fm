@@ -2,7 +2,7 @@
 // Materialize the VitePress source tree for @viteplus/versions.
 //
 // The canonical pages stay where they belong in the repository (index.md,
-// guide/, models/<name>/README.md, CONTRIBUTING.md). The versioning plugin
+// guide/, models/<name>/README.md.j2, CONTRIBUTING.md). The versioning plugin
 // expects one folder per version, so this script copies those pages into
 //
 //   docs/src/                 the current version (the newest v* tag)
@@ -196,10 +196,48 @@ function writeRuntimeAssets() {
   );
 }
 
+// Public origin of the documentation site. VitePress serves every version
+// under /fair-geo-fm/<version>/, and model README templates are rendered with
+// that base URL so their links match the published layout.
+const siteBaseUrl = (
+  process.env.DOCS_SITE_BASE_URL || "https://danlooo.github.io/fair-geo-fm"
+).replace(/\/+$/, "");
+
+// The variables a model README template can use, mirroring the ones in
+// scripts/process_graphs.py. URLs are built from the page's own version, so an
+// archived page never links into the current one.
+function modelTemplateValues(version, model) {
+  const baseUrl = `${siteBaseUrl}/${version}`;
+  return {
+    base_url: baseUrl,
+    model,
+    process_graph_url: `${baseUrl}/models/${model}/process_graph.json`,
+    docs_url: `${baseUrl}/models/${model}/`,
+  };
+}
+
+// Minimal Jinja2 ``{{ name }}`` substitution: the README templates only need
+// variables, not control flow. An unknown variable is an error rather than a
+// published page that keeps a literal ``{{ ... }}``.
+function renderModelTemplate(text, version, model, source) {
+  const values = modelTemplateValues(version, model);
+  return text.replace(
+    /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g,
+    (match, name) => {
+      if (!(name in values)) {
+        throw new Error(
+          `prepare-docs: ${source}: unknown template variable ${name}`,
+        );
+      }
+      return values[name];
+    },
+  );
+}
+
 // Map canonical repository paths to site paths for one version.
-// Model READMEs are the source of truth for their pages, so they become
-// index.md; VitePress serves them as directory indexes.
-function sitePages(root) {
+// Model README templates are the source of truth for their pages, so they
+// become index.md; VitePress serves them as directory indexes.
+function sitePages(root, version) {
   const pages = new Map();
   const source = modelSourceDir(root);
   const add = (from, to) => {
@@ -217,7 +255,16 @@ function sitePages(root) {
   if (existsSync(models)) {
     for (const entry of readdirSync(models, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      add(join(source, entry.name, "README.md"), join("models", entry.name, "index.md"));
+      // Newer refs keep a template; older ones already have a rendered README.
+      const readme = ["README.md.j2", "README.md"]
+        .map((name) => join(source, entry.name, name))
+        .find((file) => existsSync(join(root, file)));
+      if (readme) {
+        pages.set(
+          join("models", entry.name, "index.md"),
+          join(root, readme),
+        );
+      }
     }
   }
 
@@ -225,16 +272,22 @@ function sitePages(root) {
   return pages;
 }
 
-function writeTree(pages, destination) {
+function writeTree(pages, destination, version) {
   rmSync(destination, { recursive: true, force: true });
   mkdirSync(destination, { recursive: true });
   for (const [to, from] of pages) {
     const target = join(destination, to);
     mkdirSync(dirname(target), { recursive: true });
-    if (from.endsWith(".md")) {
+    if (from.endsWith(".md") || from.endsWith(".md.j2")) {
       // Archived refs link to their layout (/processes/); publish it under the
       // current one so links keep resolving.
-      const text = readFileSync(from, "utf8").replace(/\]\(\/processes\//g, "](/models/");
+      let text = readFileSync(from, "utf8").replace(
+        /\]\(\/processes\//g,
+        "](/models/",
+      );
+      if (from.endsWith(".md.j2")) {
+        text = renderModelTemplate(text, version, to.split("/")[1], from);
+      }
       writeFileSync(target, text);
     } else {
       cpSync(from, target);
@@ -283,15 +336,15 @@ function refsToArchive() {
 if (withArchives) rmSync(publicDir, { recursive: true, force: true });
 
 function writeCurrentVersion(root) {
-  writeTree(sitePages(root), sourcesDir);
-  writeTree(siteAssets(root), join(publicDir, currentVersion));
+  writeTree(sitePages(root, currentVersion), sourcesDir, currentVersion);
+  writeTree(siteAssets(root), join(publicDir, currentVersion), currentVersion);
 }
 
 // Returns false when ref has no documentation site, so the caller falls back to
 // the working tree instead of publishing an empty version.
 function writeCurrentVersionFrom(ref) {
   return withWorktree(ref, (worktree) => {
-    if (!sitePages(worktree).has("index.md")) {
+    if (!sitePages(worktree, currentVersion).has("index.md")) {
       warn(`${ref} has no documentation site`);
       return false;
     }
@@ -337,15 +390,15 @@ for (const { name, ref } of refsToArchive()) {
   }
 
   const wasArchived = withWorktree(ref, (worktree) => {
-    const pages = sitePages(worktree);
+    const pages = sitePages(worktree, version);
     // A ref without the site's home page predates the documentation site (or
     // is not a site at all); publishing it would only yield dead links.
     if (!pages.has("index.md")) {
       warn(`skipping ${name}: no VitePress site at this ref`);
       return false;
     }
-    writeTree(pages, join(archiveDir, version));
-    writeTree(siteAssets(worktree), join(publicDir, version));
+    writeTree(pages, join(archiveDir, version), version);
+    writeTree(siteAssets(worktree), join(publicDir, version), version);
     return true;
   });
   if (!wasArchived) continue;
