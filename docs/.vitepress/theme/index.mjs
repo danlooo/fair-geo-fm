@@ -1,5 +1,7 @@
 import { h } from "vue";
 import DefaultTheme from "vitepress/theme";
+import VersionSwitcher from "@viteplus/versions/components/version-switcher.component.vue";
+import { installVersionFallback } from "@viteplus/versions/fallback";
 import { enhanceAppWithTabs } from "vitepress-plugin-tabs/client";
 import "@fontsource-variable/open-sans";
 import "@fontsource-variable/open-sans/wght-italic.css";
@@ -15,7 +17,9 @@ export default {
     h(DefaultTheme.Layout, null, {
       "doc-before": () => h(PreviewBanner),
     }),
-  enhanceApp({ app }) {
+  enhanceApp({ app, router, siteData }) {
     app.use(enhanceAppWithTabs);
+    app.component("VersionSwitcher", VersionSwitcher);
+    installVersionFallback(router, siteData);
   },
 };

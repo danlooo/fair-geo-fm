@@ -93,7 +93,10 @@ export default defineVersionedConfig({
     current: currentVersion,
     sources: "src",
     archive: "archive",
-    versionSwitcher: { text: "Version", includeCurrentVersion: true },
+    // The generated nav dropdown links to each version's home page, losing the
+    // current page. The VersionSwitcher component keeps the page and only swaps
+    // the version segment (see docs/.vitepress/theme/index.mjs).
+    versionSwitcher: false,
   },
 
   themeConfig: {
@@ -102,6 +105,9 @@ export default defineVersionedConfig({
       { text: "Guide", link: "/guide/" },
       { text: "Models", link: "/models/" },
       { text: "Contributing", link: "/contributing" },
+      // Switches version while keeping the current page; falls back to the
+      // version home only when that page does not exist there.
+      { component: "VersionSwitcher" },
     ],
     outline: [2, 3],
     search: { provider: "local" },
