@@ -284,6 +284,7 @@ def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, P
             process_dir,
             base_url,
             f"{SITE_BASE_URL}/{version}",
+            release=True,
         )
         readme_target = target.parent / "README.md"
         readme_target.write_text(readme_text, encoding="utf-8")

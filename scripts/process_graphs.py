@@ -167,13 +167,15 @@ def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
 
 
 def render_readme(
-    process_dir: Path, base_url: str, docs_base_url: str
+    process_dir: Path, base_url: str, docs_base_url: str, release: bool = False
 ) -> tuple[str, str]:
     """Render ``README.md.j2`` for ``base_url``.
 
     ``base_url`` locates the model's published files (the process graph),
-    ``docs_base_url`` the version's documentation page. Returns
-    ``(text, readme_url)``. Unknown template variables are an error.
+    ``docs_base_url`` the version's documentation page. ``release`` tells the
+    template whether it describes a stable release, so development notices are
+    left out of released pages; it defaults to the branch (preview) rendering.
+    Returns ``(text, readme_url)``. Unknown template variables are an error.
     """
     process_dir = process_dir.resolve()
     template_path = process_dir / "README.md.j2"
@@ -193,6 +195,7 @@ def render_readme(
     ).render(
         base_url=base_url.rstrip("/"),
         model=model,
+        release=release,
         process_graph_url=process_graph_url(base_url, model),
         docs_url=f"{docs_base_url.rstrip('/')}/models/{model}/",
     )

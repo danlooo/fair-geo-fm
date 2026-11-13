@@ -238,6 +238,49 @@ const siteBaseUrl = (
   process.env.DOCS_SITE_BASE_URL || "https://danlooo.github.io/fair-geo-fm"
 ).replace(/\/+$/, "");
 
+// Unversioned URLs open the newest release, just like the site root: the
+// versioning plugin redirects only "/" and locale roots, so write a tiny page
+// for every route the current version publishes, e.g.
+// /fair-geo-fm/models/tessera_v2/ -> /fair-geo-fm/<currentVersion>/models/tessera_v2/.
+// VitePress copies docs/public to the site root, so these work on the deployed
+// site and in local preview.
+function redirectPage(target) {
+  const href = target.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Redirecting to the latest release</title>
+    <link rel="canonical" href="${href}">
+    <script>location.replace(${JSON.stringify(target)} + location.search + location.hash)</script>
+    <meta http-equiv="refresh" content="0; url=${href}">
+  </head>
+  <body>
+    <p>Redirecting to the <a href="${href}">latest release</a>.</p>
+  </body>
+</html>
+`;
+}
+
+function writeUnversionedRedirects() {
+  const basePath = new URL(siteBaseUrl).pathname.replace(/\/+$/, "");
+  let count = 0;
+  for (const page of markdownFiles(sourcesDir)) {
+    if (page === "index.md") continue;
+    const route = page.endsWith("/index.md")
+      ? page.slice(0, -"index.md".length)
+      : page.replace(/\.md$/, ".html");
+    const target = `${basePath}/${currentVersion}/${route}`;
+    const file = route.endsWith("/")
+      ? join(publicDir, route, "index.html")
+      : join(publicDir, route);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, redirectPage(target));
+    count += 1;
+  }
+  console.log(`prepare-docs: wrote ${count} unversioned redirect(s)`);
+}
+
 // Released tags are archived on Zenodo as versions of one concept record.
 // Kept in sync with DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
 const zenodoConceptId =
@@ -290,13 +333,15 @@ async function fetchZenodoFilesBases() {
 // The variables a model README template can use, mirroring the ones in
 // scripts/process_graphs.py. Released tags link to their immutable Zenodo
 // files; main and branches link to the staging graphs rebuilt under /main.
-// The documentation page itself is always versioned.
+// The documentation page itself is always versioned. ``release`` is true for
+// v* tags and false for branches, so a page can hide development notices.
 function modelTemplateValues(version, model) {
   const filesBaseUrl = zenodoFilesBases.get(version) ?? `${siteBaseUrl}/main`;
   const docsBaseUrl = `${siteBaseUrl}/${version}`;
   return {
     base_url: filesBaseUrl,
     model,
+    release: /^v\d+(?:\.\d+)*$/.test(version),
     process_graph_url: `${filesBaseUrl}/models/${model}/process_graph.json`,
     docs_url: `${docsBaseUrl}/models/${model}/`,
   };
@@ -314,12 +359,25 @@ function rewriteLegacyModelGraphUrl(text, version, model) {
   );
 }
 
-// Minimal Jinja2 ``{{ name }}`` substitution: the README templates only need
-// variables, not control flow. An unknown variable is an error rather than a
-// published page that keeps a literal ``{{ ... }}``.
+// Minimal Jinja2 subset: ``{{ name }}`` variables and a single
+// ``{% if [not] name %} ... {% endif %}`` block, which model pages use to show
+// development notices only on unreleased branches. An unknown variable is an
+// error rather than a published page that keeps a literal ``{{ ... }}``.
 function renderModelTemplate(text, version, model, source) {
   const values = modelTemplateValues(version, model);
-  return text.replace(
+  const renderConditionals = text.replace(
+    /\n?\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}\n?/g,
+    (match, negated, name, body) => {
+      if (!(name in values)) {
+        throw new Error(
+          `prepare-docs: ${source}: unknown template variable ${name}`,
+        );
+      }
+      const show = negated ? !values[name] : Boolean(values[name]);
+      return show ? body : "";
+    },
+  );
+  return renderConditionals.replace(
     /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g,
     (match, name) => {
       if (!(name in values)) {
@@ -475,6 +533,8 @@ if (fromRef) {
   writeCurrentVersion(repoRoot);
   console.log(`prepare-docs: wrote ${currentVersion} to docs/src and docs/public`);
 }
+
+writeUnversionedRedirects();
 
 if (!withArchives) {
   writeStagingProcessGraphs();
