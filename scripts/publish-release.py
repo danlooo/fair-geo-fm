@@ -64,6 +64,7 @@ from process_graphs import (
     SITE_BASE_URL,
     render,
     render_readme,
+    validate_model_config,
     validate_runtime_reference,
 )
 
@@ -270,7 +271,9 @@ def stage_files(
         if not template.is_file():
             continue
         text, graph, graph_url, archive_url = render(process_dir, base_url)
-        problems = validate_runtime_reference(process_dir, graph, archive_url)
+        problems = validate_model_config(process_dir) + validate_runtime_reference(
+            process_dir, graph, archive_url
+        )
         if problems:
             raise SystemExit("\n".join(problems))
         target = staging / "models" / process_dir.name / "process_graph.json"
@@ -279,7 +282,7 @@ def stage_files(
         print(f"rendered {graph_url} -> {target.relative_to(staging)}")
         print(f"  runtime archive: {archive_url}")
         # The UDF source is embedded in the rendered graph. The record keeps
-        # only the graph and README per model; udf.py/example.py/runtime.txt
+        # only the graph and README per model; udf.py/example.py/config.json
         # stay in the source archive.
         staged.append((target.relative_to(staging).as_posix(), target))
 

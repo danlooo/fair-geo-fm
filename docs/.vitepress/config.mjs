@@ -37,7 +37,9 @@ function editLinkFor(page) {
   const source =
     rest === "contributing.md"
       ? "CONTRIBUTING.md"
-      : rest.replace(/^models\/([^/]+)\/index\.md$/, "models/$1/README.md.j2");
+      : rest === "models/index.md"
+        ? "models/index.md.j2"
+        : rest.replace(/^models\/([^/]+)\/index\.md$/, "models/$1/README.md.j2");
   // docs/src is the newest release, a snapshot of a v* tag, so edits are
   // proposed against the default branch. Archived pages have no edit link, so
   // this only produces URLs for that snapshot.

@@ -141,10 +141,98 @@ function modelSourceDir(root) {
   return existsSync(join(root, "models")) ? "models" : "processes";
 }
 
+// Model pages are rendered from their README.md.j2 with the release values of
+// the version being published. The models index instead renders a card grid
+// from each model directory's config.json, the single source of truth for the
+// model's display name, runtime and badge tags.
+function modelConfig(dir) {
+  const file = join(dir, "config.json");
+  if (!existsSync(file)) return {};
+  try {
+    const config = JSON.parse(readFileSync(file, "utf8"));
+    if (config === null || typeof config !== "object" || Array.isArray(config)) {
+      throw new Error("expected a JSON object");
+    }
+    return config;
+  } catch (error) {
+    throw new Error(`prepare-docs: ${file}: ${error.message}`);
+  }
+}
+
+const HTML_ESCAPES = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]);
+}
+
+// The card grid for models/index.md.j2. A model directory with a documentation
+// page is a published model; without config.json it falls back to its directory
+// name so an unfinished model does not disappear from the catalogue. The detail
+// link is relative to the models index, so the cards resolve on every version
+// (including the main branch). Cards deliberately omit the DOI: it identifies
+// the release, not the individual model, so it belongs on the model page header
+// rather than repeated on every card.
+function renderModelCards(root) {
+  const modelsDir = join(root, modelSourceDir(root));
+  if (!existsSync(modelsDir)) return "";
+
+  const cards = [];
+
+  for (const entry of readdirSync(modelsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const dir = join(modelsDir, entry.name);
+    // Directories without a page (e.g. shared runtime files) are not models.
+    const documented = ["README.md.j2", "README.md"].some((name) =>
+      existsSync(join(dir, name)),
+    );
+    if (!documented) continue;
+
+    const config = modelConfig(dir);
+    const name =
+      typeof config.name === "string" && config.name.trim()
+        ? config.name.trim()
+        : entry.name;
+    const tags = Array.isArray(config.tags)
+      ? config.tags.filter((tag) => typeof tag === "string" && tag.trim())
+      : [];
+
+    const card = [
+      '<div class="model-card">',
+      `<h3 class="model-card-title"><a href="./${entry.name}/">${escapeHtml(name)}</a></h3>`,
+    ];
+    if (tags.length > 0) {
+      card.push(
+        `<p class="model-card-badges">${tags
+          .map((tag) => `<Badge text="${escapeHtml(tag.trim())}" type="info" />`)
+          .join(" ")}</p>`,
+      );
+    }
+    card.push("</div>");
+    cards.push(card.join("\n"));
+  }
+
+  if (cards.length === 0) return "";
+  return `<div class="model-grid">\n${cards.join("\n")}\n</div>`;
+}
+
+function renderModelsIndex(text, source) {
+  // <root>/models/index.md.j2 -> <root>
+  const root = dirname(dirname(source));
+  return text.replace(/\{\{\s*model_cards\s*\}\}/g, renderModelCards(root));
+}
+
 // Non-markdown, non-template files in each model directory
-// (process_graph.json, udf.py, example.py, runtime.txt). They are served next
+// (process_graph.json, udf.py, example.py, config.json). They are served next
 // to the model page, e.g. /<version>/models/tessera_v2/process_graph.json.
-// The .j2 source templates are build inputs, not public assets.
+// config.json is the model's single source of truth (display name, runtime,
+// badge tags) and doubles as the published model record. The .j2 source
+// templates are build inputs, not public assets.
 function siteAssets(root) {
   const assets = new Map();
   const source = modelSourceDir(root);
@@ -399,39 +487,86 @@ function ensureReleaseHeader(text, version, model) {
   return [lines[0], "", header, ...lines.slice(1)].join("\n");
 }
 
-// Minimal Jinja2 subset: ``{{ name }}`` variables and ``{% if [not] name %} ...
-// {% endif %}`` blocks, inline or spanning whole lines. An unknown variable is
-// an error rather than a published page that keeps a literal ``{{ ... }}``.
-function renderModelTemplate(text, version, model, source) {
-  const values = modelTemplateValues(version, model);
-  const value = (name) => {
-    if (!(name in values)) {
+// Minimal Jinja2 subset: ``{{ path.to.value }}`` variables,
+// ``{% if [not] path %} ... {% endif %}`` blocks and
+// ``{% for item in list.path %} ... {% endfor %}`` loops, inline or spanning
+// whole lines. An unknown variable is an error rather than a published page
+// that keeps a literal ``{{ ... }}``.
+function templateValue(values, path, source) {
+  let current = values;
+  for (const part of path.split(".")) {
+    if (
+      current === null ||
+      current === undefined ||
+      (typeof current !== "object" && typeof current !== "function") ||
+      !(part in current)
+    ) {
       throw new Error(
-        `prepare-docs: ${source}: unknown template variable ${name}`,
+        `prepare-docs: ${source}: unknown template variable ${path}`,
       );
     }
-    return values[name];
-  };
-  const shown = (negated, name) => {
-    const current = value(name);
-    return negated ? !current : Boolean(current);
+    current = current[part];
+  }
+  return current;
+}
+
+function renderModelTemplate(text, version, model, source) {
+  const values = {
+    ...modelTemplateValues(version, model),
+    // config.json is the model's single source of truth; the page reads e.g.
+    // config.name and config.tags from it instead of duplicating them.
+    config: modelConfig(dirname(source)),
   };
 
-  // Tags that occupy their own lines own those lines, so a hidden block leaves
-  // no blank line behind.
-  let rendered = text.replace(
-    /^[ \t]*\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*%\}[ \t]*\n([\s\S]*?)^[ \t]*\{%\s*endif\s*%\}[ \t]*\n/gm,
-    (match, negated, name, body) => (shown(negated, name) ? body : ""),
-  );
-  // Inline tags are part of a line, so keep the rest of it, newline included.
-  rendered = rendered.replace(
-    /\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}/g,
-    (match, negated, name, body) => (shown(negated, name) ? body : ""),
-  );
-  return rendered.replace(
-    /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g,
-    (match, name) => value(name),
-  );
+  const render = (template, scope) => {
+    // Loops that occupy their own lines own those lines. The body is rendered
+    // recursively, so nested blocks and the loop variable resolve in scope.
+    const expandLoop = (item, path, body) => {
+      const items = templateValue(scope, path, source);
+      if (!Array.isArray(items)) {
+        throw new Error(
+          `prepare-docs: ${source}: ${path} must be a list to iterate over`,
+        );
+      }
+      return items
+        .map((entry) => render(body, { ...scope, [item]: entry }))
+        .join("");
+    };
+    template = template.replace(
+      /^[ \t]*\{%\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*%\}[ \t]*\n([\s\S]*?)^[ \t]*\{%\s*endfor\s*%\}[ \t]*\n/gm,
+      (match, item, path, body) => expandLoop(item, path, body),
+    );
+    // Inline tags are part of a line, so keep the rest of it, newline included.
+    template = template.replace(
+      /\{%\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*%\}([\s\S]*?)\{%\s*endfor\s*%\}/g,
+      (match, item, path, body) => expandLoop(item, path, body),
+    );
+
+    const shown = (negated, path) => {
+      const current = templateValue(scope, path, source);
+      // Jinja treats an empty list as falsy; JavaScript arrays are always truthy.
+      const truthy = Array.isArray(current)
+        ? current.length > 0
+        : Boolean(current);
+      return negated ? !truthy : truthy;
+    };
+    // Tags that occupy their own lines own those lines, so a hidden block
+    // leaves no blank line behind.
+    let rendered = template.replace(
+      /^[ \t]*\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*%\}[ \t]*\n([\s\S]*?)^[ \t]*\{%\s*endif\s*%\}[ \t]*\n/gm,
+      (match, negated, path, body) => (shown(negated, path) ? body : ""),
+    );
+    rendered = rendered.replace(
+      /\{%\s*if\s+(not\s+)?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}/g,
+      (match, negated, path, body) => (shown(negated, path) ? body : ""),
+    );
+    return rendered.replace(
+      /\{\{\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\}\}/g,
+      (match, path) => templateValue(scope, path, source),
+    );
+  };
+
+  return render(text, values);
 }
 
 // Map canonical repository paths to site paths for one version.
@@ -449,7 +584,12 @@ function sitePages(root, version) {
   for (const file of markdownFiles(join(root, "guide"))) {
     add(join("guide", file), join("guide", file));
   }
-  add(join(source, "index.md"), "models/index.md");
+  // The models index is a template so its card grid reflects the models and
+  // release of this ref; refs that predate the template keep their markdown.
+  const modelsIndex = ["index.md.j2", "index.md"]
+    .map((name) => join(source, name))
+    .find((file) => existsSync(join(root, file)));
+  if (modelsIndex) pages.set("models/index.md", join(root, modelsIndex));
 
   const models = join(root, source);
   if (existsSync(models)) {
@@ -486,7 +626,10 @@ function writeTree(pages, destination, version) {
         "](/models/",
       );
       if (from.endsWith(".md.j2")) {
-        text = renderModelTemplate(text, version, to.split("/")[1], from);
+        text =
+          to === "models/index.md"
+            ? renderModelsIndex(text, from)
+            : renderModelTemplate(text, version, to.split("/")[1], from);
       }
       const modelPage = /^models\/([^/]+)\/index\.md$/.exec(to);
       if (modelPage) {
@@ -545,6 +688,17 @@ function writeCurrentVersion(root) {
   writeTree(siteAssets(root), join(publicDir, currentVersion), currentVersion);
 }
 
+// Local dev runs without `--archives`, so docs/archive can be stale (or absent).
+// Write the working tree to the staging /main/ path as well, so the URL
+// advertised as "docs dev" previews uncommitted changes instead of an old
+// origin/main snapshot. A full `--archives` build uses the real ref instead.
+function writeWorkingTreePreview() {
+  if (currentVersion === "main") return;
+  writeTree(sitePages(repoRoot, "main"), join(archiveDir, "main"), "main");
+  writeTree(siteAssets(repoRoot), join(publicDir, "main"), "main");
+  console.log("prepare-docs: wrote the working tree to /main for local preview");
+}
+
 // Returns false when ref has no documentation site, so the caller falls back to
 // the working tree instead of publishing an empty version.
 function writeCurrentVersionFrom(ref) {
@@ -582,6 +736,7 @@ if (fromRef) {
 writeUnversionedRedirects();
 
 if (!withArchives) {
+  writeWorkingTreePreview();
   writeStagingProcessGraphs();
   writeRuntimeAssets();
   process.exit(0);

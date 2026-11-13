@@ -9,7 +9,9 @@
 ``process_graph.json.j2`` is the source of truth for the graph structure and
 its published URLs. A remote process definition has to carry the UDF as inline
 source, so the template receives it as ``udf_json``; the archive URL is
-rendered from ``runtime.txt`` plus the target base URL.
+rendered from the runtime named in the model's ``config.json`` plus the target
+base URL. ``config.json`` also holds the model's display name and badge tags
+for the catalogue page, so it is validated here as well.
 
 Two publication targets share the same layout:
 
@@ -50,6 +52,7 @@ from process_graphs import (
     DEFAULT_BASE_URL,
     render,
     render_readme,
+    validate_model_config,
     validate_runtime_reference,
 )
 
@@ -58,7 +61,9 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
     graph_path = process_dir / "process_graph.json"
     text, graph, graph_url, archive_url = render(process_dir, base_url)
 
-    problems = validate_runtime_reference(process_dir, graph, archive_url)
+    problems = validate_model_config(process_dir) + validate_runtime_reference(
+        process_dir, graph, archive_url
+    )
     if problems:
         for problem in problems:
             print(problem, file=sys.stderr)

@@ -1,0 +1,8 @@
+{
+    "name": "TESSERA v2",
+    "runtime": "py311-torch231",
+    "tags": [
+        "computed on demand",
+        "Sentinel 1+2"
+    ]
+}

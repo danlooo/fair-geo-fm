@@ -24,29 +24,42 @@ Conventions for the models and runtimes in this repository.
   - `process_graph.json.j2` — the Jinja2 template, maintained by hand; source of
     truth for the graph structure and its published URLs
   - `process_graph.json` — generated from the template, `udf.py` and
-    `runtime.txt` by `scripts/build-process-graph.py`; never edit it by hand
+    `config.json` by `scripts/build-process-graph.py`; never edit it by hand
     and do not commit it. CI renders it to validate the template, and the
     publish workflows render it for the served site and release.
   - `udf.py` — UDF source, when the UDF is specific to this model
   - `example.py` — sample call
+  - `config.json` — the model's single source of truth: the display `name`, the
+    `runtime` and the badge `tags` shown in the catalogue. The build reads the
+    runtime from it, both templates receive it as `config`, and the docs build
+    renders the model cards from it.
   - `README.md.j2` — the model's documentation page as a Jinja2 template,
     maintained by hand; `scripts/prepare-docs.mjs` renders it to the page's
     `index.md` for the version being published
+- The catalogue page `models/index.md.j2` fills <code v-pre>{{ model_cards }}</code> from every
+  model directory's `config.json` at docs-build time. Add a model by adding its
+  version directory and `config.json`; do not list it by hand.
 - Inline the UDF in `process_graph.json` so one URL resolves the whole process.
-  The template receives it as `{{ udf_json }}`, which the build script fills
+  The template receives it as <code v-pre>{{ udf_json }}</code>, which the build script fills
   from `udf.py`; do not paste the UDF into the template.
   If it grows too large to maintain inline, reference `udf.py` by URL from
   `run_udf` instead.
 - Do not hardcode publication URLs. The process graph template is rendered for
-  a base URL and exposes `{{ runtime_url }}` (the dependency archive, with
-  `#feature_deps`), `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`.
-  `README.md.j2` exposes `{{ process_graph_url }}` (the same published graph
-  URL the process graph template uses), `{{ base_url }}`, `{{ model }}`,
-  `{{ docs_url }}` (the version's documentation page, with a trailing `/`), and
-  the release its header advertises: `{{ release_version }}`, `{{ release_url }}`
-  (that release's documentation page, with a trailing `/`) and `{{ doi }}` (that
+  a base URL and exposes <code v-pre>{{ runtime_url }}</code> (the dependency archive, with
+  `#feature_deps`), <code v-pre>{{ process_graph_url }}</code> and <code v-pre>{{ model }}</code> / <code v-pre>{{ runtime }}</code>.
+  It also receives the parsed `config.json` as <code v-pre>{{ config }}</code> (and as the JSON
+  literal <code v-pre>{{ config_json }}</code>) and copies it into the graph's top-level `model`
+  entry, so the published `process_graph.json` is self-contained.
+  `README.md.j2` receives the same <code v-pre>{{ config }}</code> mapping: the title is
+  <code v-pre>{{ config.name }}</code> and the badges are rendered with
+  <code v-pre>{% for tag in config.tags %}</code>. It also exposes
+  <code v-pre>{{ process_graph_url }}</code> (the same published graph
+  URL the process graph template uses), <code v-pre>{{ base_url }}</code>, <code v-pre>{{ model }}</code>,
+  <code v-pre>{{ docs_url }}</code> (the version's documentation page, with a trailing `/`), and
+  the release its header advertises: <code v-pre>{{ release_version }}</code>, <code v-pre>{{ release_url }}</code>
+  (that release's documentation page, with a trailing `/`) and <code v-pre>{{ doi }}</code> (that
   release's version DOI). A tag page advertises its own release and DOI; a
-  branch page (`main`) has no DOI, so the `{% if doi %}` gate omits the header
+  branch page (`main`) has no DOI, so the <code v-pre>{% if doi %}</code> gate omits the header
   entirely. The release README uploaded to Zenodo advertises the record it
   belongs to; never write `v0.1.2` or a DOI into the template.
   The same layout is used for the staging Pages site and for a Zenodo release:
@@ -77,6 +90,9 @@ Conventions for the models and runtimes in this repository.
 
 - Shared dependency archives live in `runtimes/`, never inside a process
   directory, and are reused across models.
+- A model selects its runtime with the `runtime` field of its `config.json`,
+  next to the display `name` and badge `tags`. One file per model keeps the
+  catalogue, the documentation and the process graph in sync.
 - One directory per interpreter/stack combination, named after both, containing
   only `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
   is encoded in the name (`py311` -> 3.11) and the file may pin an index via
@@ -90,7 +106,7 @@ Conventions for the models and runtimes in this repository.
   and archive move together. Entries always carry the `#feature_deps` suffix,
   which tells openEO to extract the archive into the UDF's `feature_deps/`
   directory instead of replacing the sandbox's own dependencies.
-- The URL comes from the template's `{{ runtime_url }}`, not from a literal:
+- The URL comes from the template's <code v-pre>{{ runtime_url }}</code>, not from a literal:
   - staging: <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-torch231.zip>
   - release: `https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip`
 - The staging archive is built from the default branch and **overwritten on
@@ -127,7 +143,7 @@ source archive of the released commit, and publishes the version last. Every
 release therefore adds a version to the same root record; the concept DOI
 always resolves to the latest version. Each
 model contributes its rendered `process_graph.json` and `README.md`; the UDF is
-embedded in the graph, and `udf.py` / `example.py` / `runtime.txt` stay in the
+embedded in the graph, and `udf.py` / `example.py` / `config.json` stay in the
 source archive. The README's code samples link to the record's own graph while
 its documentation link points at the versioned Pages site. The resulting record
 has many files under custom paths —

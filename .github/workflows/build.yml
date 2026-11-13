@@ -3,9 +3,9 @@ name: build
 # First stage of the build -> publish pipeline. Everything that can be
 # validated without publishing lives here:
 #   - process graphs: renders each model's process_graph.json from
-#     process_graph.json.j2 + udf.py and fails when the render or its runtime
-#     reference is invalid; also renders README.md.j2 to catch template errors
-#     (see scripts/build-process-graph.py)
+#     process_graph.json.j2 + udf.py + config.json and fails when the render,
+#     the model config or its runtime reference is invalid; also renders
+#     README.md.j2 to catch template errors (see scripts/build-process-graph.py)
 #   - dependency archives: builds every runtimes/*/requirements.txt into a
 #     deterministic dependencies.zip and smoke-tests the imports on the pinned
 #     Python. Publishing is deliberately not automated; see publish.yml.

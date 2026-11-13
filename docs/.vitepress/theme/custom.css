@@ -77,3 +77,66 @@
 .dark .VPHome::before {
   opacity: 0.4;
 }
+
+/**
+ * Model catalogue: a config.json-driven card grid from models/index.md.j2.
+ * auto-fit follows the available page width: one column on narrow screens,
+ * two on tablets and three within the documentation's 688 px content column.
+ * Each card shows the display name and the badge tags of the model's
+ * config.json. The DOI is deliberately not repeated there: it is the same for
+ * every model and already on each model page.
+ */
+.model-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.model-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background-color: var(--vp-c-bg-soft);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.model-card:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--vp-shadow-2);
+}
+
+.vp-doc .model-card-title {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+.vp-doc .model-card-title a {
+  color: var(--vp-c-text-1);
+  text-decoration: none;
+}
+
+/* Stretch the title link over the whole card, so clicking anywhere on the
+   card opens the model page. */
+.vp-doc .model-card-title a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+
+.vp-doc .model-card-title a:hover {
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc .model-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}

@@ -1,12 +1,17 @@
 """Shared rendering of openEO process graphs from their Jinja2 templates.
 
 Each model directory keeps a ``process_graph.json.j2`` template with the graph
-structure and ``udf.py`` with the user-defined function. The template receives
+structure, ``udf.py`` with the user-defined function and ``config.json`` with
+the model metadata: its display ``name``, the ``runtime`` and the badge
+``tags`` shown in the model catalogue. The template receives
 
 - ``udf_json`` -- the UDF source as a JSON string literal, read from ``udf.py``
+- ``config`` / ``config_json`` -- the parsed ``config.json`` and the same
+  mapping as a JSON literal; the template copies it into its ``model`` entry so
+  the published graph is independent of the separate config file
 - ``runtime_url`` -- the dependency-archive URL, with ``#feature_deps``
 - ``process_graph_url`` -- where the rendered graph is published
-- ``model`` / ``runtime`` -- the directory name and runtime name
+- ``model`` / ``runtime`` -- the directory name and runtime from ``config.json``
 
 Publication URLs are themselves Jinja2 templates so a plain GitHub Pages
 deployment and a Zenodo release produce the same layout from one base URL:
@@ -63,12 +68,51 @@ README_URL_TEMPLATE = jinja2.Template(
 )
 
 
+def model_config(process_dir: Path) -> dict:
+    """The model's ``config.json``, or an empty mapping when absent.
+
+    The file is the single source of truth for the model's display ``name``,
+    the ``runtime`` and the badge ``tags``.
+    """
+    config_file = process_dir / "config.json"
+    if not config_file.is_file():
+        return {}
+    try:
+        config = json.loads(config_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise SystemExit(f"{config_file}: invalid JSON: {error}") from error
+    if not isinstance(config, dict):
+        raise SystemExit(f"{config_file}: expected a JSON object")
+    return config
+
+
 def runtime_name(process_dir: Path) -> str:
-    """The single runtime named by ``runtime.txt``, or ``""`` when absent."""
-    runtime_file = process_dir / "runtime.txt"
-    if not runtime_file.is_file():
-        return ""
-    return runtime_file.read_text(encoding="utf-8").strip()
+    """The single runtime named by ``config.json``, or ``""`` when absent."""
+    runtime = model_config(process_dir).get("runtime")
+    return runtime.strip() if isinstance(runtime, str) else ""
+
+
+def validate_model_config(process_dir: Path) -> list[str]:
+    """Validate the ``name``, ``runtime`` and ``tags`` in ``config.json``."""
+    config_file = process_dir / "config.json"
+    if not config_file.is_file():
+        return [
+            f"{config_file} is required; it names the runtime and describes "
+            "the model in the catalogue"
+        ]
+
+    config = model_config(process_dir)
+    problems = []
+    if not isinstance(config.get("name"), str) or not config["name"].strip():
+        problems.append(f"{config_file}: 'name' must be a non-empty string")
+    if not isinstance(config.get("runtime"), str) or not config["runtime"].strip():
+        problems.append(f"{config_file}: 'runtime' must be a non-empty string")
+    tags = config.get("tags", [])
+    if not isinstance(tags, list) or any(
+        not isinstance(tag, str) or not tag.strip() for tag in tags
+    ):
+        problems.append(f"{config_file}: 'tags' must be a list of non-empty strings")
+    return problems
 
 
 def process_graph_url(base_url: str, model: str) -> str:
@@ -94,26 +138,34 @@ def readme_url(base_url: str, model: str) -> str:
 def validate_runtime_reference(
     process_dir: Path, graph: dict, expected_archive_url: str | None = None
 ) -> list[str]:
-    """Validate ``runtime.txt`` against ``runtimes/`` and the job options."""
+    """Validate the ``runtime`` from ``config.json`` against ``runtimes/``.
+
+    Also checks that the graph's ``default_job_options`` reference the archive
+    of that runtime. A model without ``config.json`` yields no problem here;
+    ``validate_model_config`` reports the missing file.
+    """
     name = runtime_name(process_dir)
     if not name:
         return []
 
     if any(character.isspace() for character in name):
-        return [f"{process_dir / 'runtime.txt'}: expected a single runtime name, found {name!r}"]
+        return [
+            f"{process_dir / 'config.json'}: expected a single runtime name, "
+            f"found {name!r}"
+        ]
 
     problems = []
     repo_root = process_dir.resolve().parent.parent
     if not (repo_root / "runtimes" / name).is_dir():
         problems.append(
-            f"{process_dir / 'runtime.txt'} refers to runtime {name!r}, "
+            f"{process_dir / 'config.json'} refers to runtime {name!r}, "
             f"but runtimes/{name}/ does not exist"
         )
 
     archives = (graph.get("default_job_options") or {}).get("udf-dependency-archives") or []
     if not archives:
         problems.append(
-            f"{process_dir / 'runtime.txt'}: default_job_options has no udf-dependency-archives"
+            f"{process_dir / 'config.json'}: default_job_options has no udf-dependency-archives"
         )
     elif expected_archive_url is not None and expected_archive_url not in archives:
         problems.append(
@@ -124,7 +176,7 @@ def validate_runtime_reference(
         suffix = f"/runtimes/{name}.zip#feature_deps"
         if not any(archive.endswith(suffix) for archive in archives):
             problems.append(
-                f"{process_dir / 'runtime.txt'} names runtime {name!r}, but no URL in "
+                f"{process_dir / 'config.json'} names runtime {name!r}, but no URL in "
                 f"default_job_options['udf-dependency-archives'] ends with {suffix!r}: "
                 f"{archives}"
             )
@@ -150,11 +202,13 @@ def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
         raise SystemExit(f"{udf_path} not found")
 
     model = process_dir.name
-    runtime = runtime_name(process_dir)
+    config = model_config(process_dir)
+    runtime = config.get("runtime")
+    runtime = runtime.strip() if isinstance(runtime, str) else ""
     if not runtime:
         raise SystemExit(
-            f"{process_dir / 'runtime.txt'} is required; the template references "
-            "{{ runtime_url }}"
+            f"{process_dir / 'config.json'} is required and must set 'runtime'; "
+            "the template references {{ runtime_url }}"
         )
 
     archive_url = runtime_url(base_url, runtime)
@@ -165,6 +219,10 @@ def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
         template_path.read_text(encoding="utf-8")
     ).render(
         udf_json=json.dumps(udf_path.read_text(encoding="utf-8"), ensure_ascii=False),
+        # The graph copies these into its ``model`` entry, so the published
+        # process_graph.json is self-contained and does not read config.json.
+        config=config,
+        config_json=json.dumps(config, indent=2, ensure_ascii=False),
         runtime_url=archive_url,
         process_graph_url=graph_url,
         model=model,
@@ -208,7 +266,9 @@ def render_readme(
     """Render ``README.md.j2`` for ``base_url``.
 
     ``base_url`` locates the model's published files (the process graph),
-    ``docs_base_url`` the version's documentation page. ``release_version`` and
+    ``docs_base_url`` the version's documentation page. The page title and
+    badge tags come from the model's ``config.json``, passed as ``config``.
+    ``release_version`` and
     ``doi`` describe the release the page advertises (its header links both):
     they default to the newest ``v*`` tag and to the concept DOI for a release
     render. A preview render (``release=False``) has no DOI, so the template's
@@ -235,6 +295,10 @@ def render_readme(
         template_path.read_text(encoding="utf-8")
     ).render(
         base_url=base_url.rstrip("/"),
+        # The parsed config.json is the model's single source of truth; the
+        # page title and badge tags come from it (``config.name``,
+        # ``config.tags``) rather than being duplicated in the template.
+        config=model_config(process_dir),
         model=model,
         release=release,
         process_graph_url=process_graph_url(base_url, model),

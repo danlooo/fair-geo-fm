@@ -1,13 +1,16 @@
-# TESSERA v2
+# {{ config.name }}
+{% if doi %}
 
-{% if doi %}[Release {{ release_version }}]({{ release_url }}) | [DOI {{ doi }}](https://doi.org/{{ doi }}){% endif %}
+[Release {{ release_version }}]({{ release_url }}) | [DOI {{ doi }}](https://doi.org/{{ doi }})
+{% endif %}
+{% if config.tags %}
 
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem;">
-  <Badge text="computed on demand" type="info" style="font-size: inherit; 
-  line-height: inherit;" />
-  <Badge text="Sentinel 1+2" type="info" style="font-size: inherit; 
-  line-height: inherit;" />
+{% for tag in config.tags %}
+  <Badge text="{{ tag }}" type="info" style="font-size: inherit; line-height: inherit;" />
+{% endfor %}
 </div>
+{% endif %}
 
 On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins.
 
