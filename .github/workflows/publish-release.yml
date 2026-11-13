@@ -18,6 +18,11 @@ name: publish-release
 # the record's own runtime URL; the DOI remains the citable identifier. The
 # record is published last.
 #
+# Once the record exists, the workflow dispatches `publish` to rebuild the
+# documentation site. Tag pages resolve their tag to this version record, and
+# the deployment triggered by the tag push ran before the record existed, so
+# without this rebuild they would keep linking to the staging URLs.
+#
 # Zenodo's automatic GitHub integration cannot be used: it archives a single
 # repository snapshot under Zenodo's own paths, while the layout above needs
 # several files under custom paths. Hence scripts/publish-release.py talks to
@@ -58,6 +63,8 @@ on:
 
 permissions:
   contents: read
+  # Dispatch the documentation rebuild after the Zenodo record exists.
+  actions: write
 
 concurrency:
   group: publish-release-${{ github.event.release.tag_name || inputs.tag }}
@@ -123,3 +130,19 @@ jobs:
             args+=(--dry-run)
           fi
           uv run scripts/publish-release.py "${args[@]}"
+
+      - name: Rebuild the documentation site
+        # The docs build resolves a released tag to its Zenodo version record,
+        # which only exists after the upload above. The deployment triggered by
+        # the tag push ran too early and kept the staging fallback, so rebuild
+        # Pages now that the new version record and DOI are available.
+        if: >-
+          github.event_name == 'release' ||
+          (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "${{ github.event.repository.default_branch }}"

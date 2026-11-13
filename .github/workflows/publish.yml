@@ -24,7 +24,8 @@ name: publish
 #
 # Released, citable versions are uploaded to Zenodo by publish-release.yml after
 # a maintainer creates a GitHub release. `workflow_dispatch` republishes the
-# site by hand.
+# site by hand; publish-release also dispatches it after the Zenodo upload so a
+# tag page links to its new version record instead of the staging URLs.
 on:
   workflow_run:
     workflows: [build]

@@ -184,6 +184,10 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - A released tag's model page links to that tag's Zenodo version record; the
   docs build resolves the version records from the concept record through the
   Zenodo API and falls back to the staging base if that lookup fails.
+- `publish-release` dispatches `publish` after the Zenodo record is published,
+  so the tag page is rebuilt against the new version record/DOI instead of the
+  staging URLs from the deployment that ran when the tag was pushed. A
+  rehearsal (`dry_run`) does not rebuild, because the draft is deleted.
 - The staging process graph is served at the fixed `/main/models/<model>/`
   path on Pages. `prepare-docs.mjs` copies the rendered default-branch graph
   there, because a ref worktree never contains the git-ignored build output.
