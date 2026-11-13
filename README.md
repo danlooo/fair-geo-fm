@@ -1,5 +1,8 @@
 # fair-geo-fm
 
+[![build](https://github.com/danlooo/fair-geo-fm/actions/workflows/build.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/build.yml)
+[![publish](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish.yml)
+
 FAIR geospatial foundation models, ready to use in openEO.
 
 > [!NOTE]
