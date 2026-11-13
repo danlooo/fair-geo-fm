@@ -36,8 +36,9 @@ Usage:
     uv run scripts/publish-release.py --version v0.2 \\
         --creators-json '[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'
 
-The title defaults to ``fair-geo-fm <version>`` and the description to an HTML
-blurb linking the project, openEO, and the documentation site for that version.
+The title defaults to ``fair-geo-fm`` (the version is metadata, not part of
+the title) and the description to an HTML blurb linking the project, openEO,
+and the documentation site for that version.
 
 Runtime archives (``runtimes/*/dependencies.zip``) must already be built, e.g.
 with ``scripts/create-python-dependency-archive.py``.
@@ -151,9 +152,9 @@ def concept_record_id(doi: str) -> str:
     return recid
 
 
-def release_title(version: str) -> str:
-    """Zenodo record title, e.g. ``fair-geo-fm v0.2``."""
-    return f"fair-geo-fm {version}"
+def release_title() -> str:
+    """Zenodo record title; the version is a separate metadata field."""
+    return "fair-geo-fm"
 
 
 def release_description(version: str) -> str:
@@ -388,7 +389,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--title", default=None,
-        help="Zenodo record title (default: 'fair-geo-fm <version>')",
+        help="Zenodo record title (default: 'fair-geo-fm')",
     )
     parser.add_argument("--version", required=True, help="version string, e.g. the release tag")
     parser.add_argument(
@@ -443,7 +444,7 @@ def main() -> None:
         raise SystemExit("--creators-json must be a non-empty JSON list")
 
     description = args.description or release_description(args.version)
-    title = args.title or release_title(args.version)
+    title = args.title or release_title()
 
     metadata = {
         "title": title,
