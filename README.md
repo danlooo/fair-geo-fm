@@ -1,6 +1,9 @@
 # fair-geo-fm
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24193627.svg)](https://doi.org/10.5281/zenodo.24193627)
+[![docs stable](https://img.shields.io/badge/docs-stable-brightgreen)](https://danlooo.github.io/fair-geo-fm/)
+[![docs dev](https://img.shields.io/badge/docs-dev-blue)](https://danlooo.github.io/fair-geo-fm/main/)
+
 [![build](https://github.com/danlooo/fair-geo-fm/actions/workflows/build.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/build.yml)
 [![publish](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish.yml)
 [![publish-release](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish-release.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish-release.yml)
