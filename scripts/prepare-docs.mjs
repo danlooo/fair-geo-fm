@@ -197,22 +197,24 @@ function writeRuntimeAssets() {
 }
 
 // Public origin of the documentation site. VitePress serves every version
-// under /fair-geo-fm/<version>/, and model README templates are rendered with
-// that base URL so their links match the published layout.
+// under /fair-geo-fm/<version>/, while process graphs are only rebuilt under
+// /main/ on every deployment.
 const siteBaseUrl = (
   process.env.DOCS_SITE_BASE_URL || "https://danlooo.github.io/fair-geo-fm"
 ).replace(/\/+$/, "");
 
 // The variables a model README template can use, mirroring the ones in
-// scripts/process_graphs.py. URLs are built from the page's own version, so an
-// archived page never links into the current one.
+// scripts/process_graphs.py. Process graphs are only rebuilt under the staging
+// /main/ base, so every version's examples link there; the documentation page
+// itself is versioned, so it links into the version being rendered.
 function modelTemplateValues(version, model) {
-  const baseUrl = `${siteBaseUrl}/${version}`;
+  const filesBaseUrl = `${siteBaseUrl}/main`;
+  const docsBaseUrl = `${siteBaseUrl}/${version}`;
   return {
-    base_url: baseUrl,
+    base_url: filesBaseUrl,
     model,
-    process_graph_url: `${baseUrl}/models/${model}/process_graph.json`,
-    docs_url: `${baseUrl}/models/${model}/`,
+    process_graph_url: `${filesBaseUrl}/models/${model}/process_graph.json`,
+    docs_url: `${docsBaseUrl}/models/${model}/`,
   };
 }
 

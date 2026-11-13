@@ -29,6 +29,10 @@ Usage:
         --base-url https://zenodo.org/records/123456/files \\
         --output /tmp/release/models/tessera_v2/process_graph.json
 
+When the model has a ``README.md.j2``, its template is rendered as well so the
+build catches unknown variables before the docs or release pipeline does; the
+rendered page itself is not written here.
+
 ``--check`` writes nothing. It always renders the template (validating the
 graph structure, the inlined UDF and the runtime reference) and exits non-zero
 when an existing ``process_graph.json`` no longer matches the template. A
@@ -42,7 +46,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from process_graphs import DEFAULT_BASE_URL, render, validate_runtime_reference
+from process_graphs import (
+    DEFAULT_BASE_URL,
+    render,
+    render_readme,
+    validate_runtime_reference,
+)
 
 
 def build(process_dir: Path, base_url: str, check: bool, output: Path | None) -> int:
@@ -57,6 +66,12 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
 
     print(f"process graph: {graph_url}")
     print(f"runtime archive: {archive_url}")
+
+    # The model page is rendered by the docs and release pipelines, not here,
+    # but rendering it validates its template variables during the build.
+    if (process_dir / "README.md.j2").is_file():
+        _readme, readme_url = render_readme(process_dir, base_url, base_url)
+        print(f"model README: {readme_url}")
 
     if check:
         # process_graph.json is generated from the template, so a fresh

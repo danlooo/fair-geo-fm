@@ -18,6 +18,12 @@ The rendered ``process_graph.json`` is generated from the template on demand
 and in CI; it is not committed. ``build`` renders it and verifies the runtime
 reference; the publish workflows write it for their target base URL.
 
+Each model directory also has a ``README.md.j2`` documentation page. It is
+rendered with the same base URL so the copy-paste examples point at the graph
+of the same publication target. For a Zenodo release the files live under the
+record URL while the page itself stays on the documentation site, so
+``render_readme`` takes the documentation base URL separately.
+
 This module is imported by ``build-process-graph.py`` and
 ``publish-release.py``; it is not a standalone script.
 """
@@ -29,15 +35,21 @@ from pathlib import Path
 
 import jinja2
 
-# Where ``publish`` serves the default branch. Kept in sync with
-# docs/.vitepress/config.mjs (base: "/fair-geo-fm/").
-DEFAULT_BASE_URL = "https://danlooo.github.io/fair-geo-fm/main"
+# Root of the documentation site. Kept in sync with
+# docs/.vitepress/config.mjs (base: "/fair-geo-fm/") and with
+# scripts/prepare-docs.mjs.
+SITE_BASE_URL = "https://danlooo.github.io/fair-geo-fm"
+# Where ``publish`` serves the default branch.
+DEFAULT_BASE_URL = f"{SITE_BASE_URL}/main"
 
 RUNTIME_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/runtimes/{{ runtime }}.zip#feature_deps"
 )
 PROCESS_GRAPH_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/models/{{ model }}/process_graph.json"
+)
+README_URL_TEMPLATE = jinja2.Template(
+    "{{ base_url }}/models/{{ model }}/README.md"
 )
 
 
@@ -59,6 +71,14 @@ def runtime_url(base_url: str, runtime: str) -> str:
     return RUNTIME_URL_TEMPLATE.render(
         base_url=base_url.rstrip("/"), runtime=runtime
     )
+
+
+def readme_url(base_url: str, model: str) -> str:
+    return README_URL_TEMPLATE.render(
+        base_url=base_url.rstrip("/"), model=model
+    )
+
+
 
 
 def validate_runtime_reference(
@@ -144,3 +164,36 @@ def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
     graph = json.loads(rendered)
     text = json.dumps(graph, indent=2, ensure_ascii=False) + "\n"
     return text, graph, graph_url, archive_url
+
+
+def render_readme(
+    process_dir: Path, base_url: str, docs_base_url: str
+) -> tuple[str, str]:
+    """Render ``README.md.j2`` for ``base_url``.
+
+    ``base_url`` locates the model's published files (the process graph),
+    ``docs_base_url`` the version's documentation page. Returns
+    ``(text, readme_url)``. Unknown template variables are an error.
+    """
+    process_dir = process_dir.resolve()
+    template_path = process_dir / "README.md.j2"
+    if not template_path.is_file():
+        raise SystemExit(
+            f"{template_path} not found; model pages are rendered from README.md.j2"
+        )
+
+    model = process_dir.name
+    environment = jinja2.Environment(
+        keep_trailing_newline=True,
+        autoescape=False,
+        undefined=jinja2.StrictUndefined,
+    )
+    text = environment.from_string(
+        template_path.read_text(encoding="utf-8")
+    ).render(
+        base_url=base_url.rstrip("/"),
+        model=model,
+        process_graph_url=process_graph_url(base_url, model),
+        docs_url=f"{docs_base_url.rstrip('/')}/models/{model}/",
+    )
+    return text, readme_url(base_url, model)

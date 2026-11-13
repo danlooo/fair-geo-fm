@@ -126,8 +126,9 @@ jobs:
 
       - name: Render staging process graphs
         # The template is the source of truth; this writes the default-branch
-        # copy that prepare-docs serves. The base URL matches the Pages layout
-        # of a project site.
+        # copy that prepare-docs serves. It also validates each model README
+        # template, which prepare-docs renders into the versioned pages. The
+        # base URL matches the Pages layout of a project site.
         env:
           BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main
         run: |

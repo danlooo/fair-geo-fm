@@ -40,10 +40,10 @@ Conventions for the models and runtimes in this repository.
 - Do not hardcode publication URLs. The process graph template is rendered for
   a base URL and exposes `{{ runtime_url }}` (the dependency archive, with
   `#feature_deps`), `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`.
-  `README.md.j2` is rendered for the documentation version and exposes
-  `{{ base_url }}`, `{{ process_graph_url }}` and `{{ docs_url }}` (the model's
-  documentation page, with a trailing `/`). The same layout is used for the
-  staging Pages site and for a Zenodo release:
+  `README.md.j2` exposes `{{ process_graph_url }}` (the same published graph
+  URL the process graph template uses), `{{ base_url }}`, `{{ model }}` and
+  `{{ docs_url }}` (the version's documentation page, with a trailing `/`).
+  The same layout is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
   - release: `https://zenodo.org/records/<record-id>/files`
 - Reference a released model by its DOI URL in `namespace`, not by a branch, so
@@ -100,7 +100,7 @@ Two publication targets share one layout, selected by a base URL:
 | Target | Base URL | Contents |
 | --- | --- | --- |
 | Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives |
-| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, runtime archives, full source archive |
+| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, model READMEs, runtime archives, full source archive |
 
 The staging target is rebuilt automatically after every successful push build.
 Nothing is published unless the `build` workflow succeeded for the commit, so a
@@ -117,11 +117,14 @@ against the version's file URL, uploads the graphs, the runtime archives and a
 source archive of the released commit, and publishes the version last. Every
 release therefore adds a version to the same root record; the concept DOI
 always resolves to the latest version. Each
-model contributes only its rendered `process_graph.json`; the UDF is embedded
-in it, and `udf.py` / `example.py` / `runtime.txt` stay in the source archive.
-The resulting record has many files under custom paths —
+model contributes its rendered `process_graph.json` and `README.md`; the UDF is
+embedded in the graph, and `udf.py` / `example.py` / `runtime.txt` stay in the
+source archive. The README's code samples link to the record's own graph while
+its documentation link points at the versioned Pages site. The resulting record
+has many files under custom paths —
 
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 

@@ -8,6 +8,7 @@
 Zenodo records can hold many files, which is what the published layout needs:
 
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 
@@ -19,10 +20,10 @@ That rules out Zenodo's automatic GitHub integration, which only archives a
 repository snapshot under its own paths. This script opens a new version of the
 project's existing concept record (``--concept-doi``, default
 ``10.5281/zenodo.24193626``) through Zenodo's InvenioRDM API, reserves the
-version DOI before uploading, renders every process graph with the record's
-file URL as the base URL, uploads all files, and publishes the version last so
-a partially uploaded record never goes live. The concept DOI therefore always
-resolves to the latest release.
+version DOI before uploading, renders every process graph and model README
+with the record's file URL as the base URL, uploads all files, and publishes
+the version last so a partially uploaded record never goes live. The concept
+DOI therefore always resolves to the latest release.
 
 The old deposition bucket API (``PUT /api/files/<bucket>/<key>``) is no longer
 served by Zenodo; files are uploaded to the draft record instead, as documented
@@ -57,7 +58,12 @@ from pathlib import Path
 
 import requests
 
-from process_graphs import render, validate_runtime_reference
+from process_graphs import (
+    SITE_BASE_URL,
+    render,
+    render_readme,
+    validate_runtime_reference,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CREATORS = [{"name": "Loos, Daniel", "orcid": "0000-0002-4024-4443"}]
@@ -268,9 +274,21 @@ def stage_files(base_url: str, staging: Path, version: str) -> list[tuple[str, P
         print(f"rendered {graph_url} -> {target.relative_to(staging)}")
         print(f"  runtime archive: {archive_url}")
         # The UDF source is embedded in the rendered graph. The record keeps
-        # only the graph per model; udf.py/example.py/runtime.txt stay in the
-        # source archive.
+        # only the graph and README per model; udf.py/example.py/runtime.txt
+        # stay in the source archive.
         staged.append((target.relative_to(staging).as_posix(), target))
+
+        # The page's copy-paste examples link to this record's graph, while its
+        # documentation URL stays on the versioned Pages site.
+        readme_text, readme_target_url = render_readme(
+            process_dir,
+            base_url,
+            f"{SITE_BASE_URL}/{version}",
+        )
+        readme_target = target.parent / "README.md"
+        readme_target.write_text(readme_text, encoding="utf-8")
+        print(f"rendered {readme_target_url} -> {readme_target.relative_to(staging)}")
+        staged.append((readme_target.relative_to(staging).as_posix(), readme_target))
 
     runtimes = REPO_ROOT / "runtimes"
     for runtime_dir in sorted(path for path in runtimes.iterdir() if path.is_dir()):
