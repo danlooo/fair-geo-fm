@@ -172,10 +172,10 @@ def render_readme(
     """Render ``README.md.j2`` for ``base_url``.
 
     ``base_url`` locates the model's published files (the process graph),
-    ``docs_base_url`` the version's documentation page. ``release`` tells the
-    template whether it describes a stable release, so development notices are
-    left out of released pages; it defaults to the branch (preview) rendering.
-    Returns ``(text, readme_url)``. Unknown template variables are an error.
+    ``docs_base_url`` the version's documentation page. ``release`` is exposed
+    to templates that gate development notices on it; it defaults to the branch
+    (preview) rendering. Returns ``(text, readme_url)``. Unknown template
+    variables are an error.
     """
     process_dir = process_dir.resolve()
     template_path = process_dir / "README.md.j2"

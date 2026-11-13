@@ -29,6 +29,27 @@
 }
 
 /**
+ * Notice above the h1 of every page of an unreleased version, styled like a
+ * VitePress warning custom block.
+ */
+.preview-banner {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 4px solid var(--vp-c-warning-1);
+  border-radius: 4px;
+  background-color: var(--vp-c-warning-soft);
+  color: var(--vp-c-text-1);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.preview-banner a {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/**
  * Minimal elevation contours behind the home page, like the lines on a
  * topographic map: summit contours are earth brown (#65421F), lower lines are
  * ocean blue (#05668D). A mask fades them out before the features so the copy

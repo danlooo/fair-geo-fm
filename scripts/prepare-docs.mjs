@@ -334,7 +334,9 @@ async function fetchZenodoFilesBases() {
 // scripts/process_graphs.py. Released tags link to their immutable Zenodo
 // files; main and branches link to the staging graphs rebuilt under /main.
 // The documentation page itself is always versioned. ``release`` is true for
-// v* tags and false for branches, so a page can hide development notices.
+// v* tags and false for branches, so archived templates that gate development
+// notices on it still render; the current template relies on the site-wide
+// banner in docs/.vitepress/theme/PreviewBanner.vue instead.
 function modelTemplateValues(version, model) {
   const filesBaseUrl = zenodoFilesBases.get(version) ?? `${siteBaseUrl}/main`;
   const docsBaseUrl = `${siteBaseUrl}/${version}`;
@@ -359,10 +361,11 @@ function rewriteLegacyModelGraphUrl(text, version, model) {
   );
 }
 
-// Minimal Jinja2 subset: ``{{ name }}`` variables and a single
-// ``{% if [not] name %} ... {% endif %}`` block, which model pages use to show
-// development notices only on unreleased branches. An unknown variable is an
-// error rather than a published page that keeps a literal ``{{ ... }}``.
+// Minimal Jinja2 subset: ``{{ name }}`` variables and one
+// ``{% if [not] name %} ... {% endif %}`` block. Archived refs may still gate
+// a development notice on ``release`` (see modelTemplateValues). An unknown
+// variable is an error rather than a published page that keeps a literal
+// ``{{ ... }}``.
 function renderModelTemplate(text, version, model, source) {
   const values = modelTemplateValues(version, model);
   const renderConditionals = text.replace(

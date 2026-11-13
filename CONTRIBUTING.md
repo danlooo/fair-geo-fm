@@ -41,11 +41,8 @@ Conventions for the models and runtimes in this repository.
   a base URL and exposes `{{ runtime_url }}` (the dependency archive, with
   `#feature_deps`), `{{ process_graph_url }}` and `{{ model }}` / `{{ runtime }}`.
   `README.md.j2` exposes `{{ process_graph_url }}` (the same published graph
-  URL the process graph template uses), `{{ base_url }}`, `{{ model }}`,
-  `{{ docs_url }}` (the version's documentation page, with a trailing `/`) and
-  `release` (`true` on `v*` tags, `false` on branches). Wrap development
-  notices in `{% if not release %} ... {% endif %}` so released pages show
-  only the stable content.
+  URL the process graph template uses), `{{ base_url }}`, `{{ model }}` and
+  `{{ docs_url }}` (the version's documentation page, with a trailing `/`).
   The same layout is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
   - release: `https://zenodo.org/records/<record-id>/files`
