@@ -14,9 +14,10 @@ Conventions for the models and runtimes in this repository.
   `model_version` parameter cannot change the process contract.
 - Process ids are model-first, end with `_embeddings`, and carry no `infer_` or
   `load_` prefix. The suffix states the output type; a verb would collide with
-  the generic `load_embeddings` and `ml_predict` processes. Say whether a
-  process computes on demand or reads archived tiles in `summary` and
-  `description`.
+  the generic `load_embeddings` and `ml_predict` processes. Say whether a model
+  computes on demand or reads archived tiles in the `tags` of its `config.json`
+  (`"computed on demand"`), which the catalogue page renders as badges on the
+  model card.
 - One embedding per process graph: do not pack several models into one UDP.
 - Use openEO-friendly file names with underscores. Process ids must match
   `^\w+$`, so no hyphens or dots.
@@ -36,14 +37,18 @@ Conventions for the models and runtimes in this repository.
   - `README.md.j2` — the model's documentation page as a Jinja2 template,
     maintained by hand; `scripts/prepare-docs.mjs` renders it to the page's
     `index.md` for the version being published
-- The catalogue page `models/index.md.j2` fills <code v-pre>{{ model_cards }}</code> from every
-  model directory's `config.json` at docs-build time. Add a model by adding its
-  version directory and `config.json`; do not list it by hand.
+- The catalogue page `models/index.md.j2` is a template whose
+  <code v-pre>{{ model_cards }}</code> is filled by `scripts/prepare-docs.mjs` at docs-build
+  time: one card per model directory that has a `README.md.j2`, using the `name`
+  and `tags` of that directory's `config.json` (falling back to the directory
+  name when there is none). Add a model by adding its version directory with a
+  `README.md.j2` and a `config.json`; do not list it by hand.
 - Inline the UDF in `process_graph.json` so one URL resolves the whole process.
   The template receives it as <code v-pre>{{ udf_json }}</code>, which the build script fills
   from `udf.py`; do not paste the UDF into the template.
   If it grows too large to maintain inline, reference `udf.py` by URL from
-  `run_udf` instead.
+  `run_udf` instead. `udf.py` must exist either way: the build reads it for
+  <code v-pre>{{ udf_json }}</code> and CI only checks directories that have one.
 - Do not hardcode publication URLs. The process graph template is rendered for
   a base URL and exposes <code v-pre>{{ runtime_url }}</code> (the dependency archive, with
   `#feature_deps`), <code v-pre>{{ process_graph_url }}</code> and <code v-pre>{{ model }}</code> / <code v-pre>{{ runtime }}</code>.
@@ -60,7 +65,16 @@ Conventions for the models and runtimes in this repository.
   (that release's documentation page, with a trailing `/`) and <code v-pre>{{ doi }}</code> (that
   release's version DOI). A tag page advertises its own release and DOI; a
   branch page (`main`) has no DOI, so the <code v-pre>{% if doi %}</code> gate omits the header
-  entirely. The release README uploaded to Zenodo advertises the record it
+  entirely. <code v-pre>{{ release }}</code> is `true` for a `v*` tag and `false` for a branch,
+  for templates that gate development notices on it.
+  The two templates are not rendered by the same engine. `process_graph.json.j2`
+  gets full Jinja2 from `scripts/process_graphs.py`; `README.md.j2` is rendered
+  by `scripts/prepare-docs.mjs`, which implements only
+  <code v-pre>{{ dotted.path }}</code> variables, <code v-pre>{% if [not] path %}</code> blocks and
+  <code v-pre>{% for item in list.path %}</code> loops, inline or spanning whole lines. An unknown
+  variable is an error rather than a published page that keeps a literal
+  <code v-pre>{{ ... }}</code>, so keep the page template within that subset.
+  The release README uploaded to Zenodo advertises the record it
   belongs to; never write `v0.1.2` or a DOI into the template.
   The same layout is used for the staging Pages site and for a Zenodo release:
   - staging: `https://danlooo.github.io/fair-geo-fm/main`
@@ -68,23 +82,26 @@ Conventions for the models and runtimes in this repository.
   A released tag's page links to **that tag's** Zenodo version record, resolved
   from the concept record's versions (not the concept/root DOI); `main` and
   other branches link to the staging `/main` graphs.
-- Reference a released model by its DOI URL in `namespace`, not by a branch, so
-  stored jobs stay reproducible. The staging URL is overwritten on every
+- Reference a released model by the file URL of its Zenodo version record in
+  `namespace`, not by a branch, so stored jobs stay reproducible. Do not use the
+  bare DOI: `doi.org` treats any suffix as part of the DOI and returns 404, so
+  it cannot locate a process graph. The staging URL is overwritten on every
   deployment and is only for checking a change before a release.
-- Do not end `namespace` or `links` URLs with a trailing `/`. Documentation
-  page URLs do end with `/` because VitePress serves each process page as a
-  directory index.
+- Do not end `namespace` URLs with a trailing `/`. Documentation page URLs do
+  end with `/` because VitePress serves each process page as a directory index.
 - Documentation is published at <https://danlooo.github.io/fair-geo-fm>. Put the
-  link in the process `description` and in `links` (`rel: canonical`), and in
-  the node `description` of copy-paste examples — that is what a user reads in
-  the Web editor's Code tab.
+  link in the node `description` of the copy-paste examples in `README.md.j2`
+  (<code v-pre>{{ docs_url }}</code>) — that is what a user reads in the Web editor's Code
+  tab — and on the model page itself.
 
 > **Note:** the openEO Web editor does not retrieve metadata from the external
 > `namespace` URL when a process graph is created. `summary`, `description`,
 > `links` and the parameter descriptions are not shown there; the editor only
 > displays the process graph that is pasted into it. Do not rely on them to
 > communicate anything users must see — put it in the node `description` of
-> examples, this README, or the documentation page instead.
+> examples, this README, or the documentation page instead. The published graph
+> in this repository carries `id`, `model`, `default_job_options` and
+> `process_graph`, and nothing else.
 
 ## Runtimes
 
@@ -101,9 +118,12 @@ Conventions for the models and runtimes in this repository.
   runtimes/py311-torch231/requirements.txt --output-file
   runtimes/py311-torch231/dependencies.zip` writes that file. It is git-ignored;
   CI rebuilds it from the pinned `requirements.txt` for each publication.
-- Pin `runtime` and `version` in `run_udf` and reference the archive from the
-  process's `default_job_options` via `udf-dependency-archives`, so interpreter
-  and archive move together. Entries always carry the `#feature_deps` suffix,
+- The template sets `runtime` in `run_udf` to the UDF language (`Python`) and
+  references the archive from the process's `default_job_options` via
+  `udf-dependency-archives`. The interpreter and stack version are not in the
+  graph: they are the runtime directory's name and its pinned `requirements.txt`,
+  which is what the archive is built from, so interpreter and archive move
+  together. Entries always carry the `#feature_deps` suffix,
   which tells openEO to extract the archive into the UDF's `feature_deps/`
   directory instead of replacing the sandbox's own dependencies.
 - The URL comes from the template's <code v-pre>{{ runtime_url }}</code>, not from a literal:
@@ -132,6 +152,34 @@ Nothing is published unless the `build` workflow succeeded for the commit, so a
 broken process graph or archive is never deployed. Staging URLs are
 **overwritten on every deployment** and are only for checking a change before a
 release.
+
+### Build and publish
+
+Three workflows carry a commit from validation to publication.
+
+- `build` runs on every push, pull request and `workflow_dispatch`. It renders
+  each `models/*/process_graph.json.j2` with its `udf.py` and `config.json` and
+  fails on an invalid template, an invalid `config.json` or a runtime reference
+  that does not match `runtimes/`; it renders every `README.md.j2` as well, so a
+  broken template fails before the docs or release pipeline sees it. It also
+  builds each `runtimes/*/requirements.txt` into a deterministic
+  `dependencies.zip`, smoke-tests the imports on the pinned Python version,
+  writes `checksums.sha256`, and uploads all of it as the `dependency-archives`
+  artifact (30 days). Unchanged archives are restored from a cache keyed on the
+  requirements files instead of rebuilt.
+- `publish` deploys the documentation site to GitHub Pages. It is triggered by a
+  completed `build` run, refuses to publish unless that run was a successful
+  push build for the commit, and takes the runtime archives from the build's
+  artifact.
+- `publish-release` uploads a release to Zenodo (below). It is triggered by a
+  published GitHub release.
+
+`scripts/build-process-graph.py` and `scripts/publish-release.py` share
+`scripts/process_graphs.py`, which owns template rendering and the `config.json`
+and runtime validation, so the build and the release render graphs the same way.
+After adding a model, check it locally with
+`uv run scripts/build-process-graph.py models/<model>` (staging base URL) and
+preview the site with `npm run dev`; both render from the working tree.
 
 Releases are never automatic. A maintainer creates a GitHub release by hand,
 which is the release decision, and the `publish-release` workflow archives the
@@ -213,7 +261,8 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   concept record through the Zenodo API and falls back to the staging base and
   the concept DOI if that lookup fails. Released refs that predate the header in
   `README.md.j2` get the same line inserted by `scripts/prepare-docs.mjs`, so no
-  published release page is missing it.
+  published release page is missing it. The same backfill repoints a legacy
+  hardcoded staging graph URL at the tag's version record.
 - `publish-release` dispatches `publish` after the Zenodo record is published,
   so the tag page is rebuilt against the new version record/DOI instead of the
   staging URLs from the deployment that ran when the tag was pushed. A
@@ -221,9 +270,12 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - The staging process graph is served at the fixed `/main/models/<model>/`
   path on Pages. `prepare-docs.mjs` copies the rendered default-branch graph
   there, because a ref worktree never contains the git-ignored build output.
-- After a successful release, point `example.py` at the released DOI URL and
-  quote the runtime sha256 in the model README; the model page header follows the
-  release automatically.
-  `scripts/build-process-graph.py --check` enforces that the committed
+- After a successful release, point `example.py` at the release's record file
+  URL. The model page header follows the release automatically. Quoting the
+  runtime sha256 in the model README is a manual step: `checksums.sha256` is a
+  CI artifact, not part of the site or the published record.
+  `scripts/build-process-graph.py --check` enforces that a present
   `process_graph.json` matches the template and that its archive URL ends with
-  `runtimes/<runtime>.zip#feature_deps`.
+  `runtimes/<runtime>.zip#feature_deps`. It cannot compare against a committed
+  file, because the generated graph is git-ignored: in a fresh checkout it only
+  validates the render.
