@@ -2,9 +2,9 @@
 
 Conventions for the models and runtimes in this repository.
 
-## Processes
+## Models
 
-- Each process is a user-defined process (UDP) served through the
+- Each model is a user-defined process (UDP) served through the
   [openEO remote process definition extension](https://api.openeo.org/extensions/remote-process-definition/0.1.0).
   Callers set `namespace` to the URL of the exported `process_graph.json`.
 - One directory per major model version, so versions can be used side by side:

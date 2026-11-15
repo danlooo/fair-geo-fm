@@ -67,5 +67,5 @@ parameters.
 ## Learn more
 
 - [Browse models](/models/) for the available models and their parameters.
-- [Contributing](/contributing) for process, runtime, and release conventions.
+- [Contributing](/contributing) for model, runtime, and release conventions.
 - [NFDI4Earth](https://nfdi4earth.de) for the project context.
