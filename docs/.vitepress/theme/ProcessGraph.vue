@@ -254,8 +254,10 @@ onBeforeUnmount(() => {
 }
 
 .process-graph-canvas {
-  /* The graph is drawn for a light background; keep it readable in dark mode. */
-  background-color: #fff;
+  /* Transparent so the page background (light or dark) shows through. The
+     blocks are opaque light cards drawn by the ModelBuilder, so they stay
+     readable in both modes; only the empty canvas follows the theme. */
+  background-color: transparent;
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
   overflow: hidden;
@@ -283,6 +285,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 2vh 2vw;
   z-index: 1001;
+  /* Opaque here: a transparent layer over the dimmed backdrop looks muddy. */
+  background-color: var(--vp-c-bg);
   border-radius: 10px;
   box-shadow: var(--vp-shadow-4);
 }
