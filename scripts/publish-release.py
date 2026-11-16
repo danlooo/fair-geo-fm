@@ -19,7 +19,7 @@ integration would use, so the record is self-contained and citable.
 That rules out Zenodo's automatic GitHub integration, which only archives a
 repository snapshot under its own paths. This script opens a new version of the
 project's existing concept record (``--concept-doi``, default
-``10.5281/zenodo.24275708``) through Zenodo's InvenioRDM API, reserves the
+``10.5281/zenodo.24275707``) through Zenodo's InvenioRDM API, reserves the
 version DOI before uploading, renders every process graph and model README
 with the record's file URL as the base URL, uploads all files, and publishes
 the version last so a partially uploaded record never goes live. The concept
@@ -146,7 +146,7 @@ def normalize_doi(doi: str) -> str:
 def concept_record_id(doi: str) -> str:
     """The Zenodo record id in a concept DOI.
 
-    ``10.5281/zenodo.24275708`` -> ``24275708``. Requesting that id from the
+    ``10.5281/zenodo.24275707`` -> ``24275707``. Requesting that id from the
     InvenioRDM API redirects to the latest published version of the concept.
     """
     recid = doi.rstrip("/").rsplit("/", 1)[-1].rsplit(".", 1)[-1]

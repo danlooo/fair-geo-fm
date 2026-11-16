@@ -360,7 +360,7 @@ function writeUnversionedRedirects() {
 // Released tags are archived on Zenodo as versions of one concept record.
 // Kept in sync with CONCEPT_DOI in scripts/process_graphs.py and
 // DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
-const zenodoConceptId = process.env.DOCS_ZENODO_CONCEPT_ID || "24275708";
+const zenodoConceptId = process.env.DOCS_ZENODO_CONCEPT_ID || "24275707";
 const zenodoConceptDoi =
   process.env.DOCS_ZENODO_CONCEPT_DOI || `10.5281/zenodo.${zenodoConceptId}`;
 const zenodoApiUrl = (
