@@ -117,6 +117,14 @@ compute_result(
 
 :::
 
+{% if site %}
+## Process graph
+
+The underlying openEO workflow that computes the embeddings.
+
+<ProcessGraph id="process-graph-{{ model }}" src="process_graph.json" />
+{% endif %}
+
 ## Input parameters
 
 | Name | Required | Default | Description |

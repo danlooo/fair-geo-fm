@@ -360,6 +360,7 @@ def render_readme(
     release: bool = False,
     release_version: str | None = None,
     doi: str | None = None,
+    site: bool = False,
 ) -> tuple[str, str]:
     """Render a model's documentation page for ``base_url``.
 
@@ -408,6 +409,9 @@ def render_readme(
         config=model_config(process_dir),
         model=model,
         release=release,
+        # A README served from Zenodo has no Vue components; the site renderer
+        # (scripts/prepare-docs.mjs) sets this to embed the process graph.
+        site=site,
         process_graph_url=process_graph_url(base_url, model),
         docs_url=f"{docs_base_url.rstrip('/')}/models/{model}/",
         release_version=advertised,

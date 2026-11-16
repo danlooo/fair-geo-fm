@@ -8,6 +8,7 @@ import "@fontsource-variable/open-sans/wght-italic.css";
 import "./custom.css";
 import StacNavLink from "./StacNavLink.vue";
 import VersionBanner from "./VersionBanner.vue";
+import ProcessGraph from "./ProcessGraph.vue";
 
 // Also installs the components for the `::: tabs` blocks enabled in config.mjs,
 // so a page can show e.g. the web-editor and Python variants of one example.
@@ -22,6 +23,7 @@ export default {
     app.use(enhanceAppWithTabs);
     app.component("StacNavLink", StacNavLink);
     app.component("VersionSwitcher", VersionSwitcher);
+    app.component("ProcessGraph", ProcessGraph);
     installVersionFallback(router, siteData);
   },
 };

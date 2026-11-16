@@ -77,6 +77,17 @@ export default defineVersionedConfig({
     },
   },
 
+  // ProcessGraph.vue renders <openeo-model-builder>, a custom element from the
+  // prebuilt @openeo/vue-components web component bundle. Mark the whole
+  // namespace as custom elements so Vue leaves them to the browser.
+  vue: {
+    template: {
+      compilerOptions: {
+        isCustomElement: (tag) => tag.startsWith("openeo-"),
+      },
+    },
+  },
+
   // The plugin rewrites links in markdown, but not URLs in frontmatter such as
   // the home page hero buttons.
   transformPageData(pageData) {
