@@ -251,7 +251,7 @@ function renderModelsIndex(text, source, version) {
 }
 
 // Non-markdown, non-template files in each model directory
-// (process_graph.json, udf.py, example.py, config.json). They are served next
+// (process_graph.json, udf.py, config.json, stac.json). They are served next
 // to the model page, e.g. /<version>/models/tessera_v2/process_graph.json.
 // config.json is the model's single source of truth (display name, runtime,
 // badge tags) and doubles as the published model record. The .j2 source

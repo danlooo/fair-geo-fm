@@ -29,7 +29,6 @@ Conventions for the models and runtimes in this repository.
     and do not commit it. CI renders it to validate the template, and the
     publish workflows render it for the served site and release.
   - `udf.py` — UDF source, when the UDF is specific to this model
-  - `example.py` — sample call
   - `config.json` — the model's single source of truth: the display `name`,
     `description`, `runtime` and badge `tags`, plus the `parameters` table,
     `publication` (citation and abstract) and `links` list of its page. The
@@ -259,8 +258,8 @@ DOI; update `CONCEPT_DOI` in `scripts/process_graphs.py`, `DOCS_ZENODO_CONCEPT_I
 in `scripts/prepare-docs.mjs`, the **`ZENODO_CONCEPT_DOI`** repository variable
 and the DOI badge in `README.md` to it. Each
 model contributes its rendered `process_graph.json`, `udf.py` and `README.md`;
-the UDF is also embedded in the graph, and `example.py` / `config.json` /
-`stac.json` stay in the source archive. The README's code samples link to the
+the UDF is also embedded in the graph, and `config.json` / `stac.json` stay in
+the source archive. The README's code samples link to the
 record's own graph while its documentation link points at the versioned Pages
 site. The record also carries the generated STAC catalog under `stac/`, whose
 asset URLs point at the record's own files. The resulting record has many files
@@ -339,8 +338,7 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 - The staging process graph is served at the fixed `/main/models/<model>/`
   path on Pages. `prepare-docs.mjs` copies the rendered default-branch graph
   there, because a ref worktree never contains the git-ignored build output.
-- After a successful release, point `example.py` at the release's record file
-  URL. The model page header follows the release automatically. Quoting the
+- The model page header follows the release automatically. Quoting the
   runtime sha256 in the model README is a manual step: `checksums.sha256` is a
   CI artifact, not part of the site or the published record.
   `scripts/build-process-graph.py --check` enforces that a present

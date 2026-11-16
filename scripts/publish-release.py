@@ -300,7 +300,7 @@ def stage_files(
         print(f"  runtime archive: {archive_url}")
         # The UDF source is embedded in the rendered graph, but the STAC Item
         # links it as a standalone asset so the model can be inspected without
-        # parsing the graph. example.py/config.json stay in the source archive.
+        # parsing the graph. config.json/stac.json stay in the source archive.
         staged.append((target.relative_to(staging).as_posix(), target))
         udf = process_dir / "udf.py"
         if udf.is_file():
