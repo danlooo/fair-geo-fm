@@ -1,7 +1,11 @@
 # {{ config.name }}
 {% if doi %}
 
-[Release {{ release_version }}]({{ release_url }}) | [DOI {{ doi }}](https://doi.org/{{ doi }})
+[Release {{ release_version }}]({{ release_url }}) | [DOI {{ doi }}](https://doi.org/{{ doi }}) | [STAC item]({{ stac_item_url }})
+{% endif %}
+{% if not doi %}
+
+[STAC item]({{ stac_item_url }}) | [STAC collection]({{ stac_collection_url }})
 {% endif %}
 {% if config.tags %}
 

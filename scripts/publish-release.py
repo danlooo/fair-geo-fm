@@ -8,8 +8,10 @@
 Zenodo records can hold many files, which is what the published layout needs:
 
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 
 The last file is the complete source tree exported with ``git archive`` from
@@ -70,6 +72,7 @@ from process_graphs import (
     validate_model_config,
     validate_runtime_reference,
 )
+from stac_catalog import build_catalog, write_catalog
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CREATORS = [{"name": "Loos, Daniel", "orcid": "0000-0002-4024-4443"}]
@@ -265,13 +268,15 @@ def stage_source_archive(version: str, staging: Path) -> tuple[str, Path]:
 def stage_files(
     base_url: str, staging: Path, version: str, doi: str
 ) -> list[tuple[str, Path]]:
-    """Render graphs and collect code/runtime/source files as (Zenodo key, path).
+    """Render graphs and collect code/runtime/source/STAC files as (key, path).
 
     The graph is rendered for the record's file base and records the release
     tag and record page it belongs to (``version`` / ``zenodo_url``), so a
-    stored job can be traced back to its citable record.
+    stored job can be traced back to its citable record. The STAC catalog is
+    built last, so its Items can point at every staged asset.
     """
     staged: list[tuple[str, Path]] = []
+    rendered: dict[str, tuple[str, dict, str, str]] = {}
     record_url = base_url.removesuffix("/files")
 
     models = REPO_ROOT / "models"
@@ -282,6 +287,7 @@ def stage_files(
         text, graph, graph_url, archive_url = render(
             process_dir, base_url, version=version, zenodo_url=record_url
         )
+        rendered[process_dir.name] = (text, graph, graph_url, archive_url)
         problems = validate_model_config(process_dir) + validate_runtime_reference(
             process_dir, graph, archive_url
         )
@@ -292,10 +298,16 @@ def stage_files(
         target.write_text(text, encoding="utf-8")
         print(f"rendered {graph_url} -> {target.relative_to(staging)}")
         print(f"  runtime archive: {archive_url}")
-        # The UDF source is embedded in the rendered graph. The record keeps
-        # only the graph and README per model; udf.py/example.py/config.json
-        # stay in the source archive.
+        # The UDF source is embedded in the rendered graph, but the STAC Item
+        # links it as a standalone asset so the model can be inspected without
+        # parsing the graph. example.py/config.json stay in the source archive.
         staged.append((target.relative_to(staging).as_posix(), target))
+        udf = process_dir / "udf.py"
+        if udf.is_file():
+            udf_target = target.parent / "udf.py"
+            udf_target.write_text(udf.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"staged {udf_target.relative_to(staging)}")
+            staged.append((udf_target.relative_to(staging).as_posix(), udf_target))
 
         # The page's copy-paste examples link to this record's graph, while its
         # documentation and DOI links describe this version on the Pages site.
@@ -322,7 +334,26 @@ def stage_files(
             )
         staged.append((f"runtimes/{runtime_dir.name}.zip", archive))
 
-    staged.append(stage_source_archive(version, staging))
+    source_key, source_path = stage_source_archive(version, staging)
+    staged.append((source_key, source_path))
+
+    # The catalog is generated last so its Items can point at every staged
+    # asset, including the release's own source archive. Asset URLs use the
+    # record's file base; the documentation stays on the versioned Pages site.
+    catalog = build_catalog(
+        models,
+        base_url=base_url,
+        docs_base_url=f"{SITE_BASE_URL}/{version}",
+        version=version,
+        doi=doi,
+        datetime_value=f"{date.today().isoformat()}T00:00:00Z",
+        source_archive_key=source_key,
+        zenodo_url=record_url,
+        rendered=rendered,
+    )
+    for catalog_path in write_catalog(catalog, staging / "stac"):
+        print(f"wrote {catalog_path.relative_to(staging)}")
+        staged.append((catalog_path.relative_to(staging).as_posix(), catalog_path))
 
     return staged
 
@@ -341,6 +372,24 @@ def file_url(api: str, record_id: str, key: str) -> str:
     """Public URL for a file in the (draft) record."""
     quoted = urllib.parse.quote(key, safe="/")
     return f"{record_files_url(api, record_id)}/{quoted}"
+
+
+CONTENT_TYPES = {
+    ".json": "application/json",
+    ".md": "text/markdown",
+    ".py": "text/x-python",
+    ".zip": "application/zip",
+}
+
+
+def content_type_for(key: str) -> str:
+    """Serve JSON, Markdown, Python and zip files with their real media type.
+
+    Zenodo stores the upload's content type. The STAC catalog in particular has
+    to be served as ``application/json`` for clients to parse it; the generic
+    octet-stream used for unknown files would make the catalog look binary.
+    """
+    return CONTENT_TYPES.get(Path(key).suffix.lower(), "application/octet-stream")
 
 
 def upload_files(
@@ -382,7 +431,7 @@ def upload_files(
                 "PUT",
                 content_url,
                 data=handle,
-                content_type="application/octet-stream",
+                content_type=content_type_for(key),
                 timeout=1800,
             )
         api_request(session, "POST", f"{files_url}/{quoted}/commit")

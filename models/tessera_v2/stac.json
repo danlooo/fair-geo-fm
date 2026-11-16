@@ -1,0 +1,86 @@
+{
+  "id": "tessera_v2",
+  "title": "TESSERA v2",
+  "license": "CC0-1.0",
+  "keywords": [
+    "embeddings",
+    "Sentinel-1",
+    "Sentinel-2",
+    "openEO",
+    "PyTorch"
+  ],
+  "datetime": "2026-11-12T00:00:00Z",
+  "bbox": [-180.0, -90.0, 180.0, 90.0],
+  "properties": {
+    "mlm:architecture": "Transformer",
+    "mlm:tasks": ["representation-learning"],
+    "mlm:framework": "PyTorch",
+    "mlm:framework_version": "2.3.1",
+    "mlm:pretrained": true,
+    "mlm:pretrained_source": "Barlow Twins pretraining on Sentinel-1 and Sentinel-2 time series",
+    "mlm:input": [
+      {
+        "name": "sentinel-1-and-2-time-series",
+        "description": "Per-pixel time series of ten Sentinel-2 reflectance bands plus SCL and Sentinel-1 VV/VH backscatter, split by orbit.",
+        "bands": [
+          "B04",
+          "B02",
+          "B03",
+          "B08",
+          "B8A",
+          "B05",
+          "B06",
+          "B07",
+          "B11",
+          "B12",
+          "SCL",
+          "VV_ASC",
+          "VH_ASC",
+          "VV_DESC",
+          "VH_DESC"
+        ],
+        "variables": [],
+        "input": {
+          "shape": [-1, -1, 15],
+          "dim_order": ["batch", "time", "bands"],
+          "data_type": "float32"
+        },
+        "value_scaling": null,
+        "resize_type": null,
+        "pre_processing_function": null
+      }
+    ],
+    "mlm:output": [
+      {
+        "name": "embedding",
+        "description": "128-dimensional Matryoshka-ordered pixel embedding; the first 16, 32, 64 or 128 dimensions are usable prefixes.",
+        "tasks": ["representation-learning"],
+        "bands": [],
+        "variables": [],
+        "result": {
+          "shape": [-1, 128],
+          "dim_order": ["batch", "embedding"],
+          "data_type": "float32"
+        },
+        "post_processing_function": null
+      }
+    ]
+  },
+  "processing": {
+    "lineage": "Pixel embeddings inferred by the TESSERA v2 student model from Sentinel-1 GRD and Sentinel-2 L2A time series using the openEO user-defined process tessera_v2_embeddings.",
+    "software": {
+      "PyTorch": "2.3.1"
+    }
+  },
+  "publications": [
+    {
+      "citation": "Feng, Z. et al. (2026) 'TESSERA v2: Scaling pixel-wise Earth foundation models', arXiv:2607.03949",
+      "doi": "10.48550/arXiv.2607.03949"
+    }
+  ],
+  "weights": {
+    "href": "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt",
+    "title": "TESSERA v2 student_nano checkpoint",
+    "mlm:artifact_type": "torch.save"
+  }
+}

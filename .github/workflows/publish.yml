@@ -139,6 +139,19 @@ jobs:
             uv run scripts/build-process-graph.py "${dir%/}" --base-url "$BASE_URL"
           done
 
+      - name: Render the staging STAC catalog
+        # Served next to the staging graphs at /main/stac/. prepare-docs copies
+        # the generated tree into docs/public/main, where it is overwritten on
+        # every deployment just like the graphs and runtime archives.
+        env:
+          BASE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/main
+        run: |
+          uv run scripts/build-stac.py \
+            --base-url "$BASE_URL" \
+            --docs-base-url "$BASE_URL" \
+            --version main \
+            --output stac
+
       - name: Download dependency archives
         # The site serves the built runtime archives for the default branch at
         # /main/runtimes/<runtime>.zip, replacing them on every deployment. They

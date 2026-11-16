@@ -18,7 +18,8 @@ FAIR geospatial foundation models, ready to use in openEO.
 This repository provides openEO process graphs and UDF runtimes to enable using embeddings of various geospatial foundation models.
 Each model is versioned and uploaded to zenodo, providing consistent identifieres.
 Staging models were provided by GitHub Pages before release.
-Each model has a documentation website, a runtime, and a openEO JSON process graph.
+Each model has a documentation website, a runtime, an openEO JSON process graph,
+and a STAC Item (MLM extension) in the published catalog.
 
 ## Contributing
 

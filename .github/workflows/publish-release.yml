@@ -6,8 +6,10 @@ name: publish-release
 # rendered process graphs, model READMEs and runtime archives to it:
 #
 #   https://zenodo.org/records/<record-id>/files/models/<model>/process_graph.json
+#   https://zenodo.org/records/<record-id>/files/models/<model>/udf.py
 #   https://zenodo.org/records/<record-id>/files/models/<model>/README.md
 #   https://zenodo.org/records/<record-id>/files/runtimes/<runtime>.zip
+#   https://zenodo.org/records/<record-id>/files/stac/catalog.json
 #   https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-<version>.zip
 #
 # The last file is the complete source tree exported with `git archive` from

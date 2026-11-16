@@ -68,6 +68,13 @@ jobs:
           fi
           echo "checked $found process graph(s)"
 
+      - name: Generate and validate the STAC catalog
+        # Each model's stac.json supplies the MLM fields; the rendered graph
+        # supplies the executable reference and weights URL. --check builds
+        # into a temporary directory, so a broken catalog fails here rather
+        # than in the release workflow.
+        run: uv run scripts/build-stac.py --check
+
   dependency-archives:
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -35,14 +35,19 @@ Conventions for the models and runtimes in this repository.
     `publication` (citation and abstract) and `links` list of its page. The
     build reads the runtime from it, both templates receive it as `config`, and
     the docs build renders the model cards and page sections from it.
+  - `stac.json` — the model's STAC Item metadata, read by
+    `scripts/build-stac.py`: the MLM fields that cannot be derived from
+    `config.json` or the process graph. See [STAC metadata](#stac-metadata).
 - All models share one documentation page template,
   `models/model.md.j2`, rendered by `scripts/prepare-docs.mjs` to each model's
   `index.md` for the version being published.
 - The catalogue page `models/index.md.j2` is a Jinja2 template.
   `scripts/prepare-docs.mjs` exposes a `models` list at docs-build time, one
   entry per model directory with a `config.json`, with `slug`, `name`,
-  `description` and `tags` taken from that file. The page renders one card per
-  entry with
+  `description` and `tags` taken from that file. It also exposes
+  <code v-pre>{{ stac_catalog_url }}</code> and
+  <code v-pre>{{ stac_collection_url }}</code> for the version's generated STAC
+  tree. The page renders one card per entry with
   <code v-pre>{% for model in models %} ... {% endfor %}</code>. Add a model by
   adding its version directory with a `config.json`, a `process_graph.json.j2`
   and a `udf.py`; do not list it by hand.
@@ -70,9 +75,15 @@ Conventions for the models and runtimes in this repository.
   <code v-pre>{{ docs_url }}</code> (the version's documentation page, with a trailing `/`), and
   the release its header advertises: <code v-pre>{{ release_version }}</code>, <code v-pre>{{ release_url }}</code>
   (that release's documentation page, with a trailing `/`) and <code v-pre>{{ doi }}</code> (that
-  release's version DOI). A tag page advertises its own release and DOI; a
-  branch page (`main`) has no DOI, so the <code v-pre>{% if doi %}</code> gate omits the header
-  entirely. <code v-pre>{{ release }}</code> is `true` for a `v*` tag and `false` for a branch,
+  release's version DOI). It also exposes the generated STAC links
+  <code v-pre>{{ stac_item_url }}</code>, <code v-pre>{{ stac_collection_url }}</code> and
+  <code v-pre>{{ stac_catalog_url }}</code>, whose base is the same publication
+  target as the process graph (the version's Zenodo record for a tag, the
+  staging `/main` tree otherwise). The Item id comes from `stac.json`. A tag
+  page advertises its own release, DOI and Item; a branch page (`main`) has no
+  DOI, so the <code v-pre>{% if doi %}</code> gate omits the release header and the
+  <code v-pre>{% if not doi %}</code> block shows the STAC links instead.
+  <code v-pre>{{ release }}</code> is `true` for a `v*` tag and `false` for a branch,
   for templates that gate development notices on it.
   The two templates are not rendered by the same engine. `process_graph.json.j2`
   gets full Jinja2 from `scripts/process_graphs.py`; the documentation template
@@ -109,6 +120,42 @@ Conventions for the models and runtimes in this repository.
 > examples, this README, or the documentation page instead. The published graph
 > in this repository carries `id`, `version`, `model`, `default_job_options`
 > and `process_graph`, plus `zenodo_url` on a released graph, and nothing else.
+
+## STAC metadata
+
+Every model directory with a `process_graph.json.j2` also needs a `stac.json`.
+`scripts/build-stac.py` renders the model into a STAC Item (MLM, processing,
+scientific and version extensions) inside the `fair-geo-fm-models` Collection;
+`stac.json` supplies what cannot be derived:
+
+- `id`, `title`, `datetime`, `bbox`, `keywords` — Item identity and extent
+- `properties` — MLM fields: `mlm:architecture`, `mlm:tasks`, `mlm:framework`,
+  `mlm:framework_version`, `mlm:input`, `mlm:output`
+- `processing` — `lineage` and `software` for the processing extension
+- `publications` — `sci:publications` entries (citation and DOI)
+- `weights` — optional override of the model asset; otherwise the weights URL
+  is read from the rendered process graph's `weights_url`. Pin external weight
+  URLs to a commit or release tag rather than a mutable branch such as
+  `resolve/main`, so the Item and the graph keep resolving to the same file.
+
+The display name, description, runtime and publication come from `config.json`.
+The conventional asset keys are `model` (weights), `process_graph`, `udf`,
+`runtime`, `documentation` and, on a release, `source_code`; a Collection
+`item_assets` template documents them.
+
+The catalog is generated, never committed:
+
+    uv run scripts/build-stac.py --check     # validate only (CI)
+    uv run scripts/build-stac.py             # write stac/ for the staging base URL
+    uv run scripts/build-stac.py --base-url <record-files-url> --version v0.2 --doi <doi>
+
+`publish.yml` serves the staging catalog at `/main/stac/`. `publish-release.py`
+writes the same tree into the Zenodo record under `stac/`, with asset URLs
+pointing at the record's own files. Because the Item is generated per release,
+do not edit a generated Item to correct metadata; change `stac.json` instead.
+Items describe models, not embedding products: a frozen-embedding Collection
+belongs in a separate embedding catalog and links back to the model Item with
+`emb:encoder_model`.
 
 ## Runtimes
 
@@ -151,8 +198,8 @@ Two publication targets share one layout, selected by a base URL:
 
 | Target | Base URL | Contents |
 | --- | --- | --- |
-| Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives |
-| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, model READMEs, runtime archives, full source archive |
+| Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives, STAC catalog |
+| Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, UDFs, model READMEs, runtime archives, STAC catalog, full source archive |
 
 The staging target is rebuilt automatically after every successful push build.
 Nothing is published unless the `build` workflow succeeded for the commit, so a
@@ -169,7 +216,9 @@ Three workflows carry a commit from validation to publication.
   fails on an invalid template, an invalid `config.json` or a runtime reference
   that does not match `runtimes/`; it renders each model page from the shared
   `models/model.md.j2` as well, so a broken template fails before the docs or
-  release pipeline sees it. It also
+  release pipeline sees it. It also builds the STAC catalog into a temporary
+  directory, so an invalid `stac.json` or missing weights URL fails the build.
+  It also
   builds each `runtimes/*/requirements.txt` into a deterministic
   `dependencies.zip`, smoke-tests the imports on the pinned Python version,
   writes `checksums.sha256`, and uploads all of it as the `dependency-archives`
@@ -202,15 +251,19 @@ deleted (HTTP 410), the script starts a new root record and reports its concept
 DOI; update `CONCEPT_DOI` in `scripts/process_graphs.py`, `DOCS_ZENODO_CONCEPT_ID`
 in `scripts/prepare-docs.mjs`, the **`ZENODO_CONCEPT_DOI`** repository variable
 and the DOI badge in `README.md` to it. Each
-model contributes its rendered `process_graph.json` and `README.md`; the UDF is
-embedded in the graph, and `udf.py` / `example.py` / `config.json` stay in the
-source archive. The README's code samples link to the record's own graph while
-its documentation link points at the versioned Pages site. The resulting record
-has many files under custom paths —
+model contributes its rendered `process_graph.json`, `udf.py` and `README.md`;
+the UDF is also embedded in the graph, and `example.py` / `config.json` /
+`stac.json` stay in the source archive. The README's code samples link to the
+record's own graph while its documentation link points at the versioned Pages
+site. The record also carries the generated STAC catalog under `stac/`, whose
+asset URLs point at the record's own files. The resulting record has many files
+under custom paths —
 
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
+    https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 
 The DOI (`https://doi.org/<doi>`) is the citable identifier of the record but
