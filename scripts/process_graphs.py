@@ -320,6 +320,24 @@ def latest_release(repo_root: Path) -> str:
     return tags[-1] if tags else ""
 
 
+def stac_item_id(process_dir: Path) -> str:
+    """The STAC Item id for a model directory.
+
+    ``stac.json`` names the generated Item; without it, the directory name is
+    the fallback. Kept in sync with ``prepare-docs.mjs``, which reads the same
+    field for the documentation links.
+    """
+    stac_file = process_dir / "stac.json"
+    if not stac_file.is_file():
+        return process_dir.name
+    try:
+        stac = json.loads(stac_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise SystemExit(f"{stac_file}: invalid JSON: {error}") from None
+    item_id = stac.get("id") if isinstance(stac, dict) else None
+    return item_id if isinstance(item_id, str) and item_id else process_dir.name
+
+
 def render_readme(
     process_dir: Path,
     base_url: str,
@@ -342,6 +360,8 @@ def render_readme(
     ``{% if doi %}`` gate omits the header; only tagged releases advertise one.
     ``release`` is exposed to templates that gate development notices on it; it
     defaults to the branch (preview) rendering.
+    The page also links the generated STAC catalog, collection and Item, which
+    live under ``base_url``/stac; the Item id comes from ``stac.json``.
     Returns ``(text, readme_url)``. Unknown template variables are an error.
     """
     process_dir = process_dir.resolve()
@@ -353,6 +373,10 @@ def render_readme(
 
     model = process_dir.name
     advertised = release_version or latest_release(process_dir.parent.parent) or "main"
+    # The STAC tree lives next to the model files in the same publication
+    # target, so the page's STAC links follow the process-graph base URL.
+    stac_base = f"{base_url.rstrip('/')}/stac"
+    item_id = stac_item_id(process_dir)
     environment = jinja2.Environment(
         keep_trailing_newline=True,
         autoescape=False,
@@ -372,6 +396,13 @@ def render_readme(
         docs_url=f"{docs_base_url.rstrip('/')}/models/{model}/",
         release_version=advertised,
         release_url=f"{SITE_BASE_URL}/{advertised}/models/{model}/",
+        stac_catalog_url=f"{stac_base}/catalog.json",
+        stac_collection_url=(
+            f"{stac_base}/collections/fair-geo-fm-models/collection.json"
+        ),
+        stac_item_url=(
+            f"{stac_base}/collections/fair-geo-fm-models/items/{item_id}.json"
+        ),
         # Only a release has a DOI; a preview build gets no release header.
         doi=CONCEPT_DOI if doi is None and release else (doi or ""),
     )
