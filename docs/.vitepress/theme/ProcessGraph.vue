@@ -31,6 +31,30 @@ const props = defineProps({
 const builder = ref(null);
 const error = ref("");
 
+const fontAwesomeStylesheet = `${import.meta.env.BASE_URL}vendor/fontawesome/css/all.min.css`;
+
+// ModelBuilder appends the Font Awesome CDN stylesheet to its shadow root. Use
+// the copy served by this site instead, both to avoid a third-party request and
+// because the icons do not render when that CDN is unreachable.
+function useLocalFontAwesome(element) {
+  const root = element.shadowRoot;
+  if (!root) return;
+  let found = false;
+  for (const link of root.querySelectorAll('link[rel="stylesheet"]')) {
+    if (link.href.includes("use.fontawesome.com")) {
+      link.remove();
+    } else if (link.href.includes("fontawesome")) {
+      found = true;
+    }
+  }
+  if (!found) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = fontAwesomeStylesheet;
+    root.appendChild(link);
+  }
+}
+
 let bundlePromise = null;
 
 function loadBundle() {
@@ -86,10 +110,14 @@ onMounted(async () => {
     await customElements.whenDefined("openeo-model-builder");
 
     const element = builder.value;
+    // Before mounting, so ModelBuilder finds a Font Awesome stylesheet already
+    // in the shadow root; again afterwards, in case it added the CDN one first.
+    useLocalFontAwesome(element);
     // ModelBuilder ignores value changes until its first mount is complete,
     // and it needs the process graph as its `value` property (the attribute
     // form only accepts scalars).
     await waitFor(() => element.vueComponent?.allMounted);
+    useLocalFontAwesome(element);
     element.value = graph;
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e);

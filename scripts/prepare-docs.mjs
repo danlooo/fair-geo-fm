@@ -13,6 +13,7 @@
 //   docs/public/main/models/  rendered process graphs for the default branch
 //   docs/public/vendor/openeo/  openEO ModelBuilder web component, copied from
 //                             node_modules to render the graphs on model pages
+//   docs/public/vendor/fontawesome/  icons for the model builder's toolbar
 //
 // Model pages of released tags link to that tag's Zenodo version record (its
 // files, not the concept DOI); main and other branches link to the staging
@@ -378,6 +379,40 @@ function writeVueComponents() {
   }
   console.log(
     `prepare-docs: wrote ${count} model-builder asset(s) under docs/public/vendor/openeo`,
+  );
+}
+
+// The ModelBuilder web component loads Font Awesome from a CDN into its shadow
+// root. The model page replaces that stylesheet with this local copy, so the
+// graph toolbar does not depend on a third-party request.
+const fontAwesomeDir = join(
+  repoRoot,
+  "node_modules",
+  "@fortawesome",
+  "fontawesome-free",
+);
+const fontAwesomeFiles = [
+  "css/all.min.css",
+  "webfonts/fa-brands-400.woff2",
+  "webfonts/fa-regular-400.woff2",
+  "webfonts/fa-solid-900.woff2",
+];
+
+function writeFontAwesome() {
+  if (
+    !fontAwesomeFiles.every((file) => existsSync(join(fontAwesomeDir, file)))
+  ) {
+    warn("Font Awesome assets missing; run npm install to render icons");
+    return;
+  }
+  const target = join(publicDir, "vendor", "fontawesome");
+  for (const file of fontAwesomeFiles) {
+    const destination = join(target, file);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(fontAwesomeDir, file), destination);
+  }
+  console.log(
+    "prepare-docs: wrote Font Awesome under docs/public/vendor/fontawesome",
   );
 }
 
@@ -804,6 +839,7 @@ if (!withArchives) {
   writeRuntimeAssets();
   writeStagingStac();
   writeVueComponents();
+  writeFontAwesome();
   process.exit(0);
 }
 
@@ -849,3 +885,4 @@ writeStagingProcessGraphs();
 writeRuntimeAssets();
 writeStagingStac();
 writeVueComponents();
+writeFontAwesome();

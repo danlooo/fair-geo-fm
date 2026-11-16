@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@fontsource-variable/open-sans": "^5.3.0",
+    "@fortawesome/fontawesome-free": "5.13.0",
     "@openeo/vue-components": "2.23.4",
     "@viteplus/versions": "^3.0.0",
     "vitepress": "^1.6.4",
