@@ -42,6 +42,12 @@
             "required": false,
             "default": "`VV`, `VH`",
             "description": "Sentinel-1 bands, renamed per orbit (`VV_ASC`, `VH_DESC`, …)."
+        },
+        {
+            "name": "weights_url",
+            "required": false,
+            "default": "`https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt`",
+            "description": "URL of the TESSERA v2 student checkpoint (`.pt`) to load. Defaults to the released `student_nano` weights."
         }
     ],
     "publication": {

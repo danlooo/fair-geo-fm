@@ -16,7 +16,9 @@ via the "udf-dependency-archives" job option, e.g.:
     }
 
 The checkpoint itself (a `student_*.pt` file) is downloaded by the UDF at
-runtime from a URL passed via context, e.g.:
+runtime. The optional ``weights_url`` context entry selects a different
+checkpoint; when omitted it defaults to ``DEFAULT_WEIGHTS_URL`` (the released
+student_nano checkpoint), so a call can run with no context at all:
 
     openeo.UDF.from_file("udf_tessera_embedding.py",
                           context={"weights_url": "https://.../student_nano.pt"})
@@ -505,6 +507,11 @@ def encode_tile(
 # =============================================================================
 # openEO entry points.
 # =============================================================================
+DEFAULT_WEIGHTS_URL = (
+    "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt"
+)
+
+
 @functools.lru_cache(maxsize=1)
 def _load_model_from_url(url: str):
     req = urllib.request.Request(url, headers={"User-Agent": "tessera-udf/1"})
@@ -524,12 +531,9 @@ def _load_model_from_url(url: str):
 
 
 def _get_model(context: dict):
-    url = (context or {}).get("weights_url")
-    if not url:
-        raise ValueError(
-            "context['weights_url'] is required, e.g. openeo.UDF.from_file(..., "
-            "context={'weights_url': '<url to a student_*.pt checkpoint>'})"
-        )
+    # weights_url is optional: omit it to use the released student_nano
+    # checkpoint, or set it to load a different student_*.pt checkpoint.
+    url = (context or {}).get("weights_url") or DEFAULT_WEIGHTS_URL
     return _load_model_from_url(url)
 
 
