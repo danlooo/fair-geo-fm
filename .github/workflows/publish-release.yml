@@ -2,7 +2,7 @@ name: publish-release
 
 # Archive a released version on Zenodo. A maintainer creates the GitHub release
 # by hand (that is the release decision); this workflow adds a new version to
-# the project's concept record (10.5281/zenodo.24193626) and uploads the
+# the project's concept record (10.5281/zenodo.24275708) and uploads the
 # rendered process graphs, model READMEs and runtime archives to it:
 #
 #   https://zenodo.org/records/<record-id>/files/models/<model>/process_graph.json
@@ -112,7 +112,7 @@ jobs:
         env:
           ZENODO_ACCESS_TOKEN: ${{ secrets.ZENODO_ACCESS_TOKEN }}
           ZENODO_API_URL: ${{ vars.ZENODO_API_URL || 'https://zenodo.org/api' }}
-          ZENODO_CONCEPT_DOI: ${{ vars.ZENODO_CONCEPT_DOI || '10.5281/zenodo.24193626' }}
+          ZENODO_CONCEPT_DOI: ${{ vars.ZENODO_CONCEPT_DOI || '10.5281/zenodo.24275708' }}
           CREATORS: '${{ github.event_name == ''workflow_dispatch'' && inputs.creators || ''[{"name":"Loos, Daniel","orcid":"0000-0002-4024-4443"}]'' }}'
           DRY_RUN: '${{ github.event_name == ''workflow_dispatch'' && inputs.dry_run || ''false'' }}'
           DEPOSITION_ID: ${{ inputs.deposition_id }}

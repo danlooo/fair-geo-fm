@@ -360,7 +360,7 @@ function writeUnversionedRedirects() {
 // Released tags are archived on Zenodo as versions of one concept record.
 // Kept in sync with CONCEPT_DOI in scripts/process_graphs.py and
 // DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
-const zenodoConceptId = process.env.DOCS_ZENODO_CONCEPT_ID || "24193626";
+const zenodoConceptId = process.env.DOCS_ZENODO_CONCEPT_ID || "24275708";
 const zenodoConceptDoi =
   process.env.DOCS_ZENODO_CONCEPT_DOI || `10.5281/zenodo.${zenodoConceptId}`;
 const zenodoApiUrl = (
@@ -369,7 +369,7 @@ const zenodoApiUrl = (
 const zenodoSiteUrl = zenodoApiUrl.replace(/\/api$/, "");
 
 // Tag -> public file base of its Zenodo version, e.g.
-// v0.1.0 -> https://zenodo.org/records/24193627/files, plus that version's DOI
+// v0.1.0 -> https://zenodo.org/records/24275708/files, plus that version's DOI
 // for the model page header. One unauthenticated request; a failure degrades to
 // the staging /main base and the concept DOI instead of breaking the docs
 // build. ``all_versions=true`` is required: without it the search endpoint only

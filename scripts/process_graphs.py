@@ -56,7 +56,7 @@ DEFAULT_BASE_URL = f"{SITE_BASE_URL}/main"
 # new version of this record, so the concept DOI always resolves to the latest
 # version. Kept in sync with DEFAULT_CONCEPT_DOI in scripts/publish-release.py
 # and DOCS_ZENODO_CONCEPT_ID in scripts/prepare-docs.mjs.
-CONCEPT_DOI = "10.5281/zenodo.24193626"
+CONCEPT_DOI = "10.5281/zenodo.24275708"
 
 RUNTIME_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/runtimes/{{ runtime }}.zip#feature_deps"

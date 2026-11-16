@@ -188,7 +188,7 @@ preview the site with `npm run dev`; both render from the working tree.
 Releases are never automatic. A maintainer creates a GitHub release by hand,
 which is the release decision, and the `publish-release` workflow archives the
 tag on Zenodo. It refuses to guess URLs: it opens a new version of the
-project's concept record (**10.5281/zenodo.24193626**) through Zenodo's
+project's concept record (**10.5281/zenodo.24275708**) through Zenodo's
 InvenioRDM API, reserves the version DOI first, renders every process graph
 against the version's file URL, uploads the graphs, the runtime archives and a
 source archive of the released commit, and publishes the version last. Every
@@ -229,7 +229,7 @@ variable **`ZENODO_API_URL`** overrides the API base; set it to
 `https://sandbox.zenodo.org/api` to rehearse against the Zenodo sandbox. When
 rehearsing against the sandbox, also set **`ZENODO_CONCEPT_DOI`** to the
 sandbox concept record's DOI; it defaults to the production record
-`10.5281/zenodo.24193626`.
+`10.5281/zenodo.24275708`.
 
 ### Publishing a release
 
@@ -252,7 +252,7 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   and deletes the draft. `ZENODO_API_URL` can point at the sandbox.
 - Creating a new GitHub release adds a new version to the same Zenodo concept
   record and gives that version its own DOI. The concept DOI
-  `10.5281/zenodo.24193626` always resolves to the latest version. Re-running a
+  `10.5281/zenodo.24275708` always resolves to the latest version. Re-running a
   failed upload against the same draft should use `--deposition-id` (the draft
   id is printed and written to the run summary); re-running a release that was
   already published is refused, because its version is already the latest.
