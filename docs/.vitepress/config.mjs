@@ -26,6 +26,21 @@ function resolveCurrentVersion() {
 
 const currentVersion = resolveCurrentVersion();
 
+// STAC files per version, written by prepare-docs.mjs: a released tag's
+// Zenodo record or the staging /main tree. The navbar component falls back to
+// main when a version is absent.
+function resolveStacBases() {
+  try {
+    return JSON.parse(
+      readFileSync(new URL("./stac-bases.json", import.meta.url), "utf8"),
+    );
+  } catch {
+    return {};
+  }
+}
+
+const stacBases = resolveStacBases();
+
 // Map a versioned page back to the canonical file in the repository.
 // `filePath` is the generated folder (docs/src or docs/archive/<ref>), so the
 // version prefix and archive segment are stripped here. The function is
@@ -102,10 +117,13 @@ export default defineVersionedConfig({
   },
 
   themeConfig: {
+    // Read by StacNavLink; version -> public base of the generated STAC tree.
+    stacBases,
     nav: [
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/" },
       { text: "Models", link: "/models/" },
+      { component: "StacNavLink" },
       { text: "Contributing", link: "/contributing" },
       // Switches version while keeping the current page; falls back to the
       // version home only when that page does not exist there.

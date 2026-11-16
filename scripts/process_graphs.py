@@ -56,6 +56,9 @@ import jinja2
 SITE_BASE_URL = "https://danlooo.github.io/fair-geo-fm"
 # Where ``publish`` serves the default branch.
 DEFAULT_BASE_URL = f"{SITE_BASE_URL}/main"
+# External STAC browser. Its /external/ route takes the target URL without the
+# scheme, so model pages can link the Item in the browser instead of raw JSON.
+STAC_BROWSER_BASE = "https://browser.moregeo.it/external/"
 # Concept (root) DOI of the fair-geo-fm record. Every release is published as a
 # new version of this record, so the concept DOI always resolves to the latest
 # version. Kept in sync with DEFAULT_CONCEPT_DOI in scripts/publish-release.py
@@ -320,6 +323,18 @@ def latest_release(repo_root: Path) -> str:
     return tags[-1] if tags else ""
 
 
+def stac_browser_url(url: str) -> str:
+    """Wrap a STAC file URL in the external STAC browser's /external/ route.
+
+    ``https://host/path`` becomes ``https://browser.../external/host/path``, so
+    readers land in the browser instead of downloading raw JSON.
+    """
+    return (
+        f"{STAC_BROWSER_BASE}"
+        f"{url.removeprefix('https://').removeprefix('http://')}"
+    )
+
+
 def stac_item_id(process_dir: Path) -> str:
     """The STAC Item id for a model directory.
 
@@ -360,8 +375,9 @@ def render_readme(
     ``{% if doi %}`` gate omits the header; only tagged releases advertise one.
     ``release`` is exposed to templates that gate development notices on it; it
     defaults to the branch (preview) rendering.
-    The page also links the generated STAC catalog, collection and Item, which
-    live under ``base_url``/stac; the Item id comes from ``stac.json``.
+    The page also links the generated STAC catalog and collection (raw JSON)
+    and the Item through the external STAC browser; all live under
+    ``base_url``/stac, and the Item id comes from ``stac.json``.
     Returns ``(text, readme_url)``. Unknown template variables are an error.
     """
     process_dir = process_dir.resolve()
@@ -400,7 +416,7 @@ def render_readme(
         stac_collection_url=(
             f"{stac_base}/collections/fair-geo-fm-models/collection.json"
         ),
-        stac_item_url=(
+        stac_item_url=stac_browser_url(
             f"{stac_base}/collections/fair-geo-fm-models/items/{item_id}.json"
         ),
         # Only a release has a DOI; a preview build gets no release header.

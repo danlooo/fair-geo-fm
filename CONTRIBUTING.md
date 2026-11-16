@@ -75,14 +75,16 @@ Conventions for the models and runtimes in this repository.
   <code v-pre>{{ docs_url }}</code> (the version's documentation page, with a trailing `/`), and
   the release its header advertises: <code v-pre>{{ release_version }}</code>, <code v-pre>{{ release_url }}</code>
   (that release's documentation page, with a trailing `/`) and <code v-pre>{{ doi }}</code> (that
-  release's version DOI). It also exposes the generated STAC links
-  <code v-pre>{{ stac_item_url }}</code>, <code v-pre>{{ stac_collection_url }}</code> and
-  <code v-pre>{{ stac_catalog_url }}</code>, whose base is the same publication
-  target as the process graph (the version's Zenodo record for a tag, the
-  staging `/main` tree otherwise). The Item id comes from `stac.json`. A tag
+  release's version DOI). It also exposes
+  <code v-pre>{{ stac_catalog_url }}</code> and
+  <code v-pre>{{ stac_collection_url }}</code> as raw JSON and
+  <code v-pre>{{ stac_item_url }}</code> as the Item opened in the external STAC
+  browser. Their base is the same publication target as the process graph (the
+  version's Zenodo record for a tag, the staging `/main` tree otherwise). The
+  Item id comes from `stac.json`. A tag
   page advertises its own release, DOI and Item; a branch page (`main`) has no
   DOI, so the <code v-pre>{% if doi %}</code> gate omits the release header and the
-  <code v-pre>{% if not doi %}</code> block shows the STAC links instead.
+  <code v-pre>{% if not doi %}</code> block shows the STAC item link instead.
   <code v-pre>{{ release }}</code> is `true` for a `v*` tag and `false` for a branch,
   for templates that gate development notices on it.
   The two templates are not rendered by the same engine. `process_graph.json.j2`
@@ -151,8 +153,13 @@ The catalog is generated, never committed:
 
 `publish.yml` serves the staging catalog at `/main/stac/`. `publish-release.py`
 writes the same tree into the Zenodo record under `stac/`, with asset URLs
-pointing at the record's own files. Because the Item is generated per release,
-do not edit a generated Item to correct metadata; change `stac.json` instead.
+pointing at the record's own files. The documentation site's navbar STAC link
+is version-aware: `prepare-docs.mjs` writes
+`docs/.vitepress/stac-bases.json`, mapping each version to its STAC base (the
+Zenodo record for a released tag, the staging `/main` tree otherwise), and
+`config.mjs` exposes it to `StacNavLink.vue`. Because the Item is generated per
+release, do not edit a generated Item to correct metadata; change `stac.json`
+instead.
 Items describe models, not embedding products: a frozen-embedding Collection
 belongs in a separate embedding catalog and links back to the model Item with
 `emb:encoder_model`.

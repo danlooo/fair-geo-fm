@@ -6,6 +6,7 @@ import { enhanceAppWithTabs } from "vitepress-plugin-tabs/client";
 import "@fontsource-variable/open-sans";
 import "@fontsource-variable/open-sans/wght-italic.css";
 import "./custom.css";
+import StacNavLink from "./StacNavLink.vue";
 import VersionBanner from "./VersionBanner.vue";
 
 // Also installs the components for the `::: tabs` blocks enabled in config.mjs,
@@ -19,6 +20,7 @@ export default {
     }),
   enhanceApp({ app, router, siteData }) {
     app.use(enhanceAppWithTabs);
+    app.component("StacNavLink", StacNavLink);
     app.component("VersionSwitcher", VersionSwitcher);
     installVersionFallback(router, siteData);
   },

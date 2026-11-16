@@ -471,6 +471,15 @@ async function fetchZenodoReleases() {
 // advertises: a tag page links itself, a branch page (main) links the newest
 // release, the same one the site root redirects to. Only a release has a DOI,
 // so ``doi`` stays empty on a branch page and the template omits that link.
+// External STAC browser. Its /external/ route takes the target URL without the
+// scheme, e.g. /external/danlooo.github.io/fair-geo-fm/main/stac/...; wrapping
+// the Item lets readers browse it instead of downloading raw JSON.
+const stacBrowserBase = "https://browser.moregeo.it/external/";
+
+function stacBrowserUrl(url) {
+  return `${stacBrowserBase}${url.replace(/^https?:\/\//, "")}`;
+}
+
 function modelTemplateValues(version, model, stacItemId = model) {
   const isRelease = /^v\d+(?:\.\d+)*$/.test(version);
   const releaseVersion = isRelease ? version : newestTag() || version;
@@ -487,7 +496,9 @@ function modelTemplateValues(version, model, stacItemId = model) {
     docs_url: `${docsBaseUrl}/models/${model}/`,
     stac_catalog_url: `${stacBase}/catalog.json`,
     stac_collection_url: `${stacBase}/collections/fair-geo-fm-models/collection.json`,
-    stac_item_url: `${stacBase}/collections/fair-geo-fm-models/items/${stacItemId}.json`,
+    stac_item_url: stacBrowserUrl(
+      `${stacBase}/collections/fair-geo-fm-models/items/${stacItemId}.json`,
+    ),
     release_version: releaseVersion,
     release_url: `${siteBaseUrl}/${releaseVersion}/models/${model}/`,
     doi: isRelease ? release?.doi || zenodoConceptDoi : "",
@@ -709,6 +720,19 @@ function writeCurrentVersionFrom(ref) {
 // Resolve the version records before rendering pages, so a tag's README links
 // to that tag's record and DOI rather than the concept/root DOI.
 const zenodoReleases = await fetchZenodoReleases();
+
+// The navbar STAC link follows the version being viewed: a released tag opens
+// the catalog in its Zenodo record, while main and unresolved/archived refs use
+// the staging tree. VitePress reads this file from config.mjs; a missing file
+// makes the component fall back to main.
+const stacBases = { main: `${siteBaseUrl}/main` };
+for (const [version, release] of zenodoReleases) {
+  stacBases[version] = release.filesBase;
+}
+writeFileSync(
+  join(docsRoot, ".vitepress", "stac-bases.json"),
+  `${JSON.stringify(stacBases, null, 2)}\n`,
+);
 
 let fromRef = false;
 if (currentRef) {
