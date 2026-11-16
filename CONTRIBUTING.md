@@ -199,6 +199,54 @@ belongs in a separate embedding catalog and links back to the model Item with
   archive. Do not serve archives from GitHub raw or LFS either: raw is capped at
   100 MiB and LFS is bandwidth-metered.
 
+## Documentation site
+
+The documentation is a VitePress site under `docs/`.
+`scripts/prepare-docs.mjs` generates the versioned pages; the theme —
+`docs/.vitepress/config.mjs`, `theme/` and `theme/custom.css` — is maintained by
+hand. Components in `docs/.vitepress/theme/` are registered globally in
+`theme/index.mjs`, so a page uses them as plain tags without an import.
+
+- `ProcessGraph.vue` renders an openEO process graph with the
+  `<openeo-model-builder>` web component and is used by `models/model.md.j2` as
+  <code v-pre>&lt;ProcessGraph id="process-graph-{{ model }}" /&gt;</code>.
+  Props are `id` (required, unique in the document), `src` (graph file relative
+  to the page, default `process_graph.json`) and `height` (default `600px`).
+  `@openeo/vue-components` is Vue 2 and cannot be imported as an SFC into this
+  Vue 3 site, so the component lazily loads the prebuilt web-component bundle
+  from `docs/public/vendor/openeo/openeo.min.js`, which `prepare-docs.mjs`
+  copies out of `node_modules`. `config.mjs` marks every `openeo-*` tag as a
+  custom element so Vue leaves it to the browser. The graph is fetched next to
+  the page, not against the document base, because the site is served under a
+  base path and one folder per version. The toolbar opens the fetched
+  `process_graph.json` in a new tab and enlarges the same builder instance in a
+  dialog instead of mounting a second one. ModelBuilder appends a Font Awesome
+  CDN stylesheet to its shadow root; the component replaces it with the
+  vendored copy under `docs/public/vendor/fontawesome/`, so the page makes no
+  third-party request.
+- `StacNavLink.vue` is the navbar `STAC` entry. It opens the generated catalog
+  of the version being viewed in the external STAC browser, reading
+  `theme.stacBases` from `docs/.vitepress/stac-bases.json` (written by
+  `prepare-docs.mjs`) and falling back to `/main` for a version without an
+  entry.
+- `VersionBanner.vue` renders the notice above the `h1` of every page that is
+  not the current release: an outdated-version banner for an older `v*` tag and
+  a preview banner for a branch. It links to the same page in the latest
+  release, or to that release's home page when the page does not exist there.
+  `index.mjs` mounts it in VitePress's `doc-before` slot, which the home layout
+  does not render, so the banner never appears on the home page.
+- `VersionSwitcher` from `@viteplus/versions` is registered with them. The
+  plugin's own nav dropdown is disabled (`versionSwitcher: false`) because it
+  links each version's home page; this component keeps the current page and
+  swaps only the version segment. `installVersionFallback` handles refs that
+  have no site.
+- `::: tabs` / `== Tab` blocks come from `vitepress-plugin-tabs`, enabled in
+  both `config.mjs` (Markdown plugin) and `index.mjs`
+  (`enhanceAppWithTabs`). Use them when a page shows alternative ways to do one
+  thing, as `models/model.md.j2` does for the Web editor and Python.
+- `custom.css` styles these components. `config.mjs` adds the `model-page`
+  class to model pages, which widens the content column for the graph viewer.
+
 ## Releases
 
 Two publication targets share one layout, selected by a base URL:
