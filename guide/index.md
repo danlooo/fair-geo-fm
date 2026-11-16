@@ -49,11 +49,8 @@ import xarray as xr
 import matplotlib.pyplot as plt
 
 ds = xr.open_dataset("tessera_v2_embeddings.nc")
-
-bands = [name for name in ds.data_vars if name.startswith("tessera_")]
-embeddings = ds[bands].to_array("band").isel(t=0)
-
-embeddings.isel(band=[0, 1, 2]).plot.imshow(rgb="band", robust=True)
+a = ds[["tessera_0", "tessera_1", "tessera_2"]].to_array("bands").squeeze()
+a.plot.imshow(rgb="bands", robust=True)
 plt.show()
 ```
 
