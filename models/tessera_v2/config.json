@@ -1,8 +1,61 @@
 {
     "name": "TESSERA v2",
+    "description": "On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins.",
     "runtime": "py311-torch231",
     "tags": [
         "computed on demand",
         "Sentinel 1+2"
+    ],
+    "parameters": [
+        {
+            "name": "spatial_extent",
+            "required": true,
+            "default": "—",
+            "description": "Area to compute embeddings for (WGS84 bounding box)."
+        },
+        {
+            "name": "temporal_extent",
+            "required": true,
+            "default": "—",
+            "description": "Period to compute embeddings for, e.g. one calendar year."
+        },
+        {
+            "name": "s2_collection_id",
+            "required": false,
+            "default": "`SENTINEL2_L2A`",
+            "description": "Sentinel-2 L2A collection id."
+        },
+        {
+            "name": "s1_collection_id",
+            "required": false,
+            "default": "`SENTINEL1_GRD`",
+            "description": "Sentinel-1 GRD collection id."
+        },
+        {
+            "name": "s2_bands",
+            "required": false,
+            "default": "`B04`, `B02`, `B03`, `B08`, `B8A`, `B05`, `B06`, `B07`, `B11`, `B12`, `SCL`",
+            "description": "Sentinel-2 bands in TESSERA order: ten reflectance bands, then `SCL`."
+        },
+        {
+            "name": "s1_bands",
+            "required": false,
+            "default": "`VV`, `VH`",
+            "description": "Sentinel-1 bands, renamed per orbit (`VV_ASC`, `VH_DESC`, …)."
+        }
+    ],
+    "publication": {
+        "citation": "Feng, Z. et al. (2026) ‘TESSERA v2: Scaling pixel-wise Earth foundation models’, _arXiv_ [Preprint]. Available at: <https://arxiv.org/abs/2607.03949> (Accessed: 12 November 2026).",
+        "abstract": "Pixel-wise Earth-observation (EO) foundation models are now achieving state-of-the-art performance via generated spatial embeddings. However, how these models scale and how best to spend a pretraining budget remain poorly understood. We present the largest controlled scaling study for EO to date: 395 training runs within a fixed pixel-wise Barlow Twins family, each evaluated on 15 diverse downstream tasks. We find that pretraining loss barely predicts downstream performance (|Pearson r| < 0.2), so selecting models by loss wastes a large share of the compute. We also find that, as the training budget grows, the encoder and the data should grow together while the projector stays fixed, which gives a simple rule for allocating compute. Using this rule, we train a family of pixel-wise teachers (0.5B, 1B, and 2B) and distil the largest into compact students for embeddings-as-data deployment. In aggregate, our 44-million-parameter distilled student outperforms every open and proprietary embedding product we test, several of them an order of magnitude larger. These students produce Matryoshka representations that are inexpensive to serve: a 16-dimensional prefix keeps 92% of the full 128-dimensional performance at 1/8 of the storage. Together, these results give a concrete, empirically grounded recipe for scaling pixel-wise EO foundation models: train large encoders, select by downstream performance, and distil into flexible student models. We plan to release global 10 m annual embeddings covering 2017-2025 as version 2 of the TESSERA foundation-model embeddings product. All code is available at: this https URL"
+    },
+    "links": [
+        {
+            "title": "Original notebook as an openEO community example",
+            "url": "https://github.com/Open-EO/openeo-community-examples/blob/main/python/60_geospatial-embeddings/tessera/tessera-embedding.ipynb"
+        },
+        {
+            "title": "CDSE release note on the original notebook",
+            "url": "https://dataspace.copernicus.eu/news/2026-9-25-new-openeo-community-example-generate-tessera-pixel-embeddings-sentinel-1-and"
+        }
     ]
 }

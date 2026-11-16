@@ -131,6 +131,17 @@
   color: var(--vp-c-brand-1);
 }
 
+.vp-doc .model-card-description {
+  margin: 0;
+  color: var(--vp-c-text-2);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .vp-doc .model-card-badges {
   display: flex;
   flex-wrap: wrap;

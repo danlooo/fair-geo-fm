@@ -5,6 +5,9 @@
         <a class="model-card-link" href="./{{ model.slug }}/">
         <div class="model-card">
         <h3 class="model-card-title">{{ model.name }}</h3>
+        {% if model.description %}
+            <p class="model-card-description">{{ model.description }}</p>
+        {% endif %}
         {% if model.tags %}
             <p class="model-card-badges">{% for tag in model.tags %}<Badge text="{{ tag }}" type="info" /> {% endfor %}</p>
         {% endif %}

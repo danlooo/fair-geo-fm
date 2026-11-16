@@ -2,8 +2,9 @@
 
 Each model directory keeps a ``process_graph.json.j2`` template with the graph
 structure, ``udf.py`` with the user-defined function and ``config.json`` with
-the model metadata: its display ``name``, the ``runtime`` and the badge
-``tags`` shown in the model catalogue. The template receives
+the model metadata: its display ``name``, ``description``, ``runtime``,
+badge ``tags``, ``parameters``, ``publication`` and ``links``. The template
+receives
 
 - ``udf_json`` -- the UDF source as a JSON string literal, read from ``udf.py``
 - ``config`` / ``config_json`` -- the parsed ``config.json`` and the same
@@ -23,8 +24,10 @@ The rendered ``process_graph.json`` is generated from the template on demand
 and in CI; it is not committed. ``build`` renders it and verifies the runtime
 reference; the publish workflows write it for their target base URL.
 
-Each model directory also has a ``README.md.j2`` documentation page. It is
-rendered with the same base URL so the copy-paste examples point at the graph
+Model documentation pages are rendered from the shared ``models/model.md.j2``
+template; released refs keep a ``README.md.j2`` next to the model instead, which
+takes precedence. Either template is rendered with the same base URL so the
+copy-paste examples point at the graph
 of the same publication target. For a Zenodo release the files live under the
 record URL while the page itself stays on the documentation site, so
 ``render_readme`` takes the documentation base URL separately. The page header
@@ -72,7 +75,8 @@ def model_config(process_dir: Path) -> dict:
     """The model's ``config.json``, or an empty mapping when absent.
 
     The file is the single source of truth for the model's display ``name``,
-    the ``runtime`` and the badge ``tags``.
+    ``description``, ``runtime``, badge ``tags`` and the ``parameters``,
+    ``publication`` and ``links`` sections of its documentation page.
     """
     config_file = process_dir / "config.json"
     if not config_file.is_file():
@@ -93,7 +97,11 @@ def runtime_name(process_dir: Path) -> str:
 
 
 def validate_model_config(process_dir: Path) -> list[str]:
-    """Validate the ``name``, ``runtime`` and ``tags`` in ``config.json``."""
+    """Validate the model metadata in ``config.json``.
+
+    The README template reads every field, so a missing or mistyped one would
+    either break the render or publish an empty section.
+    """
     config_file = process_dir / "config.json"
     if not config_file.is_file():
         return [
@@ -103,15 +111,55 @@ def validate_model_config(process_dir: Path) -> list[str]:
 
     config = model_config(process_dir)
     problems = []
-    if not isinstance(config.get("name"), str) or not config["name"].strip():
-        problems.append(f"{config_file}: 'name' must be a non-empty string")
-    if not isinstance(config.get("runtime"), str) or not config["runtime"].strip():
-        problems.append(f"{config_file}: 'runtime' must be a non-empty string")
+    for key in ("name", "description", "runtime"):
+        if not isinstance(config.get(key), str) or not config[key].strip():
+            problems.append(f"{config_file}: '{key}' must be a non-empty string")
     tags = config.get("tags", [])
     if not isinstance(tags, list) or any(
         not isinstance(tag, str) or not tag.strip() for tag in tags
     ):
         problems.append(f"{config_file}: 'tags' must be a list of non-empty strings")
+
+    parameters = config.get("parameters")
+    if not isinstance(parameters, list):
+        problems.append(f"{config_file}: 'parameters' must be a list")
+    else:
+        for index, parameter in enumerate(parameters):
+            where = f"{config_file}: parameters[{index}]"
+            if not isinstance(parameter, dict):
+                problems.append(f"{where} must be an object")
+                continue
+            for key in ("name", "default", "description"):
+                value = parameter.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    problems.append(f"{where}.{key} must be a non-empty string")
+            if not isinstance(parameter.get("required"), bool):
+                problems.append(f"{where}.required must be a boolean")
+
+    publication = config.get("publication")
+    if not isinstance(publication, dict):
+        problems.append(f"{config_file}: 'publication' must be an object")
+    else:
+        for key in ("citation", "abstract"):
+            value = publication.get(key)
+            if not isinstance(value, str) or not value.strip():
+                problems.append(
+                    f"{config_file}: publication.{key} must be a non-empty string"
+                )
+
+    links = config.get("links")
+    if not isinstance(links, list):
+        problems.append(f"{config_file}: 'links' must be a list")
+    else:
+        for index, link in enumerate(links):
+            where = f"{config_file}: links[{index}]"
+            if not isinstance(link, dict):
+                problems.append(f"{where} must be an object")
+                continue
+            for key in ("title", "url"):
+                value = link.get(key)
+                if not isinstance(value, str) or not value.strip():
+                    problems.append(f"{where}.{key} must be a non-empty string")
     return problems
 
 
@@ -263,11 +311,14 @@ def render_readme(
     release_version: str | None = None,
     doi: str | None = None,
 ) -> tuple[str, str]:
-    """Render ``README.md.j2`` for ``base_url``.
+    """Render a model's documentation page for ``base_url``.
 
+    The page comes from the model's own ``README.md.j2`` when present (released
+    refs), otherwise from the shared ``model.md.j2`` in the parent directory.
     ``base_url`` locates the model's published files (the process graph),
-    ``docs_base_url`` the version's documentation page. The page title and
-    badge tags come from the model's ``config.json``, passed as ``config``.
+    ``docs_base_url`` the version's documentation page. The page title,
+    description, badge tags, parameters, publication and links come from the
+    model's ``config.json``, passed as ``config``.
     ``release_version`` and
     ``doi`` describe the release the page advertises (its header links both):
     they default to the newest ``v*`` tag and to the concept DOI for a release
@@ -280,8 +331,12 @@ def render_readme(
     process_dir = process_dir.resolve()
     template_path = process_dir / "README.md.j2"
     if not template_path.is_file():
+        template_path = process_dir.parent / "model.md.j2"
+    if not template_path.is_file():
         raise SystemExit(
-            f"{template_path} not found; model pages are rendered from README.md.j2"
+            f"{process_dir / 'README.md.j2'} and "
+            f"{process_dir.parent / 'model.md.j2'} not found; model pages are "
+            "rendered from one of these templates"
         )
 
     model = process_dir.name
@@ -296,8 +351,8 @@ def render_readme(
     ).render(
         base_url=base_url.rstrip("/"),
         # The parsed config.json is the model's single source of truth; the
-        # page title and badge tags come from it (``config.name``,
-        # ``config.tags``) rather than being duplicated in the template.
+        # page title, description, badge tags, input parameters, publication
+        # and links come from it rather than being duplicated in the template.
         config=model_config(process_dir),
         model=model,
         release=release,

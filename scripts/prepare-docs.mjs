@@ -2,7 +2,7 @@
 // Materialize the VitePress source tree for @viteplus/versions.
 //
 // The canonical pages stay where they belong in the repository (index.md,
-// guide/, models/<name>/README.md.j2, CONTRIBUTING.md). The versioning plugin
+// guide/, models/model.md.j2, CONTRIBUTING.md). The versioning plugin
 // expects one folder per version, so this script copies those pages into
 //
 //   docs/src/                 the current version (the newest v* tag)
@@ -142,8 +142,9 @@ function modelSourceDir(root) {
   return existsSync(join(root, "models")) ? "models" : "processes";
 }
 
-// Model pages are rendered from their README.md.j2 with the release values of
-// the version being published. The models index template iterates a `models`
+// Model pages are rendered from the shared models/model.md.j2 (or a released
+// ref's per-model README.md.j2) with the release values of the version being
+// published. The models index template iterates a `models`
 // list built from each model directory's config.json, the single source of
 // truth for the model's display name, runtime and badge tags.
 function modelConfig(dir) {
@@ -179,15 +180,27 @@ function escapeHtml(value) {
   );
 }
 
-// The `models` list models/index.md.j2 iterates over. A model directory with a
-// documentation page is a published model; without config.json it falls back to
-// its directory name so an unfinished model does not disappear from the
-// catalogue. Values are HTML-escaped because the template interpolates them
-// into markup. Cards deliberately omit the DOI: it identifies the release, not
-// the individual model, so it belongs on the model page header rather than
-// repeated on every card.
+// The page template for a model directory. Newer refs share one generic
+// <source>/model.md.j2; released refs keep README.md.j2 next to the model, and
+// the oldest ones already publish a rendered README.md.
+function modelTemplatePath(root, source, name) {
+  for (const file of ["README.md.j2", "README.md"]) {
+    const candidate = join(source, name, file);
+    if (existsSync(join(root, candidate))) return candidate;
+  }
+  const shared = join(source, "model.md.j2");
+  return existsSync(join(root, shared)) ? shared : "";
+}
+
+// The `models` list models/index.md.j2 iterates over. A directory is a model
+// when it has a config.json or its own page; other directories (e.g. shared
+// runtime files) are skipped. Values are HTML-escaped because the template
+// interpolates them into markup. Cards deliberately omit the DOI: it
+// identifies the release, not the individual model, so it belongs on the model
+// page header rather than repeated on every card.
 function modelCards(root) {
-  const modelsDir = join(root, modelSourceDir(root));
+  const source = modelSourceDir(root);
+  const modelsDir = join(root, source);
   if (!existsSync(modelsDir)) return [];
 
   const models = [];
@@ -195,11 +208,12 @@ function modelCards(root) {
   for (const entry of readdirSync(modelsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const dir = join(modelsDir, entry.name);
-    // Directories without a page (e.g. shared runtime files) are not models.
-    const documented = ["README.md.j2", "README.md"].some((name) =>
-      existsSync(join(dir, name)),
-    );
-    if (!documented) continue;
+    const isModel =
+      existsSync(join(dir, "config.json")) ||
+      ["README.md.j2", "README.md"].some((name) =>
+        existsSync(join(dir, name)),
+      );
+    if (!isModel) continue;
 
     const config = modelConfig(dir);
     const name =
@@ -211,8 +225,15 @@ function modelCards(root) {
           .filter((tag) => typeof tag === "string" && tag.trim())
           .map((tag) => escapeHtml(tag.trim()))
       : [];
+    const description =
+      typeof config.description === "string" ? config.description.trim() : "";
 
-    models.push({ slug: entry.name, name: escapeHtml(name), tags });
+    models.push({
+      slug: entry.name,
+      name: escapeHtml(name),
+      description: escapeHtml(description),
+      tags,
+    });
   }
 
   return models;
@@ -229,6 +250,11 @@ function renderLegacyModelCards(models) {
       '<div class="model-card">',
       `<h3 class="model-card-title">${model.name}</h3>`,
     ];
+    if (model.description) {
+      lines.push(
+        `<p class="model-card-description">${model.description}</p>`,
+      );
+    }
     if (model.tags.length > 0) {
       lines.push(
         `<p class="model-card-badges">${model.tags
@@ -540,13 +566,11 @@ function templateValue(values, path, source) {
   return current;
 }
 
-function renderModelTemplate(text, version, model, source) {
-  const values = {
-    ...modelTemplateValues(version, model),
-    // config.json is the model's single source of truth; the page reads e.g.
-    // config.name and config.tags from it instead of duplicating them.
-    config: modelConfig(dirname(source)),
-  };
+function renderModelTemplate(text, version, model, source, config) {
+  // config.json is the model's single source of truth; the page reads e.g.
+  // config.name, config.description, config.parameters and config.links from
+  // it instead of duplicating them.
+  const values = { ...modelTemplateValues(version, model), config };
   return renderTemplate(text, values, source);
 }
 
@@ -628,12 +652,10 @@ function sitePages(root, version) {
   if (existsSync(models)) {
     for (const entry of readdirSync(models, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      // Newer refs keep a template; older ones already have a rendered README.
-      const readme = ["README.md.j2", "README.md"]
-        .map((name) => join(source, entry.name, name))
-        .find((file) => existsSync(join(root, file)));
-      if (readme) {
-        pages.set(join("models", entry.name, "index.md"), join(root, readme));
+      // Newer refs share one generic template; older ones keep a per-model one.
+      const template = modelTemplatePath(root, source, entry.name);
+      if (template) {
+        pages.set(join("models", entry.name, "index.md"), join(root, template));
       }
     }
   }
@@ -642,7 +664,7 @@ function sitePages(root, version) {
   return pages;
 }
 
-function writeTree(pages, destination, version) {
+function writeTree(root, pages, destination, version) {
   rmSync(destination, { recursive: true, force: true });
   mkdirSync(destination, { recursive: true });
   for (const [to, from] of pages) {
@@ -656,10 +678,15 @@ function writeTree(pages, destination, version) {
         "](/models/",
       );
       if (from.endsWith(".md.j2")) {
-        text =
-          to === "models/index.md"
-            ? renderModelsIndex(text, from)
-            : renderModelTemplate(text, version, to.split("/")[1], from);
+        if (to === "models/index.md") {
+          text = renderModelsIndex(text, from);
+        } else {
+          const model = to.split("/")[1];
+          const config = modelConfig(
+            join(root, modelSourceDir(root), model),
+          );
+          text = renderModelTemplate(text, version, model, from, config);
+        }
       }
       const modelPage = /^models\/([^/]+)\/index\.md$/.exec(to);
       if (modelPage) {
@@ -714,8 +741,8 @@ function refsToArchive() {
 if (withArchives) rmSync(publicDir, { recursive: true, force: true });
 
 function writeCurrentVersion(root) {
-  writeTree(sitePages(root, currentVersion), sourcesDir, currentVersion);
-  writeTree(siteAssets(root), join(publicDir, currentVersion), currentVersion);
+  writeTree(root, sitePages(root, currentVersion), sourcesDir, currentVersion);
+  writeTree(root, siteAssets(root), join(publicDir, currentVersion), currentVersion);
 }
 
 // Local dev runs without `--archives`, so docs/archive can be stale (or absent).
@@ -724,8 +751,8 @@ function writeCurrentVersion(root) {
 // origin/main snapshot. A full `--archives` build uses the real ref instead.
 function writeWorkingTreePreview() {
   if (currentVersion === "main") return;
-  writeTree(sitePages(repoRoot, "main"), join(archiveDir, "main"), "main");
-  writeTree(siteAssets(repoRoot), join(publicDir, "main"), "main");
+  writeTree(repoRoot, sitePages(repoRoot, "main"), join(archiveDir, "main"), "main");
+  writeTree(repoRoot, siteAssets(repoRoot), join(publicDir, "main"), "main");
   console.log(
     "prepare-docs: wrote the working tree to /main for local preview",
   );
@@ -800,8 +827,8 @@ for (const { name, ref } of refsToArchive()) {
       warn(`skipping ${name}: no VitePress site at this ref`);
       return false;
     }
-    writeTree(pages, join(archiveDir, version), version);
-    writeTree(siteAssets(worktree), join(publicDir, version), version);
+    writeTree(worktree, pages, join(archiveDir, version), version);
+    writeTree(worktree, siteAssets(worktree), join(publicDir, version), version);
     return true;
   });
   if (!wasArchived) continue;

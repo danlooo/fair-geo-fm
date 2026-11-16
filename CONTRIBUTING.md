@@ -30,21 +30,24 @@ Conventions for the models and runtimes in this repository.
     publish workflows render it for the served site and release.
   - `udf.py` — UDF source, when the UDF is specific to this model
   - `example.py` — sample call
-  - `config.json` — the model's single source of truth: the display `name`, the
-    `runtime` and the badge `tags` shown in the catalogue. The build reads the
-    runtime from it, both templates receive it as `config`, and the docs build
-    renders the model cards from it.
-  - `README.md.j2` — the model's documentation page as a Jinja2 template,
-    maintained by hand; `scripts/prepare-docs.mjs` renders it to the page's
-    `index.md` for the version being published
+  - `config.json` — the model's single source of truth: the display `name`,
+    `description`, `runtime` and badge `tags`, plus the `parameters` table,
+    `publication` (citation and abstract) and `links` list of its page. The
+    build reads the runtime from it, both templates receive it as `config`, and
+    the docs build renders the model cards and page sections from it.
+- All models share one documentation page template,
+  `models/model.md.j2`, rendered by `scripts/prepare-docs.mjs` to each model's
+  `index.md` for the version being published. Released refs predating the
+  shared template keep their own `README.md.j2` (or a rendered `README.md`)
+  inside the model directory, which takes precedence.
 - The catalogue page `models/index.md.j2` is a Jinja2 template.
   `scripts/prepare-docs.mjs` exposes a `models` list at docs-build time, one
-  entry per model directory that has a `README.md.j2`, with `slug`, `name` and
-  `tags` taken from that directory's `config.json` (falling back to the
-  directory name when there is none). The page renders one card per entry with
+  entry per model directory with a `config.json`, with `slug`, `name`,
+  `description` and `tags` taken from that file (falling back to the directory
+  name when there is none). The page renders one card per entry with
   <code v-pre>{% for model in models %} ... {% endfor %}</code>. Add a model by
-  adding its version directory with a `README.md.j2` and a `config.json`; do not
-  list it by hand.
+  adding its version directory with a `config.json`, a `process_graph.json.j2`
+  and a `udf.py`; do not list it by hand.
 - Inline the UDF in `process_graph.json` so one URL resolves the whole process.
   The template receives it as <code v-pre>{{ udf_json }}</code>, which the build script fills
   from `udf.py`; do not paste the UDF into the template.
@@ -57,7 +60,7 @@ Conventions for the models and runtimes in this repository.
   It also receives the parsed `config.json` as <code v-pre>{{ config }}</code> (and as the JSON
   literal <code v-pre>{{ config_json }}</code>) and copies it into the graph's top-level `model`
   entry, so the published `process_graph.json` is self-contained.
-  `README.md.j2` receives the same <code v-pre>{{ config }}</code> mapping: the title is
+  The documentation template receives the same <code v-pre>{{ config }}</code> mapping: the title is
   <code v-pre>{{ config.name }}</code> and the badges are rendered with
   <code v-pre>{% for tag in config.tags %}</code>. It also exposes
   <code v-pre>{{ process_graph_url }}</code> (the same published graph
@@ -70,8 +73,8 @@ Conventions for the models and runtimes in this repository.
   entirely. <code v-pre>{{ release }}</code> is `true` for a `v*` tag and `false` for a branch,
   for templates that gate development notices on it.
   The two templates are not rendered by the same engine. `process_graph.json.j2`
-  gets full Jinja2 from `scripts/process_graphs.py`; `README.md.j2` is rendered
-  by `scripts/prepare-docs.mjs`, which implements only
+  gets full Jinja2 from `scripts/process_graphs.py`; the documentation template
+  is rendered by `scripts/prepare-docs.mjs`, which implements only
   <code v-pre>{{ dotted.path }}</code> variables, <code v-pre>{% if [not] path %}</code> blocks and
   <code v-pre>{% for item in list.path %}</code> loops, inline or spanning whole lines. An unknown
   variable is an error rather than a published page that keeps a literal
@@ -92,7 +95,7 @@ Conventions for the models and runtimes in this repository.
 - Do not end `namespace` URLs with a trailing `/`. Documentation page URLs do
   end with `/` because VitePress serves each process page as a directory index.
 - Documentation is published at <https://danlooo.github.io/fair-geo-fm>. Put the
-  link in the node `description` of the copy-paste examples in `README.md.j2`
+  link in the node `description` of the copy-paste examples in the model template
   (<code v-pre>{{ docs_url }}</code>) — that is what a user reads in the Web editor's Code
   tab — and on the model page itself.
 
@@ -162,8 +165,9 @@ Three workflows carry a commit from validation to publication.
 - `build` runs on every push, pull request and `workflow_dispatch`. It renders
   each `models/*/process_graph.json.j2` with its `udf.py` and `config.json` and
   fails on an invalid template, an invalid `config.json` or a runtime reference
-  that does not match `runtimes/`; it renders every `README.md.j2` as well, so a
-  broken template fails before the docs or release pipeline sees it. It also
+  that does not match `runtimes/`; it renders each model page from the shared
+  `models/model.md.j2` as well, so a broken template fails before the docs or
+  release pipeline sees it. It also
   builds each `runtimes/*/requirements.txt` into a deterministic
   `dependencies.zip`, smoke-tests the imports on the pinned Python version,
   writes `checksums.sha256`, and uploads all of it as the `dependency-archives`
@@ -262,7 +266,7 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   header at all. The docs build resolves the version records and DOIs from the
   concept record through the Zenodo API and falls back to the staging base and
   the concept DOI if that lookup fails. Released refs that predate the header in
-  `README.md.j2` get the same line inserted by `scripts/prepare-docs.mjs`, so no
+  their model template get the same line inserted by `scripts/prepare-docs.mjs`, so no
   published release page is missing it. The same backfill repoints a legacy
   hardcoded staging graph URL at the tag's version record.
 - `publish-release` dispatches `publish` after the Zenodo record is published,

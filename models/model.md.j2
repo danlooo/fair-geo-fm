@@ -1,0 +1,134 @@
+# {{ config.name }}
+{% if doi %}
+
+[Release {{ release_version }}]({{ release_url }}) | [DOI {{ doi }}](https://doi.org/{{ doi }})
+{% endif %}
+{% if config.tags %}
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+{% for tag in config.tags %}
+  <Badge text="{{ tag }}" type="info" style="font-size: inherit; line-height: inherit;" />
+{% endfor %}
+</div>
+{% endif %}
+
+{{ config.description }}
+
+## Usage
+
+::: tabs
+
+== Web editor
+
+1. Go to a openEO Web Editor page e.g. https://openeofed.dataspace.copernicus.eu
+1. Click on Log in at the bottom of the page if required.
+1. Click on the `</> Code` button
+1. Replace the content with this code
+1. Modify the workflow and run the job
+
+```json
+{
+  "process_graph": {
+    "{{ model }}_embeddings1": {
+      "process_id": "{{ model }}_embeddings",
+      "namespace": "{{ process_graph_url }}",
+      "description": "Documentation: {{ docs_url }}",
+      "arguments": {
+        "spatial_extent": {
+          "west": 11.55,
+          "south": 50.88,
+          "east": 11.65,
+          "north": 50.96
+        },
+        "temporal_extent": ["2025-01-01", "2026-01-01"]
+      }
+    },
+    "save1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": { "from_node": "{{ model }}_embeddings1" },
+        "format": "NETCDF"
+      },
+      "result": true
+    }
+  }
+}
+```
+
+== Python
+
+```python
+import openeo
+
+connection = openeo.connect("https://openeo.dataspace.copernicus.eu")
+connection.authenticate_oidc()
+
+embeddings = connection.datacube_from_process(
+    "{{ model }}_embeddings",
+    namespace="{{ process_graph_url }}",
+    spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
+    temporal_extent=["2025-01-01", "2026-01-01"],
+)
+
+job = embeddings.create_job(out_format="NETCDF")
+job.start_and_wait()
+job.download_result("{{ model }}_embeddings.nc")
+```
+
+== R
+
+```r
+library(openeo)
+
+connect(host = "https://openeo.dataspace.copernicus.eu")
+login()
+
+# The R client cannot attach a process namespace URL to a node yet
+# (Open-EO/openeo-r-client#143), so fetch the definition and bind its
+# parameters locally instead.
+definition <- jsonlite::fromJSON(
+  "{{ process_graph_url }}",
+  simplifyVector = FALSE
+)
+definition$parameters <- NULL
+
+graph <- parse_graph(
+  definition,
+  parameters = list(
+    spatial_extent = list(west = 11.55, south = 50.88, east = 11.65, north = 50.96),
+    temporal_extent = list("2025-01-01", "2026-01-01"),
+    s2_collection_id = "SENTINEL2_L2A",
+    s1_collection_id = "SENTINEL1_GRD",
+    s2_bands = list("B04", "B02", "B03", "B08", "B8A", "B05", "B06", "B07", "B11", "B12", "SCL"),
+    s1_bands = list("VV", "VH")
+  )
+)
+
+compute_result(
+  graph = graph,
+  format = "NETCDF",
+  output_file = "{{ model }}_embeddings.nc"
+)
+```
+
+:::
+
+## Input parameters
+
+| Name | Required | Default | Description |
+| ---- | -------- | ------- | ----------- |
+{% for parameter in config.parameters %}| `{{ parameter.name }}` | {% if parameter.required %}yes{% endif %}{% if not parameter.required %}no{% endif %} | {{ parameter.default }} | {{ parameter.description }} |
+{% endfor %}
+
+## Publication
+
+{{ config.publication.citation }}
+
+**Abstract**
+
+{{ config.publication.abstract }}
+
+## Links
+
+{% for link in config.links %}- [{{ link.title }}]({{ link.url }})
+{% endfor %}
