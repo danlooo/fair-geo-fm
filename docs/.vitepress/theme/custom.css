@@ -79,6 +79,17 @@
 }
 
 /**
+ * Model pages embed the interactive process graph. A slightly wider content
+ * column gives it more room than the 688 px default while still leaving space
+ * for the outline aside (content + 32 px gap + 224 px aside < 1104 px).
+ * The doubled class raises specificity above the scoped default rule.
+ */
+.model-page .VPDoc:not(.has-sidebar) .content.content,
+.model-page .VPDoc.has-aside .content-container.content-container {
+  max-width: 832px;
+}
+
+/**
  * Model catalogue: a config.json-driven card grid from models/index.md.j2.
  * auto-fit follows the available page width: one column on narrow screens,
  * two on tablets and three within the documentation's 688 px content column.

@@ -97,6 +97,13 @@ export default defineVersionedConfig({
     // Archived pages are snapshots whose paths may predate renames, so an edit
     // link would point at a file that does not exist at that ref.
     if (version !== currentVersion) frontmatter.editLink = false;
+    // Model pages embed the interactive process graph; custom.css uses this
+    // page class to widen their content column.
+    if (/(^|\/)models\/[^/]+\/index\.md$/.test(pageData.relativePath)) {
+      frontmatter.pageClass = [frontmatter.pageClass, "model-page"]
+        .filter(Boolean)
+        .join(" ");
+    }
     if (!Array.isArray(actions)) return { frontmatter };
     return {
       frontmatter: {
