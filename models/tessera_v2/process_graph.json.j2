@@ -1,6 +1,8 @@
 {
   "id": "tessera_v2_embeddings",
-  "model": {{ config_json | indent(2) }},
+  "version": "{{ version }}",
+{% if zenodo_url %}  "zenodo_url": "{{ zenodo_url }}",
+{% endif %}  "model": {{ config_json | indent(2) }},
   "default_job_options": {
     "driver-memory": "3g",
     "executor-memory": "3g",

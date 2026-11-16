@@ -12,6 +12,10 @@ receives
   the published graph is independent of the separate config file
 - ``runtime_url`` -- the dependency-archive URL, with ``#feature_deps``
 - ``process_graph_url`` -- where the rendered graph is published
+- ``version`` -- the release the graph belongs to, or ``main`` for a branch
+  render, so the graph identifies itself
+- ``zenodo_url`` -- the public Zenodo record page serving the graph's release;
+  empty for a staging render, which the template omits entirely
 - ``model`` / ``runtime`` -- the directory name and runtime from ``config.json``
 
 Publication URLs are themselves Jinja2 templates so a plain GitHub Pages
@@ -229,12 +233,23 @@ def validate_runtime_reference(
     return problems
 
 
-def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
+def render(
+    process_dir: Path,
+    base_url: str,
+    version: str | None = None,
+    zenodo_url: str | None = None,
+) -> tuple[str, dict, str, str]:
     """Render ``process_graph.json.j2`` for ``base_url``.
 
     Returns ``(text, graph, graph_url, archive_url)``. ``text`` is canonical
     JSON (two-space indent, trailing newline), so it can be compared with the
     committed file.
+
+    ``version`` and ``zenodo_url`` label the release the graph belongs to and
+    are rendered into the graph so it identifies itself. ``version`` defaults
+    to ``main`` and ``zenodo_url`` stays empty for a staging render, so the
+    template omits it; ``publish-release.py`` passes the release tag and that
+    version record instead.
     """
     process_dir = process_dir.resolve()
     template_path = process_dir / "process_graph.json.j2"
@@ -259,6 +274,8 @@ def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
 
     archive_url = runtime_url(base_url, runtime)
     graph_url = process_graph_url(base_url, model)
+    version = version or "main"
+    zenodo_url = zenodo_url or ""
 
     environment = jinja2.Environment(keep_trailing_newline=True, autoescape=False)
     rendered = environment.from_string(
@@ -271,6 +288,8 @@ def render(process_dir: Path, base_url: str) -> tuple[str, dict, str, str]:
         config_json=json.dumps(config, indent=2, ensure_ascii=False),
         runtime_url=archive_url,
         process_graph_url=graph_url,
+        version=version,
+        zenodo_url=zenodo_url,
         model=model,
         runtime=runtime,
     )

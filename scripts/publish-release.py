@@ -265,15 +265,23 @@ def stage_source_archive(version: str, staging: Path) -> tuple[str, Path]:
 def stage_files(
     base_url: str, staging: Path, version: str, doi: str
 ) -> list[tuple[str, Path]]:
-    """Render graphs and collect code/runtime/source files as (Zenodo key, path)."""
+    """Render graphs and collect code/runtime/source files as (Zenodo key, path).
+
+    The graph is rendered for the record's file base and records the release
+    tag and record page it belongs to (``version`` / ``zenodo_url``), so a
+    stored job can be traced back to its citable record.
+    """
     staged: list[tuple[str, Path]] = []
+    record_url = base_url.removesuffix("/files")
 
     models = REPO_ROOT / "models"
     for process_dir in sorted(path for path in models.iterdir() if path.is_dir()):
         template = process_dir / "process_graph.json.j2"
         if not template.is_file():
             continue
-        text, graph, graph_url, archive_url = render(process_dir, base_url)
+        text, graph, graph_url, archive_url = render(
+            process_dir, base_url, version=version, zenodo_url=record_url
+        )
         problems = validate_model_config(process_dir) + validate_runtime_reference(
             process_dir, graph, archive_url
         )

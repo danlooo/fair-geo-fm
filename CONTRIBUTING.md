@@ -54,7 +54,11 @@ Conventions for the models and runtimes in this repository.
   <code v-pre>{{ udf_json }}</code> and CI only checks directories that have one.
 - Do not hardcode publication URLs. The process graph template is rendered for
   a base URL and exposes <code v-pre>{{ runtime_url }}</code> (the dependency archive, with
-  `#feature_deps`), <code v-pre>{{ process_graph_url }}</code> and <code v-pre>{{ model }}</code> / <code v-pre>{{ runtime }}</code>.
+  `#feature_deps`), <code v-pre>{{ process_graph_url }}</code>, <code v-pre>{{ version }}</code>
+  (the release tag, or `main` for a branch render) and
+  <code v-pre>{{ model }}</code> / <code v-pre>{{ runtime }}</code>. A release render
+  also sets <code v-pre>{{ zenodo_url }}</code> (the Zenodo record page serving
+  that release); it is empty for the staging render, which omits the field.
   It also receives the parsed `config.json` as <code v-pre>{{ config }}</code> (and as the JSON
   literal <code v-pre>{{ config_json }}</code>) and copies it into the graph's top-level `model`
   entry, so the published `process_graph.json` is self-contained.
@@ -103,8 +107,8 @@ Conventions for the models and runtimes in this repository.
 > displays the process graph that is pasted into it. Do not rely on them to
 > communicate anything users must see — put it in the node `description` of
 > examples, this README, or the documentation page instead. The published graph
-> in this repository carries `id`, `model`, `default_job_options` and
-> `process_graph`, and nothing else.
+> in this repository carries `id`, `version`, `model`, `default_job_options`
+> and `process_graph`, plus `zenodo_url` on a released graph, and nothing else.
 
 ## Runtimes
 
