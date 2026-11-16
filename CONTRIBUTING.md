@@ -46,7 +46,8 @@ Conventions for the models and runtimes in this repository.
   `description` and `tags` taken from that file. It also exposes
   <code v-pre>{{ stac_catalog_url }}</code> and
   <code v-pre>{{ stac_collection_url }}</code> for the version's generated STAC
-  tree. The page renders one card per entry with
+  tree, both opened in the external STAC browser. The page renders one card per
+  entry with
   <code v-pre>{% for model in models %} ... {% endfor %}</code>. Add a model by
   adding its version directory with a `config.json`, a `process_graph.json.j2`
   and a `udf.py`; do not list it by hand.

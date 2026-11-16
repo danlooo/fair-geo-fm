@@ -243,8 +243,10 @@ function renderModelsIndex(text, source, version) {
     text,
     {
       models: modelCards(root),
-      stac_catalog_url: `${base}/stac/catalog.json`,
-      stac_collection_url: `${base}/stac/collections/fair-geo-fm-models/collection.json`,
+      stac_catalog_url: stacBrowserUrl(`${base}/stac/catalog.json`),
+      stac_collection_url: stacBrowserUrl(
+        `${base}/stac/collections/fair-geo-fm-models/collection.json`,
+      ),
     },
     source,
   );
