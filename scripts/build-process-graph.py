@@ -31,10 +31,9 @@ Usage:
         --base-url https://zenodo.org/records/123456/files \\
         --output /tmp/release/models/tessera_v2/process_graph.json
 
-The model's documentation template (its own ``README.md.j2`` or the shared
-``model.md.j2``) is rendered as well so the build catches unknown variables
-before the docs or release pipeline does; the rendered page itself is not
-written here.
+The shared ``model.md.j2`` documentation template is rendered as well so the
+build catches unknown variables before the docs or release pipeline does; the
+rendered page itself is not written here.
 
 ``--check`` writes nothing. It always renders the template (validating the
 graph structure, the inlined UDF and the runtime reference) and exits non-zero
@@ -75,9 +74,7 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
 
     # The model page is rendered by the docs and release pipelines, not here,
     # but rendering it validates its template variables during the build.
-    if (process_dir / "README.md.j2").is_file() or (
-        process_dir.parent / "model.md.j2"
-    ).is_file():
+    if (process_dir.parent / "model.md.j2").is_file():
         _readme, readme_url = render_readme(process_dir, base_url, base_url)
         print(f"model README: {readme_url}")
 

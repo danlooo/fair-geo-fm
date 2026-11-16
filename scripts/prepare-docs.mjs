@@ -135,18 +135,10 @@ function markdownFiles(dir) {
   return filesBelow(dir).filter((file) => file.endsWith(".md"));
 }
 
-// Foundation models live in models/. Archived refs that predate the rename keep
-// them in processes/; both are published as models/ so their links match the
-// current navigation.
-function modelSourceDir(root) {
-  return existsSync(join(root, "models")) ? "models" : "processes";
-}
-
-// Model pages are rendered from the shared models/model.md.j2 (or a released
-// ref's per-model README.md.j2) with the release values of the version being
-// published. The models index template iterates a `models`
-// list built from each model directory's config.json, the single source of
-// truth for the model's display name, runtime and badge tags.
+// Model pages are rendered from the shared models/model.md.j2 with the release
+// values of the version being published. The models index template iterates a
+// `models` list built from each model directory's config.json, the single
+// source of truth for the model's display name, runtime and badge tags.
 function modelConfig(dir) {
   const file = join(dir, "config.json");
   if (!existsSync(file)) return {};
@@ -180,27 +172,14 @@ function escapeHtml(value) {
   );
 }
 
-// The page template for a model directory. Newer refs share one generic
-// <source>/model.md.j2; released refs keep README.md.j2 next to the model, and
-// the oldest ones already publish a rendered README.md.
-function modelTemplatePath(root, source, name) {
-  for (const file of ["README.md.j2", "README.md"]) {
-    const candidate = join(source, name, file);
-    if (existsSync(join(root, candidate))) return candidate;
-  }
-  const shared = join(source, "model.md.j2");
-  return existsSync(join(root, shared)) ? shared : "";
-}
-
 // The `models` list models/index.md.j2 iterates over. A directory is a model
-// when it has a config.json or its own page; other directories (e.g. shared
-// runtime files) are skipped. Values are HTML-escaped because the template
-// interpolates them into markup. Cards deliberately omit the DOI: it
-// identifies the release, not the individual model, so it belongs on the model
-// page header rather than repeated on every card.
+// when it has a config.json; other directories (e.g. shared runtime files) are
+// skipped. Values are HTML-escaped because the template interpolates them into
+// markup. Cards deliberately omit the DOI: it identifies the release, not the
+// individual model, so it belongs on the model page header rather than repeated
+// on every card.
 function modelCards(root) {
-  const source = modelSourceDir(root);
-  const modelsDir = join(root, source);
+  const modelsDir = join(root, "models");
   if (!existsSync(modelsDir)) return [];
 
   const models = [];
@@ -208,18 +187,10 @@ function modelCards(root) {
   for (const entry of readdirSync(modelsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const dir = join(modelsDir, entry.name);
-    const isModel =
-      existsSync(join(dir, "config.json")) ||
-      ["README.md.j2", "README.md"].some((name) =>
-        existsSync(join(dir, name)),
-      );
-    if (!isModel) continue;
+    if (!existsSync(join(dir, "config.json"))) continue;
 
     const config = modelConfig(dir);
-    const name =
-      typeof config.name === "string" && config.name.trim()
-        ? config.name.trim()
-        : entry.name;
+    const name = config.name.trim();
     const tags = Array.isArray(config.tags)
       ? config.tags
           .filter((tag) => typeof tag === "string" && tag.trim())
@@ -239,46 +210,10 @@ function modelCards(root) {
   return models;
 }
 
-// Refs published before the index became a Jinja2 template carry a literal
-// {{ model_cards }} placeholder instead of a loop. Render the same grid for
-// them so archived versions keep building.
-function renderLegacyModelCards(models) {
-  if (models.length === 0) return "";
-  const cards = models.map((model) => {
-    const lines = [
-      `<a class="model-card-link" href="./${model.slug}/">`,
-      '<div class="model-card">',
-      `<h3 class="model-card-title">${model.name}</h3>`,
-    ];
-    if (model.description) {
-      lines.push(
-        `<p class="model-card-description">${model.description}</p>`,
-      );
-    }
-    if (model.tags.length > 0) {
-      lines.push(
-        `<p class="model-card-badges">${model.tags
-          .map((tag) => `<Badge text="${tag}" type="info" />`)
-          .join(" ")}</p>`,
-      );
-    }
-    lines.push("</div>", "</a>");
-    return lines.join("\n");
-  });
-  return `<div class="model-grid">\n${cards.join("\n")}\n</div>`;
-}
-
 function renderModelsIndex(text, source) {
   // <root>/models/index.md.j2 -> <root>
   const root = dirname(dirname(source));
-  const models = modelCards(root);
-  if (/\{\{\s*model_cards\s*\}\}/.test(text)) {
-    return text.replace(
-      /\{\{\s*model_cards\s*\}\}/g,
-      renderLegacyModelCards(models),
-    );
-  }
-  return renderTemplate(text, { models }, source);
+  return renderTemplate(text, { models: modelCards(root) }, source);
 }
 
 // Non-markdown, non-template files in each model directory
@@ -289,15 +224,14 @@ function renderModelsIndex(text, source) {
 // templates are build inputs, not public assets.
 function siteAssets(root) {
   const assets = new Map();
-  const source = modelSourceDir(root);
-  const models = join(root, source);
+  const models = join(root, "models");
   if (!existsSync(models)) return assets;
   for (const entry of readdirSync(models, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const dir = join("models", entry.name);
-    for (const file of filesBelow(join(root, source, entry.name))) {
+    for (const file of filesBelow(join(models, entry.name))) {
       if (file.endsWith(".md") || file.endsWith(".j2")) continue;
-      assets.set(join(dir, file), join(root, source, entry.name, file));
+      assets.set(join(dir, file), join(models, entry.name, file));
     }
   }
   return assets;
@@ -508,41 +442,6 @@ function modelTemplateValues(version, model) {
   };
 }
 
-// Tags created before README.md.j2 hardcode the staging graph URL. Point that
-// one link at the tag's Zenodo version record so old release pages are
-// reproducible too; other staging links in the snapshot stay untouched.
-function rewriteLegacyModelGraphUrl(text, version, model) {
-  const releaseBaseUrl = zenodoReleases.get(version)?.filesBase;
-  if (!releaseBaseUrl) return text;
-  return text.replaceAll(
-    `${siteBaseUrl}/main/models/${model}/process_graph.json`,
-    `${releaseBaseUrl}/models/${model}/process_graph.json`,
-  );
-}
-
-// Tags created before README.md.j2 gained its release header still publish a
-// model page without one. Add the same line the template renders, right below
-// the page title, so every published release page advertises the version it
-// documents -- including the current version, which is read from its tag.
-// A preview ref (main) has no DOI, so it gets no header, like the template's
-// `{% if doi %}` gate.
-function ensureReleaseHeader(text, version, model) {
-  const {
-    release_version: releaseVersion,
-    release_url: releaseUrl,
-    doi,
-  } = modelTemplateValues(version, model);
-  // Only a release has a DOI. Do not advertise the newest release as the
-  // header of a preview page (main), matching README.md.j2's `{% if doi %}`.
-  if (!doi) return text;
-  const link = `[Release ${releaseVersion}](${releaseUrl})`;
-  if (text.includes(link)) return text;
-  const lines = text.split("\n");
-  if (!lines[0].startsWith("# ")) return text;
-  const header = `${link} | [DOI ${doi}](https://doi.org/${doi})`;
-  return [lines[0], "", header, ...lines.slice(1)].join("\n");
-}
-
 // Minimal Jinja2 subset: ``{{ path.to.value }}`` variables,
 // ``{% if [not] path %} ... {% endif %}`` blocks and
 // ``{% for item in list.path %} ... {% endfor %}`` loops, inline or spanning
@@ -627,11 +526,10 @@ function renderTemplate(text, values, source) {
 }
 
 // Map canonical repository paths to site paths for one version.
-// Model README templates are the source of truth for their pages, so they
-// become index.md; VitePress serves them as directory indexes.
+// The shared model template is the source of truth for every model page, so it
+// becomes each model's index.md; VitePress serves them as directory indexes.
 function sitePages(root, version) {
   const pages = new Map();
-  const source = modelSourceDir(root);
   const add = (from, to) => {
     const file = join(root, from);
     if (existsSync(file)) pages.set(to, file);
@@ -641,22 +539,15 @@ function sitePages(root, version) {
   for (const file of markdownFiles(join(root, "guide"))) {
     add(join("guide", file), join("guide", file));
   }
-  // The models index is a template so its card grid reflects the models and
-  // release of this ref; refs that predate the template keep their markdown.
-  const modelsIndex = ["index.md.j2", "index.md"]
-    .map((name) => join(source, name))
-    .find((file) => existsSync(join(root, file)));
-  if (modelsIndex) pages.set("models/index.md", join(root, modelsIndex));
+  add("models/index.md.j2", "models/index.md");
 
-  const models = join(root, source);
-  if (existsSync(models)) {
+  const models = join(root, "models");
+  const template = join(models, "model.md.j2");
+  if (existsSync(models) && existsSync(template)) {
     for (const entry of readdirSync(models, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      // Newer refs share one generic template; older ones keep a per-model one.
-      const template = modelTemplatePath(root, source, entry.name);
-      if (template) {
-        pages.set(join("models", entry.name, "index.md"), join(root, template));
-      }
+      if (!existsSync(join(models, entry.name, "config.json"))) continue;
+      pages.set(join("models", entry.name, "index.md"), template);
     }
   }
 
@@ -671,27 +562,15 @@ function writeTree(root, pages, destination, version) {
     const target = join(destination, to);
     mkdirSync(dirname(target), { recursive: true });
     if (from.endsWith(".md") || from.endsWith(".md.j2")) {
-      // Archived refs link to their layout (/processes/); publish it under the
-      // current one so links keep resolving.
-      let text = readFileSync(from, "utf8").replace(
-        /\]\(\/processes\//g,
-        "](/models/",
-      );
+      let text = readFileSync(from, "utf8");
       if (from.endsWith(".md.j2")) {
         if (to === "models/index.md") {
           text = renderModelsIndex(text, from);
         } else {
           const model = to.split("/")[1];
-          const config = modelConfig(
-            join(root, modelSourceDir(root), model),
-          );
+          const config = modelConfig(join(root, "models", model));
           text = renderModelTemplate(text, version, model, from, config);
         }
-      }
-      const modelPage = /^models\/([^/]+)\/index\.md$/.exec(to);
-      if (modelPage) {
-        text = ensureReleaseHeader(text, version, modelPage[1]);
-        text = rewriteLegacyModelGraphUrl(text, version, modelPage[1]);
       }
       writeFileSync(target, text);
     } else {

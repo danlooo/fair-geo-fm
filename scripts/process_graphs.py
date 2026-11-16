@@ -25,9 +25,7 @@ and in CI; it is not committed. ``build`` renders it and verifies the runtime
 reference; the publish workflows write it for their target base URL.
 
 Model documentation pages are rendered from the shared ``models/model.md.j2``
-template; released refs keep a ``README.md.j2`` next to the model instead, which
-takes precedence. Either template is rendered with the same base URL so the
-copy-paste examples point at the graph
+template with the same base URL so the copy-paste examples point at the graph
 of the same publication target. For a Zenodo release the files live under the
 record URL while the page itself stays on the documentation site, so
 ``render_readme`` takes the documentation base URL separately. The page header
@@ -313,8 +311,7 @@ def render_readme(
 ) -> tuple[str, str]:
     """Render a model's documentation page for ``base_url``.
 
-    The page comes from the model's own ``README.md.j2`` when present (released
-    refs), otherwise from the shared ``model.md.j2`` in the parent directory.
+    The page comes from the shared ``model.md.j2`` in the parent directory.
     ``base_url`` locates the model's published files (the process graph),
     ``docs_base_url`` the version's documentation page. The page title,
     description, badge tags, parameters, publication and links come from the
@@ -329,14 +326,10 @@ def render_readme(
     Returns ``(text, readme_url)``. Unknown template variables are an error.
     """
     process_dir = process_dir.resolve()
-    template_path = process_dir / "README.md.j2"
-    if not template_path.is_file():
-        template_path = process_dir.parent / "model.md.j2"
+    template_path = process_dir.parent / "model.md.j2"
     if not template_path.is_file():
         raise SystemExit(
-            f"{process_dir / 'README.md.j2'} and "
-            f"{process_dir.parent / 'model.md.j2'} not found; model pages are "
-            "rendered from one of these templates"
+            f"{template_path} not found; model pages are rendered from model.md.j2"
         )
 
     model = process_dir.name

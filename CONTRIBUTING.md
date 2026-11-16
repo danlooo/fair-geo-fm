@@ -37,14 +37,12 @@ Conventions for the models and runtimes in this repository.
     the docs build renders the model cards and page sections from it.
 - All models share one documentation page template,
   `models/model.md.j2`, rendered by `scripts/prepare-docs.mjs` to each model's
-  `index.md` for the version being published. Released refs predating the
-  shared template keep their own `README.md.j2` (or a rendered `README.md`)
-  inside the model directory, which takes precedence.
+  `index.md` for the version being published.
 - The catalogue page `models/index.md.j2` is a Jinja2 template.
   `scripts/prepare-docs.mjs` exposes a `models` list at docs-build time, one
   entry per model directory with a `config.json`, with `slug`, `name`,
-  `description` and `tags` taken from that file (falling back to the directory
-  name when there is none). The page renders one card per entry with
+  `description` and `tags` taken from that file. The page renders one card per
+  entry with
   <code v-pre>{% for model in models %} ... {% endfor %}</code>. Add a model by
   adding its version directory with a `config.json`, a `process_graph.json.j2`
   and a `udf.py`; do not list it by hand.
@@ -265,10 +263,7 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   that version's DOI; a branch page (`main`) has no DOI, so it carries no release
   header at all. The docs build resolves the version records and DOIs from the
   concept record through the Zenodo API and falls back to the staging base and
-  the concept DOI if that lookup fails. Released refs that predate the header in
-  their model template get the same line inserted by `scripts/prepare-docs.mjs`, so no
-  published release page is missing it. The same backfill repoints a legacy
-  hardcoded staging graph URL at the tag's version record.
+  the concept DOI if that lookup fails.
 - `publish-release` dispatches `publish` after the Zenodo record is published,
   so the tag page is rebuilt against the new version record/DOI instead of the
   staging URLs from the deployment that ran when the tag was pushed. A
