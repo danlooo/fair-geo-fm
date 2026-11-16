@@ -193,7 +193,11 @@ InvenioRDM API, reserves the version DOI first, renders every process graph
 against the version's file URL, uploads the graphs, the runtime archives and a
 source archive of the released commit, and publishes the version last. Every
 release therefore adds a version to the same root record; the concept DOI
-always resolves to the latest version. Each
+always resolves to the latest version. If Zenodo reports that concept record as
+deleted (HTTP 410), the script starts a new root record and reports its concept
+DOI; update `CONCEPT_DOI` in `scripts/process_graphs.py`, `DOCS_ZENODO_CONCEPT_ID`
+in `scripts/prepare-docs.mjs`, the **`ZENODO_CONCEPT_DOI`** repository variable
+and the DOI badge in `README.md` to it. Each
 model contributes its rendered `process_graph.json` and `README.md`; the UDF is
 embedded in the graph, and `udf.py` / `example.py` / `config.json` stay in the
 source archive. The README's code samples link to the record's own graph while
