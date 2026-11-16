@@ -68,7 +68,8 @@ function newestTag() {
 }
 
 // Before the first release the default branch is the current version.
-const currentVersion = process.env.DOCS_CURRENT_VERSION || newestTag() || "main";
+const currentVersion =
+  process.env.DOCS_CURRENT_VERSION || newestTag() || "main";
 const currentRef = process.env.DOCS_CURRENT_REF || "";
 
 // The VitePress config is a separate process, so hand it the chosen name.
@@ -150,7 +151,11 @@ function modelConfig(dir) {
   if (!existsSync(file)) return {};
   try {
     const config = JSON.parse(readFileSync(file, "utf8"));
-    if (config === null || typeof config !== "object" || Array.isArray(config)) {
+    if (
+      config === null ||
+      typeof config !== "object" ||
+      Array.isArray(config)
+    ) {
       throw new Error("expected a JSON object");
     }
     return config;
@@ -168,7 +173,10 @@ const HTML_ESCAPES = {
 };
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => HTML_ESCAPES[character]);
+  return String(value).replace(
+    /[&<>"']/g,
+    (character) => HTML_ESCAPES[character],
+  );
 }
 
 // The card grid for models/index.md.j2. A model directory with a documentation
@@ -203,17 +211,20 @@ function renderModelCards(root) {
       : [];
 
     const card = [
+      `<a class="model-card-link" href="./${entry.name}/">`,
       '<div class="model-card">',
-      `<h3 class="model-card-title"><a href="./${entry.name}/">${escapeHtml(name)}</a></h3>`,
+      `<h3 class="model-card-title">${escapeHtml(name)}</h3>`,
     ];
     if (tags.length > 0) {
       card.push(
         `<p class="model-card-badges">${tags
-          .map((tag) => `<Badge text="${escapeHtml(tag.trim())}" type="info" />`)
+          .map(
+            (tag) => `<Badge text="${escapeHtml(tag.trim())}" type="info" />`,
+          )
           .join(" ")}</p>`,
       );
     }
-    card.push("</div>");
+    card.push("</div>", "</a>");
     cards.push(card.join("\n"));
   }
 
@@ -372,8 +383,7 @@ function writeUnversionedRedirects() {
 // Released tags are archived on Zenodo as versions of one concept record.
 // Kept in sync with CONCEPT_DOI in scripts/process_graphs.py and
 // DEFAULT_CONCEPT_DOI in scripts/publish-release.py.
-const zenodoConceptId =
-  process.env.DOCS_ZENODO_CONCEPT_ID || "24193626";
+const zenodoConceptId = process.env.DOCS_ZENODO_CONCEPT_ID || "24193626";
 const zenodoConceptDoi =
   process.env.DOCS_ZENODO_CONCEPT_DOI || `10.5281/zenodo.${zenodoConceptId}`;
 const zenodoApiUrl = (
@@ -474,8 +484,11 @@ function rewriteLegacyModelGraphUrl(text, version, model) {
 // A preview ref (main) has no DOI, so it gets no header, like the template's
 // `{% if doi %}` gate.
 function ensureReleaseHeader(text, version, model) {
-  const { release_version: releaseVersion, release_url: releaseUrl, doi } =
-    modelTemplateValues(version, model);
+  const {
+    release_version: releaseVersion,
+    release_url: releaseUrl,
+    doi,
+  } = modelTemplateValues(version, model);
   // Only a release has a DOI. Do not advertise the newest release as the
   // header of a preview page (main), matching README.md.j2's `{% if doi %}`.
   if (!doi) return text;
@@ -600,10 +613,7 @@ function sitePages(root, version) {
         .map((name) => join(source, entry.name, name))
         .find((file) => existsSync(join(root, file)));
       if (readme) {
-        pages.set(
-          join("models", entry.name, "index.md"),
-          join(root, readme),
-        );
+        pages.set(join("models", entry.name, "index.md"), join(root, readme));
       }
     }
   }
@@ -696,7 +706,9 @@ function writeWorkingTreePreview() {
   if (currentVersion === "main") return;
   writeTree(sitePages(repoRoot, "main"), join(archiveDir, "main"), "main");
   writeTree(siteAssets(repoRoot), join(publicDir, "main"), "main");
-  console.log("prepare-docs: wrote the working tree to /main for local preview");
+  console.log(
+    "prepare-docs: wrote the working tree to /main for local preview",
+  );
 }
 
 // Returns false when ref has no documentation site, so the caller falls back to
@@ -730,7 +742,9 @@ if (fromRef) {
   );
 } else {
   writeCurrentVersion(repoRoot);
-  console.log(`prepare-docs: wrote ${currentVersion} to docs/src and docs/public`);
+  console.log(
+    `prepare-docs: wrote ${currentVersion} to docs/src and docs/public`,
+  );
 }
 
 writeUnversionedRedirects();
@@ -752,7 +766,9 @@ mkdirSync(archiveDir, { recursive: true });
 for (const { name, ref } of refsToArchive()) {
   const version = versionName(name);
   if (!version || used.has(version)) {
-    warn(`skipping ${name}: version name ${version || "(empty)"} is already used`);
+    warn(
+      `skipping ${name}: version name ${version || "(empty)"} is already used`,
+    );
     continue;
   }
 

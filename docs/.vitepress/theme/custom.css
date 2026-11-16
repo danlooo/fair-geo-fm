@@ -110,27 +110,24 @@
   box-shadow: var(--vp-shadow-2);
 }
 
+/* The whole card is the link, so no stretched title link is needed. */
+.vp-doc .model-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.vp-doc .model-card-link .model-card {
+  height: 100%;
+}
+
 .vp-doc .model-card-title {
   margin: 0;
   font-size: 1.1rem;
   line-height: 1.4;
 }
 
-.vp-doc .model-card-title a {
-  color: var(--vp-c-text-1);
-  text-decoration: none;
-}
-
-/* Stretch the title link over the whole card, so clicking anywhere on the
-   card opens the model page. */
-.vp-doc .model-card-title a::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 12px;
-}
-
-.vp-doc .model-card-title a:hover {
+.vp-doc .model-card-link:hover .model-card-title {
   color: var(--vp-c-brand-1);
 }
 
