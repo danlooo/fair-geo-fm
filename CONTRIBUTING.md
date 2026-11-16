@@ -37,12 +37,14 @@ Conventions for the models and runtimes in this repository.
   - `README.md.j2` — the model's documentation page as a Jinja2 template,
     maintained by hand; `scripts/prepare-docs.mjs` renders it to the page's
     `index.md` for the version being published
-- The catalogue page `models/index.md.j2` is a template whose
-  <code v-pre>{{ model_cards }}</code> is filled by `scripts/prepare-docs.mjs` at docs-build
-  time: one card per model directory that has a `README.md.j2`, using the `name`
-  and `tags` of that directory's `config.json` (falling back to the directory
-  name when there is none). Add a model by adding its version directory with a
-  `README.md.j2` and a `config.json`; do not list it by hand.
+- The catalogue page `models/index.md.j2` is a Jinja2 template.
+  `scripts/prepare-docs.mjs` exposes a `models` list at docs-build time, one
+  entry per model directory that has a `README.md.j2`, with `slug`, `name` and
+  `tags` taken from that directory's `config.json` (falling back to the
+  directory name when there is none). The page renders one card per entry with
+  <code v-pre>{% for model in models %} ... {% endfor %}</code>. Add a model by
+  adding its version directory with a `README.md.j2` and a `config.json`; do not
+  list it by hand.
 - Inline the UDF in `process_graph.json` so one URL resolves the whole process.
   The template receives it as <code v-pre>{{ udf_json }}</code>, which the build script fills
   from `udf.py`; do not paste the UDF into the template.

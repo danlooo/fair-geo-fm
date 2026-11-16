@@ -143,9 +143,9 @@ function modelSourceDir(root) {
 }
 
 // Model pages are rendered from their README.md.j2 with the release values of
-// the version being published. The models index instead renders a card grid
-// from each model directory's config.json, the single source of truth for the
-// model's display name, runtime and badge tags.
+// the version being published. The models index template iterates a `models`
+// list built from each model directory's config.json, the single source of
+// truth for the model's display name, runtime and badge tags.
 function modelConfig(dir) {
   const file = join(dir, "config.json");
   if (!existsSync(file)) return {};
@@ -179,18 +179,18 @@ function escapeHtml(value) {
   );
 }
 
-// The card grid for models/index.md.j2. A model directory with a documentation
-// page is a published model; without config.json it falls back to its directory
-// name so an unfinished model does not disappear from the catalogue. The detail
-// link is relative to the models index, so the cards resolve on every version
-// (including the main branch). Cards deliberately omit the DOI: it identifies
-// the release, not the individual model, so it belongs on the model page header
-// rather than repeated on every card.
-function renderModelCards(root) {
+// The `models` list models/index.md.j2 iterates over. A model directory with a
+// documentation page is a published model; without config.json it falls back to
+// its directory name so an unfinished model does not disappear from the
+// catalogue. Values are HTML-escaped because the template interpolates them
+// into markup. Cards deliberately omit the DOI: it identifies the release, not
+// the individual model, so it belongs on the model page header rather than
+// repeated on every card.
+function modelCards(root) {
   const modelsDir = join(root, modelSourceDir(root));
-  if (!existsSync(modelsDir)) return "";
+  if (!existsSync(modelsDir)) return [];
 
-  const cards = [];
+  const models = [];
 
   for (const entry of readdirSync(modelsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -207,35 +207,52 @@ function renderModelCards(root) {
         ? config.name.trim()
         : entry.name;
     const tags = Array.isArray(config.tags)
-      ? config.tags.filter((tag) => typeof tag === "string" && tag.trim())
+      ? config.tags
+          .filter((tag) => typeof tag === "string" && tag.trim())
+          .map((tag) => escapeHtml(tag.trim()))
       : [];
 
-    const card = [
-      `<a class="model-card-link" href="./${entry.name}/">`,
+    models.push({ slug: entry.name, name: escapeHtml(name), tags });
+  }
+
+  return models;
+}
+
+// Refs published before the index became a Jinja2 template carry a literal
+// {{ model_cards }} placeholder instead of a loop. Render the same grid for
+// them so archived versions keep building.
+function renderLegacyModelCards(models) {
+  if (models.length === 0) return "";
+  const cards = models.map((model) => {
+    const lines = [
+      `<a class="model-card-link" href="./${model.slug}/">`,
       '<div class="model-card">',
-      `<h3 class="model-card-title">${escapeHtml(name)}</h3>`,
+      `<h3 class="model-card-title">${model.name}</h3>`,
     ];
-    if (tags.length > 0) {
-      card.push(
-        `<p class="model-card-badges">${tags
-          .map(
-            (tag) => `<Badge text="${escapeHtml(tag.trim())}" type="info" />`,
-          )
+    if (model.tags.length > 0) {
+      lines.push(
+        `<p class="model-card-badges">${model.tags
+          .map((tag) => `<Badge text="${tag}" type="info" />`)
           .join(" ")}</p>`,
       );
     }
-    card.push("</div>", "</a>");
-    cards.push(card.join("\n"));
-  }
-
-  if (cards.length === 0) return "";
+    lines.push("</div>", "</a>");
+    return lines.join("\n");
+  });
   return `<div class="model-grid">\n${cards.join("\n")}\n</div>`;
 }
 
 function renderModelsIndex(text, source) {
   // <root>/models/index.md.j2 -> <root>
   const root = dirname(dirname(source));
-  return text.replace(/\{\{\s*model_cards\s*\}\}/g, renderModelCards(root));
+  const models = modelCards(root);
+  if (/\{\{\s*model_cards\s*\}\}/.test(text)) {
+    return text.replace(
+      /\{\{\s*model_cards\s*\}\}/g,
+      renderLegacyModelCards(models),
+    );
+  }
+  return renderTemplate(text, { models }, source);
 }
 
 // Non-markdown, non-template files in each model directory
@@ -530,7 +547,10 @@ function renderModelTemplate(text, version, model, source) {
     // config.name and config.tags from it instead of duplicating them.
     config: modelConfig(dirname(source)),
   };
+  return renderTemplate(text, values, source);
+}
 
+function renderTemplate(text, values, source) {
   const render = (template, scope) => {
     // Loops that occupy their own lines own those lines. The body is rendered
     // recursively, so nested blocks and the loop variable resolve in scope.

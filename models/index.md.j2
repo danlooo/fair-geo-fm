@@ -1,3 +1,14 @@
 # Models
 
-{{ model_cards }}
+<div class="model-grid">
+    {% for model in models %}
+        <a class="model-card-link" href="./{{ model.slug }}/">
+        <div class="model-card">
+        <h3 class="model-card-title">{{ model.name }}</h3>
+        {% if model.tags %}
+            <p class="model-card-badges">{% for tag in model.tags %}<Badge text="{{ tag }}" type="info" /> {% endfor %}</p>
+        {% endif %}
+        </div>
+        </a>
+    {% endfor %}
+</div>
