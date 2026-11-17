@@ -38,14 +38,8 @@
       "namespace": "{{ process_graph_url }}",
       "description": "Documentation: {{ docs_url }}",
       "arguments": {
-        "spatial_extent": {
-          "west": 11.55,
-          "south": 50.88,
-          "east": 11.65,
-          "north": 50.96
-        },
-        "temporal_extent": ["2025-01-01", "2026-01-01"]
-      }
+{% for parameter in required_parameters %}        "{{ parameter.name }}": {{ parameter.example_json }}{% if not loop.last %},{% endif %}
+{% endfor %}      }
     },
     "save1": {
       "process_id": "save_result",
@@ -70,9 +64,8 @@ connection.authenticate_oidc()
 embeddings = connection.datacube_from_process(
     "{{ model }}_embeddings",
     namespace="{{ process_graph_url }}",
-    spatial_extent={"west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96},
-    temporal_extent=["2025-01-01", "2026-01-01"],
-)
+{% for parameter in required_parameters %}    {{ parameter.name }}={{ parameter.example_python }},
+{% endfor %})
 
 job = embeddings.create_job(out_format="NETCDF")
 job.start_and_wait()
@@ -99,13 +92,8 @@ definition$parameters <- NULL
 graph <- parse_graph(
   definition,
   parameters = list(
-    spatial_extent = list(west = 11.55, south = 50.88, east = 11.65, north = 50.96),
-    temporal_extent = list("2025-01-01", "2026-01-01"),
-    s2_collection_id = "SENTINEL2_L2A",
-    s1_collection_id = "SENTINEL1_GRD",
-    s2_bands = list("B04", "B02", "B03", "B08", "B8A", "B05", "B06", "B07", "B11", "B12", "SCL"),
-    s1_bands = list("VV", "VH")
-  )
+{% for parameter in required_parameters %}    {{ parameter.name }} = {{ parameter.example_r }}{% if not loop.last %},{% endif %}
+{% endfor %}  )
 )
 
 compute_result(

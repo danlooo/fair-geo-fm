@@ -11,13 +11,20 @@
             "name": "spatial_extent",
             "required": true,
             "default": "—",
-            "description": "Area to compute embeddings for (WGS84 bounding box)."
+            "description": "Area to compute embeddings for (WGS84 bounding box).",
+            "example": {
+                "west": 11.55,
+                "south": 50.88,
+                "east": 11.65,
+                "north": 50.96
+            }
         },
         {
             "name": "temporal_extent",
             "required": true,
             "default": "—",
-            "description": "Period to compute embeddings for, e.g. one calendar year."
+            "description": "Period to compute embeddings for, e.g. one calendar year.",
+            "example": ["2025-01-01", "2026-01-01"]
         },
         {
             "name": "s2_collection_id",

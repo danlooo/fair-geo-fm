@@ -606,13 +606,88 @@ function templateValue(values, path, source) {
   return current;
 }
 
+// Render a parameter example, stored once as plain JSON in config.json, as a
+// literal for each usage language. JSON object/array syntax is also valid
+// Python; R needs its own list(...) form, hence the derivation. Mirrors
+// example_literals in scripts/process_graphs.py.
+function exampleJson(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(exampleJson).join(", ")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.entries(value)
+      .map(([key, item]) => `${JSON.stringify(key)}: ${exampleJson(item)}`)
+      .join(", ")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function examplePython(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(examplePython).join(", ")}]`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `{${Object.entries(value)
+      .map(([key, item]) => `${JSON.stringify(key)}: ${examplePython(item)}`)
+      .join(", ")}}`;
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "True" : "False";
+  if (value === null) return "None";
+  return String(value);
+}
+
+function exampleR(value) {
+  if (Array.isArray(value)) {
+    return `list(${value.map(exampleR).join(", ")})`;
+  }
+  if (value !== null && typeof value === "object") {
+    return `list(${Object.entries(value)
+      .map(([key, item]) => `${rName(key)} = ${exampleR(item)}`)
+      .join(", ")})`;
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  if (value === null) return "NULL";
+  return String(value);
+}
+
+function rName(key) {
+  return /^[A-Za-z.][A-Za-z0-9._]*$/.test(key) ? key : `\`${key}\``;
+}
+
 function renderModelTemplate(text, version, model, source, config, stac) {
   // config.json is the model's single source of truth; the page reads e.g.
   // config.name, config.description, config.parameters and config.links from
   // it instead of duplicating them. stac.json names the generated Item so the
   // page links the same file build-stac.py writes.
   const itemId = typeof stac?.id === "string" && stac.id ? stac.id : model;
-  const values = { ...modelTemplateValues(version, model, itemId), config };
+  // The usage examples show the required parameters only, filled with the
+  // example value from config.json, so the page stays in sync with the
+  // parameter table instead of hardcoding a model's arguments.
+  const requiredParameters = (Array.isArray(config?.parameters)
+    ? config.parameters
+    : []
+  )
+    .filter((parameter) => parameter?.required)
+    .map((parameter) => {
+      if (parameter.example === undefined) {
+        throw new Error(
+          `prepare-docs: ${source}: required parameter ${parameter.name} has no example`,
+        );
+      }
+      return {
+        ...parameter,
+        example_json: exampleJson(parameter.example),
+        example_python: examplePython(parameter.example),
+        example_r: exampleR(parameter.example),
+      };
+    });
+  const values = {
+    ...modelTemplateValues(version, model, itemId),
+    config,
+    required_parameters: requiredParameters,
+  };
   return renderTemplate(text, values, source);
 }
 
@@ -628,7 +703,20 @@ function renderTemplate(text, values, source) {
         );
       }
       return items
-        .map((entry) => render(body, { ...scope, [item]: entry }))
+        .map((entry, index) =>
+          render(body, {
+            ...scope,
+            [item]: entry,
+            // Jinja's loop object, so templates can separate items.
+            loop: {
+              index: index + 1,
+              index0: index,
+              first: index === 0,
+              last: index === items.length - 1,
+              length: items.length,
+            },
+          }),
+        )
         .join("");
     };
     template = template.replace(

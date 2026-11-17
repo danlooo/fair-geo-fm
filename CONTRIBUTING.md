@@ -33,7 +33,10 @@ Conventions for the models and runtimes in this repository.
     `description`, `runtime` and badge `tags`, plus the `parameters` table,
     `publication` (citation and abstract) and `links` list of its page. The
     build reads the runtime from it, both templates receive it as `config`, and
-    the docs build renders the model cards and page sections from it.
+    the docs build renders the model cards and page sections from it. Required
+    parameters also carry an `example` value (plain JSON); the usage examples
+    render one argument per required parameter, formatting that value as a
+    JSON, Python and R literal, and ignore optional parameters.
   - `stac.json` — the model's STAC Item metadata, read by
     `scripts/build-stac.py`: the MLM fields that cannot be derived from
     `config.json` or the process graph. See [STAC metadata](#stac-metadata).

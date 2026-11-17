@@ -45,6 +45,7 @@ This module is imported by ``build-process-graph.py`` and
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -95,6 +96,64 @@ def model_config(process_dir: Path) -> dict:
     return config
 
 
+_R_IDENTIFIER = re.compile(r"^[A-Za-z.][A-Za-z0-9._]*$")
+
+
+def example_literals(value: object) -> dict[str, str]:
+    """Render one JSON example value as a literal for every usage language.
+
+    ``config.json`` stores a parameter's example once, as plain JSON, so the
+    documentation template can show the same value in the Web editor (JSON),
+    Python and R snippets. JSON object/array syntax is also valid Python; R
+    needs its own ``list(...)`` form, hence the derivation.
+    """
+    return {
+        "example_json": json.dumps(
+            value, ensure_ascii=False, separators=(", ", ": ")
+        ),
+        "example_python": _python_literal(value),
+        "example_r": _r_literal(value),
+    }
+
+
+def _python_literal(value: object) -> str:
+    if isinstance(value, dict):
+        return "{" + ", ".join(
+            f"{_python_literal(key)}: {_python_literal(item)}"
+            for key, item in value.items()
+        ) + "}"
+    if isinstance(value, list):
+        return "[" + ", ".join(_python_literal(item) for item in value) + "]"
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    if value is None:
+        return "None"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    return repr(value)
+
+
+def _r_literal(value: object) -> str:
+    if isinstance(value, dict):
+        return "list(" + ", ".join(
+            f"{_r_name(key)} = {_r_literal(item)}"
+            for key, item in value.items()
+        ) + ")"
+    if isinstance(value, list):
+        return "list(" + ", ".join(_r_literal(item) for item in value) + ")"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if value is None:
+        return "NULL"
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    return repr(value)
+
+
+def _r_name(key: str) -> str:
+    return key if _R_IDENTIFIER.match(key) else f"`{key}`"
+
+
 def runtime_name(process_dir: Path) -> str:
     """The single runtime named by ``config.json``, or ``""`` when absent."""
     runtime = model_config(process_dir).get("runtime")
@@ -138,8 +197,16 @@ def validate_model_config(process_dir: Path) -> list[str]:
                 value = parameter.get(key)
                 if not isinstance(value, str) or not value.strip():
                     problems.append(f"{where}.{key} must be a non-empty string")
-            if not isinstance(parameter.get("required"), bool):
+            required = parameter.get("required")
+            if not isinstance(required, bool):
                 problems.append(f"{where}.required must be a boolean")
+            # The usage examples render one argument per required parameter
+            # from this value, so a required parameter without one cannot be
+            # documented.
+            if required and "example" not in parameter:
+                problems.append(
+                    f"{where}.example is required for a required parameter"
+                )
 
     publication = config.get("publication")
     if not isinstance(publication, dict):
@@ -399,6 +466,7 @@ def render_readme(
         autoescape=False,
         undefined=jinja2.StrictUndefined,
     )
+    config = model_config(process_dir)
     text = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(
@@ -406,7 +474,15 @@ def render_readme(
         # The parsed config.json is the model's single source of truth; the
         # page title, description, badge tags, input parameters, publication
         # and links come from it rather than being duplicated in the template.
-        config=model_config(process_dir),
+        config=config,
+        # The usage examples show the required parameters only, filled with
+        # the per-language example literals from config.json, so the page
+        # stays in sync with the parameter table.
+        required_parameters=[
+            {**parameter, **example_literals(parameter.get("example"))}
+            for parameter in config.get("parameters", [])
+            if parameter.get("required")
+        ],
         model=model,
         release=release,
         # A README served from Zenodo has no Vue components; the site renderer
