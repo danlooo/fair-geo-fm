@@ -1,4 +1,4 @@
-# fair-geo-fm
+# <img style="height:14rem" align="right" src="docs/.vitepress/theme/logo.svg"/> fair-geo-fm
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24275707.svg)](https://doi.org/10.5281/zenodo.24275707)
 [![docs stable](https://img.shields.io/badge/docs-stable-brightgreen)](https://danlooo.github.io/fair-geo-fm/)

@@ -61,14 +61,51 @@ function editLinkFor(page) {
   return `https://github.com/danlooo/fair-geo-fm/edit/main/${source}`;
 }
 
+const base = "/fair-geo-fm/";
+
+// Rewrite origin-root icon probes to the same files under `base`. Hooks into
+// both dev and preview servers; the static build does not need it.
+function rewriteRootIcons(server) {
+  server.middlewares.use((req, _res, next) => {
+    const path = (req.url || "").split("?")[0];
+    if (path === "/favicon.ico" || path === "/favicon.svg") {
+      req.url = `${base}${path.slice(1)}`;
+    }
+    next();
+  });
+}
+
 export default defineVersionedConfig({
-  base: "/fair-geo-fm/",
+  base,
+  head: [
+    // Icon set written from the theme sources by scripts/prepare-docs.mjs.
+    // The SVG is preferred; the ICO is the fallback browsers request by
+    // convention, and the PNG is used when iOS saves the site to the home
+    // screen.
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}favicon.svg` }],
+    ["link", { rel: "icon", sizes: "any", href: `${base}favicon.ico` }],
+    ["link", { rel: "apple-touch-icon", sizes: "180x180", href: `${base}apple-touch-icon.png` }],
+  ],
   // Direct .html URLs keep the version switcher working on a full page load;
   // clean URLs would make it link to /<version>/guide/index.
   cleanUrls: false,
   title: "fair-geo-fm",
   description: "Geospatial foundation models ready to use in openEO.",
   sitemap: { hostname: "https://danlooo.github.io" },
+
+  // The dev server's initial HTML has no icon link (VitePress adds it on the
+  // client), so browsers probe /favicon.ico at the origin root before the app
+  // loads. The site is served under `base`, so map those root requests onto
+  // the real files; otherwise dev logs a 404 for an icon the site does have.
+  vite: {
+    plugins: [
+      {
+        name: "fair-geo-fm-root-icon-fallback",
+        configureServer: rewriteRootIcons,
+        configurePreviewServer: rewriteRootIcons,
+      },
+    ],
+  },
 
   // `::: tabs` / `== Tab` blocks, rendered by docs/.vitepress/theme/.
   markdown: {
@@ -135,6 +172,9 @@ export default defineVersionedConfig({
   },
 
   themeConfig: {
+    // The mark is an isometric cube: a thick foundation-model slab with a thin
+    // custom-model layer on top. The same file works on both backgrounds.
+    logo: { light: "/logo.svg", dark: "/logo.svg", alt: "fair-geo-fm" },
     // Read by StacNavLink; version -> public base of the generated STAC tree.
     stacBases,
     nav: [

@@ -5,6 +5,9 @@ hero:
   name: fair-geo-fm
   text: FAIR geospatial foundation models
   tagline: Ready to use in openEO
+  image:
+    src: /logo.svg
+    alt: fair-geo-fm logo
   actions:
     - theme: brand
       text: Get started

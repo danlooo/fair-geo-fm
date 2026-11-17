@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="46 53 420 420" role="img" aria-labelledby="fgfm-title fgfm-desc">
+  <title id="fgfm-title">fair-geo-fm</title>
+  <desc id="fgfm-desc">An isometric cube in two shades of blue: a thick foundation-model slab and a thinner custom-model layer, separated by a narrow gap. A fully connected four-node graph sits on the top face, one node inset the same distance from each corner.</desc>
+  <defs>
+    <clipPath id="fgfm-cube"><path d="M 245.27 83.37 Q 256 78 266.73 83.37 L 415.27 157.63 Q 426 163 426 175 L 426 351 Q 426 363 415.27 368.37 L 266.73 442.63 Q 256 448 245.27 442.63 L 96.73 368.37 Q 86 363 86 351 L 86 175 Q 86 163 96.73 157.63 Z"/></clipPath>
+    <clipPath id="fgfm-top"><path d="M 256 78 L 426 163 L 256 248 L 86 163 Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#fgfm-cube)">
+    <path d="M 86 246.81 L 426 246.81 L 256 161.81 L 256 331.81 Z" fill="#1A6B8E"/>
+    <path d="M 86 246.81 L 256 331.81 L 256 448 L 86 363 Z" fill="#0B7AA8"/>
+    <path d="M 256 331.81 L 426 246.81 L 426 363 L 256 448 Z" fill="#05668D"/>
+    <path d="M 86 234.81 L 256 319.81 L 426 234.81 L 426 246.81 L 256 331.81 L 86 246.81 Z" fill="#A9CBD9"/>
+    <path d="M 86 163 L 256 248 L 256 319.81 L 86 234.81 Z" fill="#7FAAC0"/>
+    <path d="M 256 248 L 426 163 L 426 234.81 L 256 319.81 Z" fill="#56869F"/>
+    <path d="M 256 78 L 426 163 L 256 248 L 86 163 Z" fill="#C0D6DF"/>
+  </g>
+<g clip-path="url(#fgfm-top)">
+    <g fill="none" stroke="#05668D" stroke-width="2.6" stroke-linecap="round">
+      <line x1="256" y1="106.9" x2="368.2" y2="163"/>
+      <line x1="256" y1="106.9" x2="256" y2="219.1"/>
+      <line x1="256" y1="106.9" x2="143.8" y2="163"/>
+      <line x1="368.2" y1="163" x2="256" y2="219.1"/>
+      <line x1="368.2" y1="163" x2="143.8" y2="163"/>
+      <line x1="256" y1="219.1" x2="143.8" y2="163"/>
+    </g>
+    <g fill="#05668D">
+      <ellipse cx="256" cy="106.9" rx="10" ry="7"/>
+      <ellipse cx="368.2" cy="163" rx="10" ry="7"/>
+      <ellipse cx="256" cy="219.1" rx="10" ry="7"/>
+      <ellipse cx="143.8" cy="163" rx="10" ry="7"/>
+    </g>
+  </g>
+</svg>
