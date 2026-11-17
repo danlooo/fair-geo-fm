@@ -671,11 +671,11 @@ function renderModelTemplate(text, version, model, source, config, stac) {
   )
     .filter((parameter) => parameter?.required)
     .map((parameter) => {
-      if (parameter.example === undefined) {
-        throw new Error(
-          `prepare-docs: ${source}: required parameter ${parameter.name} has no example`,
-        );
-      }
+      // Archived refs may predate `example` (and use an older template that
+      // does not read it). Leave the derived fields absent there; a template
+      // that references them then fails on the unknown variable instead of
+      // this renderer rejecting an otherwise publishable tag.
+      if (!("example" in parameter)) return { ...parameter };
       return {
         ...parameter,
         example_json: exampleJson(parameter.example),
