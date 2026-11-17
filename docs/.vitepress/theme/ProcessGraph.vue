@@ -39,10 +39,15 @@
       >
         ×
       </button>
+      <!-- Bind as attributes (.attr). The wrapper web component syncs its props
+           from attributes when it connects; once the element is upgraded Vue
+           would set these as DOM properties instead, which the wrapper then
+           drops on connect, so the graph stays 0px high after client-side
+           navigation (e.g. a version switch). -->
       <openeo-model-builder
         ref="builder"
-        :id="id"
-        :height="expanded ? expandedHeight : height"
+        :id.attr="id"
+        :height.attr="expanded ? expandedHeight : height"
         explicit-zoom
       />
       <p v-if="error" class="process-graph-error">
