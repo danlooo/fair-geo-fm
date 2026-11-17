@@ -377,24 +377,6 @@ def file_url(api: str, record_id: str, key: str) -> str:
     return f"{record_files_url(api, record_id)}/{quoted}"
 
 
-CONTENT_TYPES = {
-    ".json": "application/json",
-    ".md": "text/markdown",
-    ".py": "text/x-python",
-    ".zip": "application/zip",
-}
-
-
-def content_type_for(key: str) -> str:
-    """Serve JSON, Markdown, Python and zip files with their real media type.
-
-    Zenodo stores the upload's content type. The STAC catalog in particular has
-    to be served as ``application/json`` for clients to parse it; the generic
-    octet-stream used for unknown files would make the catalog look binary.
-    """
-    return CONTENT_TYPES.get(Path(key).suffix.lower(), "application/octet-stream")
-
-
 def upload_files(
     session: requests.Session,
     api: str,
@@ -434,7 +416,10 @@ def upload_files(
                 "PUT",
                 content_url,
                 data=handle,
-                content_type=content_type_for(key),
+                # InvenioRDM rejects uploads that announce any other media
+                # type (415); the type a download is served with is derived
+                # from the file key's extension, not from this header.
+                content_type="application/octet-stream",
                 timeout=1800,
             )
         api_request(session, "POST", f"{files_url}/{quoted}/commit")
