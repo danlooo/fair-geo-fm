@@ -346,6 +346,89 @@ function writeStagingProcessGraphs() {
   }
 }
 
+// Model pages fetch process_graph.json relative to the page, but the graph is a
+// git-ignored build output, so a ref worktree never contains one and only the
+// default branch is rendered above. Serve the file next to every version,
+// otherwise a released tag's page requests a graph that was never published
+// (e.g. /v0.2/models/tessera_v2/process_graph.json -> 404). A release has its
+// own immutable graph in its Zenodo record, the same URL its usage examples
+// advertise; branches and unresolved releases fall back to the staging graph.
+async function writeVersionProcessGraphs() {
+  const versions = readdirSync(publicDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== "main")
+    .map((entry) => entry.name);
+
+  let downloaded = 0;
+  let copied = 0;
+  let missing = 0;
+
+  for (const version of versions) {
+    const versionModels = join(publicDir, version, "models");
+    if (!existsSync(versionModels)) continue;
+    for (const entry of readdirSync(versionModels, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const model = entry.name;
+      const dir = join(versionModels, model);
+      // Only models with a page: the copy carries its config.json next to the
+      // generated page's process_graph.json.
+      if (!existsSync(join(dir, "config.json"))) continue;
+      const target = join(dir, "process_graph.json");
+      if (existsSync(target)) continue;
+
+      const release = zenodoReleases.get(version);
+      if (release) {
+        try {
+          const url = `${release.filesBase}/models/${model}/process_graph.json`;
+          const response = await fetch(url, {
+            headers: {
+              "User-Agent":
+                "fair-geo-fm-docs/1.0 (+https://danlooo.github.io/fair-geo-fm/)",
+            },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const text = await response.text();
+          // A malformed download would only replace the 404 with a page that
+          // cannot render, so validate before writing.
+          JSON.parse(text);
+          writeFileSync(target, text);
+          downloaded += 1;
+          continue;
+        } catch (error) {
+          warn(
+            `${version}/${model}: could not download the release process graph ` +
+              `(${error.message}); using the staging graph`,
+          );
+        }
+      }
+
+      const staging = join(
+        publicDir,
+        "main",
+        "models",
+        model,
+        "process_graph.json",
+      );
+      if (existsSync(staging)) {
+        cpSync(staging, target);
+        copied += 1;
+      } else {
+        warn(
+          `${version}/${model}: no process graph available; its page will not ` +
+            "render one",
+        );
+        missing += 1;
+      }
+    }
+  }
+
+  console.log(
+    `prepare-docs: wrote ${downloaded} release and ${copied} staging process ` +
+      `graph(s) next to versioned model pages` +
+      (missing > 0 ? `; ${missing} missing` : ""),
+  );
+}
+
 // Model pages render their process graph with the openEO ModelBuilder web
 // component (@openeo/vue-components). It is shipped as a minified entry plus
 // lazily loaded chunks, which must keep their file names next to the entry, so
@@ -924,6 +1007,7 @@ writeUnversionedRedirects();
 if (!withArchives) {
   writeWorkingTreePreview();
   writeStagingProcessGraphs();
+  await writeVersionProcessGraphs();
   writeRuntimeAssets();
   writeStagingStac();
   writeVueComponents();
@@ -970,6 +1054,7 @@ console.log(`prepare-docs: archived ${archived} ref(s)`);
 
 // Last, so an archived `main` version written above does not replace them.
 writeStagingProcessGraphs();
+await writeVersionProcessGraphs();
 writeRuntimeAssets();
 writeStagingStac();
 writeVueComponents();

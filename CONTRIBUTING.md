@@ -227,7 +227,10 @@ hand. Components in `docs/.vitepress/theme/` are registered globally in
   copies out of `node_modules`. `config.mjs` marks every `openeo-*` tag as a
   custom element so Vue leaves it to the browser. The graph is fetched next to
   the page, not against the document base, because the site is served under a
-  base path and one folder per version. The toolbar opens the fetched
+  base path and one folder per version. A graph is a git-ignored build output,
+  so `prepare-docs.mjs` materializes `process_graph.json` next to every version:
+  the release's own copy from its Zenodo record for a tag, the staging `/main`
+  graph for branches and unresolved releases. The toolbar opens the fetched
   `process_graph.json` in a new tab and enlarges the same builder instance in a
   dialog instead of mounting a second one. ModelBuilder appends a Font Awesome
   CDN stylesheet to its shadow root; the component replaces it with the

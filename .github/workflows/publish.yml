@@ -186,16 +186,17 @@ jobs:
         # with @viteplus/versions.
         run: npm run build
 
-      - name: Verify staging process graphs
-        # Model pages link to the default branch's graph at this fixed path, so
-        # a missing or malformed build output must fail the deployment rather
-        # than publish a dead link.
+      - name: Verify process graphs
+        # Model pages fetch process_graph.json next to the page. The staging
+        # copy is rendered here; each archived version gets its release graph
+        # from Zenodo (or the staging copy), so a missing or malformed graph
+        # must fail the deployment rather than publish a dead link.
         run: |
           set -euo pipefail
           shopt -s nullglob
-          graphs=(docs/public/main/models/*/process_graph.json)
+          graphs=(docs/public/*/models/*/process_graph.json)
           if [ ${#graphs[@]} -eq 0 ]; then
-            echo "no staging process graphs prepared under docs/public/main/models" >&2
+            echo "no process graphs prepared under docs/public/<version>/models" >&2
             exit 1
           fi
           for graph in "${graphs[@]}"; do
