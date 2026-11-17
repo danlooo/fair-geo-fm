@@ -44,6 +44,7 @@ This module is imported by ``build-process-graph.py`` and
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import subprocess
@@ -154,6 +155,35 @@ def _r_name(key: str) -> str:
     return key if _R_IDENTIFIER.match(key) else f"`{key}`"
 
 
+def documented_parameters(config: dict) -> list[dict]:
+    """The openEO process parameters for the graph's top-level ``parameters``.
+
+    ``config.json`` keeps one ``example`` per parameter and the parameter's
+    openEO ``schema``; the graph ships the example the official way, as
+    ``schema.examples``, so clients and validators see it without reading the
+    site config. Examples are copied into a fresh schema, leaving ``config``
+    (which the graph also embeds under ``model``) untouched.
+    """
+    parameters = []
+    for parameter in config.get("parameters", []):
+        # Validation reports malformed entries; skip them here so rendering
+        # does not fail before the build can.
+        if not isinstance(parameter, dict):
+            continue
+        entry = {
+            "name": parameter.get("name", ""),
+            "description": parameter.get("description", ""),
+        }
+        if not parameter.get("required"):
+            entry["optional"] = True
+        schema = copy.deepcopy(parameter.get("schema") or {})
+        if "example" in parameter:
+            schema["examples"] = [copy.deepcopy(parameter["example"])]
+        entry["schema"] = schema
+        parameters.append(entry)
+    return parameters
+
+
 def runtime_name(process_dir: Path) -> str:
     """The single runtime named by ``config.json``, or ``""`` when absent."""
     runtime = model_config(process_dir).get("runtime")
@@ -197,6 +227,10 @@ def validate_model_config(process_dir: Path) -> list[str]:
                 value = parameter.get(key)
                 if not isinstance(value, str) or not value.strip():
                     problems.append(f"{where}.{key} must be a non-empty string")
+            # The graph declares every parameter in its official openEO
+            # ``parameters`` array from this JSON Schema.
+            if not isinstance(parameter.get("schema"), dict):
+                problems.append(f"{where}.schema must be an object")
             required = parameter.get("required")
             if not isinstance(required, bool):
                 problems.append(f"{where}.required must be a boolean")
@@ -356,6 +390,11 @@ def render(
         # process_graph.json is self-contained and does not read config.json.
         config=config,
         config_json=json.dumps(config, indent=2, ensure_ascii=False),
+        # Official openEO parameters, with each parameter's example moved into
+        # its schema as ``examples`` (the openEO/JSON Schema way to ship them).
+        parameters_json=json.dumps(
+            documented_parameters(config), ensure_ascii=False
+        ),
         runtime_url=archive_url,
         process_graph_url=graph_url,
         version=version,

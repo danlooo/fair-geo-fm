@@ -12,6 +12,10 @@
             "required": true,
             "default": "—",
             "description": "Area to compute embeddings for (WGS84 bounding box).",
+            "schema": {
+                "type": "object",
+                "subtype": "bounding-box"
+            },
             "example": {
                 "west": 11.55,
                 "south": 50.88,
@@ -24,37 +28,66 @@
             "required": true,
             "default": "—",
             "description": "Period to compute embeddings for, e.g. one calendar year.",
+            "schema": {
+                "type": "array",
+                "subtype": "temporal-interval"
+            },
             "example": ["2025-01-01", "2026-01-01"]
         },
         {
             "name": "s2_collection_id",
             "required": false,
             "default": "`SENTINEL2_L2A`",
-            "description": "Sentinel-2 L2A collection id."
+            "description": "Sentinel-2 L2A collection id.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
         },
         {
             "name": "s1_collection_id",
             "required": false,
             "default": "`SENTINEL1_GRD`",
-            "description": "Sentinel-1 GRD collection id."
+            "description": "Sentinel-1 GRD collection id.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
         },
         {
             "name": "s2_bands",
             "required": false,
             "default": "`B04`, `B02`, `B03`, `B08`, `B8A`, `B05`, `B06`, `B07`, `B11`, `B12`, `SCL`",
-            "description": "Sentinel-2 bands in TESSERA order: ten reflectance bands, then `SCL`."
+            "description": "Sentinel-2 bands in TESSERA order: ten reflectance bands, then `SCL`.",
+            "schema": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "subtype": "band-name"
+                }
+            }
         },
         {
             "name": "s1_bands",
             "required": false,
             "default": "`VV`, `VH`",
-            "description": "Sentinel-1 bands, renamed per orbit (`VV_ASC`, `VH_DESC`, …)."
+            "description": "Sentinel-1 bands, renamed per orbit (`VV_ASC`, `VH_DESC`, …).",
+            "schema": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "subtype": "band-name"
+                }
+            }
         },
         {
             "name": "weights_url",
             "required": false,
             "default": "`https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt`",
-            "description": "URL of the TESSERA v2 student checkpoint (`.pt`) to load. Defaults to the released `student_nano` weights."
+            "description": "URL of the TESSERA v2 student checkpoint (`.pt`) to load. Defaults to the released `student_nano` weights.",
+            "schema": {
+                "type": "string"
+            }
         }
     ],
     "publication": {
