@@ -61,6 +61,7 @@ import tempfile
 import urllib.parse
 from datetime import date
 from pathlib import Path
+from typing import Callable
 
 import requests
 
@@ -267,7 +268,12 @@ def stage_source_archive(version: str, staging: Path) -> tuple[str, Path]:
 
 
 def stage_files(
-    base_url: str, staging: Path, version: str, doi: str
+    base_url: str,
+    staging: Path,
+    version: str,
+    doi: str,
+    *,
+    stac_link_href: Callable[[str], str] | None = None,
 ) -> list[tuple[str, Path]]:
     """Render graphs and collect code/runtime/source/STAC files as (key, path).
 
@@ -275,6 +281,8 @@ def stage_files(
     tag and record page it belongs to (``version`` / ``zenodo_url``), so a
     stored job can be traced back to its citable record. The STAC catalog is
     built last, so its Items can point at every staged asset.
+    ``stac_link_href`` maps a catalog-relative path to the CORS-enabled API URL
+    its document is published at (see ``api_file_content_url``).
     """
     staged: list[tuple[str, Path]] = []
     rendered: dict[str, tuple[str, dict, str, str]] = {}
@@ -353,6 +361,7 @@ def stage_files(
         source_archive_key=source_key,
         zenodo_url=record_url,
         rendered=rendered,
+        link_href=stac_link_href,
     )
     for catalog_path in write_catalog(catalog, staging / "stac"):
         print(f"wrote {catalog_path.relative_to(staging)}")
@@ -375,6 +384,18 @@ def file_url(api: str, record_id: str, key: str) -> str:
     """Public URL for a file in the (draft) record."""
     quoted = urllib.parse.quote(key, safe="/")
     return f"{record_files_url(api, record_id)}/{quoted}"
+
+
+def api_file_content_url(api: str, record_id: str, key: str) -> str:
+    """CORS-enabled URL for a record file's content.
+
+    Zenodo's web route (``/records/<id>/files/...``) sends no
+    ``Access-Control-Allow-Origin`` header, while the API route sends ``*``.
+    Browser-based clients such as STAC Browser can therefore only follow the
+    API URL, so released STAC documents link there.
+    """
+    quoted = urllib.parse.quote(key, safe="/")
+    return f"{api}/records/{record_id}/files/{quoted}/content"
 
 
 def upload_files(
@@ -681,7 +702,15 @@ def main() -> None:
         base_url = record_files_url(api, record_id)
         staging = Path(tempfile.mkdtemp(prefix="zenodo-release-"))
         try:
-            staged = stage_files(base_url, staging, args.version, doi)
+            staged = stage_files(
+                base_url,
+                staging,
+                args.version,
+                doi,
+                stac_link_href=lambda path: api_file_content_url(
+                    api, record_id, f"stac/{path}"
+                ),
+            )
             upload_files(session, api, record_id, staged)
         finally:
             shutil.rmtree(staging, ignore_errors=True)

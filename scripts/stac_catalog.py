@@ -15,8 +15,11 @@ The generated tree is::
 
 Every asset URL is absolute and points at the publication target: the staging
 site for a branch render (``https://.../main``) or a Zenodo record's file base
-for a release (``https://zenodo.org/records/<id>/files``). The catalog itself
-uses relative links, so it can be served from either location unchanged.
+for a release (``https://zenodo.org/records/<id>/files``). By default the
+catalog's own links are relative, so it can be served from either location
+unchanged. A release passes ``link_href`` to make them absolute, because
+browser-based clients cannot fetch Zenodo's plain file route (no CORS header)
+and must follow the API's ``/content`` URLs instead.
 
 This module is imported by ``scripts/build-stac.py`` and
 ``scripts/publish-release.py``; it is not a standalone script.
@@ -26,7 +29,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+# Maps a document path relative to the STAC root (e.g.
+# ``collections/fair-geo-fm-models/items/tessera_v2.json``) to the absolute
+# URL it is published at. Callers use it when relative links cannot be fetched,
+# such as Zenodo releases browsed by STAC Browser (see ``publish-release.py``).
+LinkHref = Callable[[str], str]
 
 from process_graphs import model_config, render, validate_model_config
 
@@ -115,6 +124,11 @@ def _absolute(href: str) -> bool:
     return href.startswith(("http://", "https://"))
 
 
+def _stac_href(relative: str, path: str, link_href: LinkHref | None) -> str:
+    """Resolve a catalog-relative link, absolutely when the caller asks."""
+    return link_href(path) if link_href else relative
+
+
 def _item(
     process_dir: Path,
     *,
@@ -126,6 +140,7 @@ def _item(
     source_archive_key: str | None,
     zenodo_url: str | None,
     rendered: dict[str, tuple[str, dict, str, str]] | None,
+    link_href: LinkHref | None = None,
 ) -> tuple[dict, dict]:
     """Build one model Item, plus the metadata needed for Collection summaries."""
     model = process_dir.name
@@ -268,20 +283,22 @@ def _item(
             "roles": ["mlm:source_code", "code"],
         }
 
+    item_path = f"collections/{COLLECTION_ID}/items/{item_id}.json"
+    collection_path = f"collections/{COLLECTION_ID}/collection.json"
     links: list[dict[str, Any]] = [
         {
             "rel": "self",
-            "href": f"./{item_id}.json",
+            "href": _stac_href(f"./{item_id}.json", item_path, link_href),
             "type": "application/geo+json",
         },
         {
             "rel": "root",
-            "href": "../../../catalog.json",
+            "href": _stac_href("../../../catalog.json", "catalog.json", link_href),
             "type": "application/json",
         },
         {
             "rel": "collection",
-            "href": "../collection.json",
+            "href": _stac_href("../collection.json", collection_path, link_href),
             "type": "application/json",
         },
         {
@@ -339,8 +356,11 @@ def _item(
     return item, summary
 
 
-def _collection(items: list[dict], summaries: list[dict]) -> dict:
+def _collection(
+    items: list[dict], summaries: list[dict], link_href: LinkHref | None = None
+) -> dict:
     """The single models Collection, with asset templates and summaries."""
+    collection_path = f"collections/{COLLECTION_ID}/collection.json"
     tasks = sorted(
         {task for summary in summaries for task in summary.get("mlm:tasks", [])}
     )
@@ -386,18 +406,24 @@ def _collection(items: list[dict], summaries: list[dict]) -> dict:
         "links": [
             {
                 "rel": "self",
-                "href": "./collection.json",
+                "href": _stac_href(
+                    "./collection.json", collection_path, link_href
+                ),
                 "type": "application/json",
             },
             {
                 "rel": "root",
-                "href": "../../catalog.json",
+                "href": _stac_href("../../catalog.json", "catalog.json", link_href),
                 "type": "application/json",
             },
             *[
                 {
                     "rel": "item",
-                    "href": f"./items/{item['id']}.json",
+                    "href": _stac_href(
+                        f"./items/{item['id']}.json",
+                        f"collections/{COLLECTION_ID}/items/{item['id']}.json",
+                        link_href,
+                    ),
                     "type": "application/geo+json",
                     "title": item["properties"]["title"],
                 }
@@ -442,7 +468,8 @@ def _collection(items: list[dict], summaries: list[dict]) -> dict:
     return collection
 
 
-def _catalog() -> dict:
+def _catalog(link_href: LinkHref | None = None) -> dict:
+    collection_path = f"collections/{COLLECTION_ID}/collection.json"
     return {
         "type": "Catalog",
         "stac_version": STAC_VERSION,
@@ -452,17 +479,21 @@ def _catalog() -> dict:
         "links": [
             {
                 "rel": "self",
-                "href": "./catalog.json",
+                "href": _stac_href("./catalog.json", "catalog.json", link_href),
                 "type": "application/json",
             },
             {
                 "rel": "root",
-                "href": "./catalog.json",
+                "href": _stac_href("./catalog.json", "catalog.json", link_href),
                 "type": "application/json",
             },
             {
                 "rel": "child",
-                "href": f"./collections/{COLLECTION_ID}/collection.json",
+                "href": _stac_href(
+                    f"./collections/{COLLECTION_ID}/collection.json",
+                    collection_path,
+                    link_href,
+                ),
                 "type": "application/json",
                 "title": COLLECTION_TITLE,
             },
@@ -470,7 +501,9 @@ def _catalog() -> dict:
     }
 
 
-def validate(files: dict[str, dict]) -> list[str]:
+def validate(
+    files: dict[str, dict], link_href: LinkHref | None = None
+) -> list[str]:
     """Check the generated catalog for the errors that make it unusable.
 
     This is intentionally a structural check, not a full JSON Schema
@@ -601,7 +634,11 @@ def validate(files: dict[str, dict]) -> list[str]:
             if link.get("rel") == "item"
         }
         for item_id in items:
-            href = f"./items/{item_id}.json"
+            href = (
+                link_href(f"collections/{COLLECTION_ID}/items/{item_id}.json")
+                if link_href
+                else f"./items/{item_id}.json"
+            )
             if href not in item_links:
                 problems.append(
                     f"{collection_path}: missing item link {href}"
@@ -616,6 +653,23 @@ def validate(files: dict[str, dict]) -> list[str]:
     for required in ("catalog.json", collection_path):
         if required not in files:
             problems.append(f"missing {required}")
+
+    if link_href:
+        # A relative link resolves against the document URL, which for Zenodo
+        # is an API /content URL; it would point at a non-document endpoint.
+        for path, document in files.items():
+            for link in document.get("links", []):
+                if link.get("rel") in {
+                    "self",
+                    "root",
+                    "child",
+                    "collection",
+                    "item",
+                } and not _absolute(link.get("href", "")):
+                    problems.append(
+                        f"{path}: {link.get('rel')} link must be absolute when "
+                        f"link_href is used, got {link.get('href')!r}"
+                    )
     return problems
 
 
@@ -630,6 +684,7 @@ def build_catalog(
     source_archive_key: str | None = None,
     zenodo_url: str | None = None,
     rendered: dict[str, tuple[str, dict, str, str]] | None = None,
+    link_href: LinkHref | None = None,
 ) -> dict[str, dict]:
     """Return the catalog as ``{relative path: JSON document}``.
 
@@ -638,6 +693,12 @@ def build_catalog(
     on a release: the files live on Zenodo while the documentation stays on the
     versioned Pages site. ``rendered`` avoids rendering a graph twice when the
     caller already did it (``publish-release.py``).
+
+    ``link_href`` maps a catalog-relative document path to the absolute URL it
+    is published at. Without it the catalog uses relative links and can be
+    served from any directory. Zenodo needs it: its ``/records/<id>/files/...``
+    route sends no ``Access-Control-Allow-Origin`` header, so only the API's
+    ``/content`` URLs can be read by browser-based clients such as STAC Browser.
     """
     base_url = base_url.rstrip("/")
     docs_base_url = (docs_base_url or base_url).rstrip("/")
@@ -665,6 +726,7 @@ def build_catalog(
             source_archive_key=source_archive_key,
             zenodo_url=zenodo_url,
             rendered=rendered,
+            link_href=link_href,
         )
         items.append(item)
         summaries.append(summary)
@@ -672,13 +734,13 @@ def build_catalog(
     if problems:
         raise SystemExit("\n".join(problems))
 
-    files: dict[str, dict] = {"catalog.json": _catalog()}
+    files: dict[str, dict] = {"catalog.json": _catalog(link_href)}
     collection_path = f"collections/{COLLECTION_ID}/collection.json"
-    files[collection_path] = _collection(items, summaries)
+    files[collection_path] = _collection(items, summaries, link_href)
     for item in items:
         files[f"collections/{COLLECTION_ID}/items/{item['id']}.json"] = item
 
-    problems = validate(files)
+    problems = validate(files, link_href)
     if problems:
         raise SystemExit("\n".join(problems))
     return files

@@ -26,9 +26,9 @@ function resolveCurrentVersion() {
 
 const currentVersion = resolveCurrentVersion();
 
-// STAC files per version, written by prepare-docs.mjs: a released tag's
-// Zenodo record or the staging /main tree. The navbar component falls back to
-// main when a version is absent.
+// STAC catalog URLs per version, written by prepare-docs.mjs: a released tag's
+// CORS-enabled Zenodo API URL or the staging /main tree. The navbar component
+// falls back to main when a version is absent.
 function resolveStacBases() {
   try {
     return JSON.parse(

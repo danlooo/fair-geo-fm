@@ -234,25 +234,35 @@ function modelCards(root) {
   return models;
 }
 
-// Public base of the generated STAC tree for a documentation version: the
-// version's Zenodo files for a released tag, the staging /main tree otherwise.
-// Mirrors the process-graph base in modelTemplateValues.
-function stacBaseUrl(version) {
-  const base = zenodoReleases.get(version)?.filesBase ?? `${siteBaseUrl}/main`;
-  return base.replace(/\/+$/, "");
+// URL a browser-based STAC client can fetch for a document of the generated
+// STAC tree, addressed relative to its root. A released tag's documents live
+// in its Zenodo record: the plain file route there sends no
+// Access-Control-Allow-Origin header, so browser clients (STAC Browser) must
+// use the API's /content route instead. The staging tree is served by GitHub
+// Pages, which sends the header already.
+function stacDocumentUrl(version, relativePath) {
+  const release = zenodoReleases.get(version);
+  if (release?.apiFilesBase) {
+    return `${release.apiFilesBase}/stac/${relativePath}/content`;
+  }
+  return `${siteBaseUrl}/main/stac/${relativePath}`;
 }
 
 function renderModelsIndex(text, source, version) {
   // <root>/models/index.md.j2 -> <root>
   const root = dirname(dirname(source));
-  const base = stacBaseUrl(version);
   return renderTemplate(
     text,
     {
       models: modelCards(root),
-      stac_catalog_url: stacBrowserUrl(`${base}/stac/catalog.json`),
+      stac_catalog_url: stacBrowserUrl(
+        stacDocumentUrl(version, "catalog.json"),
+      ),
       stac_collection_url: stacBrowserUrl(
-        `${base}/stac/collections/fair-geo-fm-models/collection.json`,
+        stacDocumentUrl(
+          version,
+          "collections/fair-geo-fm-models/collection.json",
+        ),
       ),
     },
     source,
@@ -589,8 +599,9 @@ const zenodoApiUrl = (
 const zenodoSiteUrl = zenodoApiUrl.replace(/\/api$/, "");
 
 // Tag -> public file base of its Zenodo version, e.g.
-// v0.1.0 -> https://zenodo.org/records/24275708/files, plus that version's DOI
-// for the model page header. One unauthenticated request; a failure degrades to
+// v0.1.0 -> https://zenodo.org/records/24275708/files, plus the API file base
+// used for CORS-enabled STAC links and that version's DOI for the model page
+// header. One unauthenticated request; a failure degrades to
 // the staging /main base and the concept DOI instead of breaking the docs
 // build. ``all_versions=true`` is required: without it the search endpoint only
 // returns the latest version of the concept record.
@@ -618,6 +629,9 @@ async function fetchZenodoReleases() {
       if (typeof version === "string" && version) {
         releases.set(version, {
           filesBase: `${zenodoSiteUrl}/records/${hit.id}/files`,
+          // Same files, but the API route sends CORS headers, so browser-based
+          // readers can fetch STAC documents from it; see stacDocumentUrl.
+          apiFilesBase: `${zenodoApiUrl}/records/${hit.id}/files`,
           doi: typeof hit.doi === "string" ? hit.doi : "",
         });
       }
@@ -672,7 +686,10 @@ function modelTemplateValues(version, model, stacItemId = model) {
     stac_catalog_url: `${stacBase}/catalog.json`,
     stac_collection_url: `${stacBase}/collections/fair-geo-fm-models/collection.json`,
     stac_item_url: stacBrowserUrl(
-      `${stacBase}/collections/fair-geo-fm-models/items/${stacItemId}.json`,
+      stacDocumentUrl(
+        version,
+        `collections/fair-geo-fm-models/items/${stacItemId}.json`,
+      ),
     ),
     release_version: releaseVersion,
     release_url: `${siteBaseUrl}/${releaseVersion}/models/${model}/`,
@@ -986,11 +1003,15 @@ const zenodoReleases = await fetchZenodoReleases();
 
 // The navbar STAC link follows the version being viewed: a released tag opens
 // the catalog in its Zenodo record, while main and unresolved/archived refs use
-// the staging tree. VitePress reads this file from config.mjs; a missing file
-// makes the component fall back to main.
-const stacBases = { main: `${siteBaseUrl}/main` };
-for (const [version, release] of zenodoReleases) {
-  stacBases[version] = release.filesBase;
+// the staging tree. Values are the catalog URLs a browser can fetch, because
+// Zenodo's plain file route lacks the CORS header STAC Browser needs. VitePress
+// reads this file from config.mjs; a missing file makes the component fall back
+// to main.
+const stacBases = {
+  main: `${siteBaseUrl}/main/stac/catalog.json`,
+};
+for (const version of zenodoReleases.keys()) {
+  stacBases[version] = stacDocumentUrl(version, "catalog.json");
 }
 writeFileSync(
   join(docsRoot, ".vitepress", "stac-bases.json"),

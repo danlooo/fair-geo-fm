@@ -1,8 +1,9 @@
 <script setup>
 // Navbar link to the generated STAC catalog for the version being viewed.
 // Released tags open their catalog in the Zenodo record; main and unresolved
-// refs use the staging tree. stac-bases.json is written by prepare-docs.mjs;
-// a missing entry falls back to main.
+// refs use the staging tree. stac-bases.json is written by prepare-docs.mjs and
+// holds the catalog URL itself (Zenodo releases use the API's CORS-enabled
+// /content route); a missing entry falls back to main.
 import { computed, inject } from "vue";
 import { useData } from "vitepress";
 
@@ -15,15 +16,16 @@ const { page, theme } = useData();
 const closeScreen = inject("close-screen", () => {});
 
 const version = computed(() => page.value.relativePath.split("/")[0]);
-const base = computed(() => {
+const target = computed(() => {
   const bases = theme.value.stacBases || {};
-  const fallback = "https://danlooo.github.io/fair-geo-fm/main";
-  return (bases[version.value] || bases.main || fallback).replace(/\/+$/, "");
+  const fallback =
+    "https://danlooo.github.io/fair-geo-fm/main/stac/catalog.json";
+  return bases[version.value] || bases.main || fallback;
 });
-const href = computed(() => {
-  const target = `${base.value}/stac/catalog.json`;
-  return `https://browser.moregeo.it/external/${target.replace(/^https?:\/\//, "")}`;
-});
+const href = computed(
+  () =>
+    `https://browser.moregeo.it/external/${target.value.replace(/^https?:\/\//, "")}`,
+);
 </script>
 
 <template>

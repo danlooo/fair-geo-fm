@@ -89,8 +89,11 @@ Conventions for the models and runtimes in this repository.
   <code v-pre>{{ stac_collection_url }}</code> as raw JSON and
   <code v-pre>{{ stac_item_url }}</code> as the Item opened in the external STAC
   browser. Their base is the same publication target as the process graph (the
-  version's Zenodo record for a tag, the staging `/main` tree otherwise). The
-  Item id comes from `stac.json`. A tag
+  version's Zenodo record for a tag, the staging `/main` tree otherwise), but
+  the Item URL used by the browser points at Zenodo's CORS-enabled API route
+  (`/api/records/<record-id>/files/stac/.../content`) for a tag, because the
+  plain file route sends no `Access-Control-Allow-Origin` header. The Item id
+  comes from `stac.json`. A tag
   page advertises its own release, DOI and Item; a branch page (`main`) has no
   DOI, so the <code v-pre>{% if doi %}</code> gate omits the release header and the
   <code v-pre>{% if not doi %}</code> block shows the STAC item link instead.
@@ -162,13 +165,18 @@ The catalog is generated, never committed:
 
 `publish.yml` serves the staging catalog at `/main/stac/`. `publish-release.py`
 writes the same tree into the Zenodo record under `stac/`, with asset URLs
-pointing at the record's own files. The documentation site's navbar STAC link
-is version-aware: `prepare-docs.mjs` writes
-`docs/.vitepress/stac-bases.json`, mapping each version to its STAC base (the
-Zenodo record for a released tag, the staging `/main` tree otherwise), and
-`config.mjs` exposes it to `StacNavLink.vue`. Because the Item is generated per
-release, do not edit a generated Item to correct metadata; change `stac.json`
-instead.
+pointing at the record's own files. Its catalog links are absolute URLs on
+Zenodo's API route (`/api/records/<record-id>/files/stac/.../content`): the
+plain `/records/<record-id>/files/...` route sends no
+`Access-Control-Allow-Origin` header, so STAC Browser cannot fetch it from the
+documentation site. The staging catalog keeps relative links, since GitHub Pages
+serves them with CORS. The documentation site's navbar STAC link is
+version-aware: `prepare-docs.mjs` writes
+`docs/.vitepress/stac-bases.json`, mapping each version to the catalog URL a
+browser can fetch (the Zenodo API route for a released tag, the staging
+`/main/stac/catalog.json` otherwise), and `config.mjs` exposes it to
+`StacNavLink.vue`. Because the Item is generated per release, do not edit a
+generated Item to correct metadata; change `stac.json` instead.
 Items describe models, not embedding products: a frozen-embedding Collection
 belongs in a separate embedding catalog and links back to the model Item with
 `emb:encoder_model`.
@@ -239,8 +247,9 @@ hand. Components in `docs/.vitepress/theme/` are registered globally in
 - `StacNavLink.vue` is the navbar `STAC` entry. It opens the generated catalog
   of the version being viewed in the external STAC browser, reading
   `theme.stacBases` from `docs/.vitepress/stac-bases.json` (written by
-  `prepare-docs.mjs`) and falling back to `/main` for a version without an
-  entry.
+  `prepare-docs.mjs`) and falling back to the staging `/main/stac/catalog.json`
+  for a version without an entry. The values are complete catalog URLs,
+  because a Zenodo release must use the API's CORS-enabled `/content` route.
 - `VersionBanner.vue` renders the notice above the `h1` of every page that is
   not the current release: an outdated-version banner for an older `v*` tag and
   a preview banner for a branch. It links to the same page in the latest
@@ -332,6 +341,15 @@ under custom paths —
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
     https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
+
+Inside the uploaded catalog, STAC document links (`self`, `root`, `child`,
+`item`, `collection`) are absolute URLs on the API's `/content` route instead,
+
+    https://zenodo.org/api/records/<record-id>/files/stac/catalog.json/content
+
+because Zenodo's plain file route sends no `Access-Control-Allow-Origin`
+header and browser-based clients such as STAC Browser cannot read it. Asset
+URLs continue to use the plain record file route.
 
 The DOI (`https://doi.org/<doi>`) is the citable identifier of the record but
 does not serve individual files: `doi.org` treats any suffix as part of the DOI

@@ -484,6 +484,27 @@ def stac_browser_url(url: str) -> str:
     )
 
 
+ZENODO_FILES_URL = re.compile(
+    r"^(?P<site>https?://[^/]+)/records/(?P<id>[^/]+)/files/?$"
+)
+
+
+def stac_document_url(base_url: str, path: str) -> str:
+    """URL a browser-based reader can fetch for the STAC document ``path``.
+
+    On the staging site the document is an ordinary file below ``stac/``. On a
+    Zenodo record the plain file route sends no ``Access-Control-Allow-Origin``
+    header, so STAC Browser cannot read it; the API's ``/content`` route can.
+    """
+    base_url = base_url.rstrip("/")
+    if match := ZENODO_FILES_URL.match(base_url):
+        return (
+            f"{match['site']}/api/records/{match['id']}/files/stac/"
+            f"{path}/content"
+        )
+    return f"{base_url}/stac/{path}"
+
+
 def stac_item_id(process_dir: Path) -> str:
     """The STAC Item id for a model directory.
 
@@ -578,8 +599,13 @@ def render_readme(
         stac_collection_url=(
             f"{stac_base}/collections/fair-geo-fm-models/collection.json"
         ),
+        # The browser must fetch the Item from a CORS-enabled URL on Zenodo;
+        # the raw catalog/collection links above stay plain downloadable files.
         stac_item_url=stac_browser_url(
-            f"{stac_base}/collections/fair-geo-fm-models/items/{item_id}.json"
+            stac_document_url(
+                base_url,
+                f"collections/fair-geo-fm-models/items/{item_id}.json",
+            )
         ),
         # Only a release has a DOI; a preview build gets no release header.
         doi=CONCEPT_DOI if doi is None and release else (doi or ""),
