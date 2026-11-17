@@ -156,6 +156,43 @@ function waitFor(check, timeout = 15000) {
   });
 }
 
+// ModelBuilder's parameter viewer is handy in this read-only view, but it
+// renders the values with ObjectTree, which recurses forever on a process-graph
+// value (ProcessGraph objects from @openeo/js-processgraphs are circular) until
+// the call stack overflows; the viewer's Close button then does nothing because
+// Vue abandons the update. Give the viewer a plain copy of the values instead.
+function plainValues(value, stack = new Set()) {
+  if (value === null || typeof value !== "object") return value;
+  if (stack.has(value)) return "[circular]";
+  if (Array.isArray(value)) {
+    stack.add(value);
+    const copy = value.map((item) => plainValues(item, stack));
+    stack.delete(value);
+    return copy;
+  }
+  // toJSON() of a ProcessGraph is its plain process_graph object.
+  if (typeof value.toJSON === "function") {
+    return plainValues(value.toJSON(), stack);
+  }
+  stack.add(value);
+  const copy = {};
+  for (const key of Object.keys(value)) {
+    copy[key] = plainValues(value[key], stack);
+  }
+  stack.delete(value);
+  return copy;
+}
+
+function patchParameterViewer(element) {
+  const model = element.vueComponent;
+  if (!model || model.plainParameterValues) return;
+  model.plainParameterValues = true;
+  const show = model.showParameterViewer;
+  model.showParameterViewer = function (parameters, values, ...rest) {
+    return show.call(this, parameters, plainValues(values), ...rest);
+  };
+}
+
 async function mountGraph(element) {
   if (!element || !graphData) return;
   // Before mounting, so ModelBuilder finds a Font Awesome stylesheet already
@@ -167,6 +204,7 @@ async function mountGraph(element) {
   await waitFor(() => element.vueComponent?.allMounted);
   // The page can be left while the component is still loading.
   if (!element.isConnected) return;
+  patchParameterViewer(element);
   useLocalFontAwesome(element);
   element.value = graphData;
 }
