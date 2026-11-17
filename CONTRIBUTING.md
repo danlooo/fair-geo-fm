@@ -35,11 +35,14 @@ Conventions for the models and runtimes in this repository.
     build reads the runtime from it, both templates receive it as `config`, and
     the docs build renders the model cards and page sections from it. Each
     parameter also carries an openEO `schema`; required parameters carry an
-    `example` value (plain JSON) too. The usage examples render one argument
-    per required parameter, formatting that value as a JSON, Python and R
-    literal, and ignore optional parameters. `process_graph.json` declares all
-    parameters in a top-level openEO `parameters` array, with each example
-    copied into its `schema.examples`.
+    `example` value (plain JSON), optional ones a `default_value`. The usage
+    examples render one argument per required parameter, formatting that
+    value as a JSON, Python and R literal, and ignore optional parameters.
+    `process_graph.json` declares all parameters in a top-level openEO
+    `parameters` array, with each example copied into its `schema.examples`
+    and each `default_value` published as the parameter default. Every
+    declared parameter must be referenced from the process nodes with
+    `from_parameter`; the build rejects unused ones.
   - `stac.json` — the model's STAC Item metadata, read by
     `scripts/build-stac.py`: the MLM fields that cannot be derived from
     `config.json` or the process graph. See [STAC metadata](#stac-metadata).

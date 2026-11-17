@@ -38,6 +38,7 @@
             "name": "s2_collection_id",
             "required": false,
             "default": "`SENTINEL2_L2A`",
+            "default_value": "SENTINEL2_L2A",
             "description": "Sentinel-2 L2A collection id.",
             "schema": {
                 "type": "string",
@@ -48,6 +49,7 @@
             "name": "s1_collection_id",
             "required": false,
             "default": "`SENTINEL1_GRD`",
+            "default_value": "SENTINEL1_GRD",
             "description": "Sentinel-1 GRD collection id.",
             "schema": {
                 "type": "string",
@@ -58,6 +60,19 @@
             "name": "s2_bands",
             "required": false,
             "default": "`B04`, `B02`, `B03`, `B08`, `B8A`, `B05`, `B06`, `B07`, `B11`, `B12`, `SCL`",
+            "default_value": [
+                "B04",
+                "B02",
+                "B03",
+                "B08",
+                "B8A",
+                "B05",
+                "B06",
+                "B07",
+                "B11",
+                "B12",
+                "SCL"
+            ],
             "description": "Sentinel-2 bands in TESSERA order: ten reflectance bands, then `SCL`.",
             "schema": {
                 "type": "array",
@@ -71,6 +86,10 @@
             "name": "s1_bands",
             "required": false,
             "default": "`VV`, `VH`",
+            "default_value": [
+                "VV",
+                "VH"
+            ],
             "description": "Sentinel-1 bands, renamed per orbit (`VV_ASC`, `VH_DESC`, …).",
             "schema": {
                 "type": "array",
@@ -84,6 +103,7 @@
             "name": "weights_url",
             "required": false,
             "default": "`https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt`",
+            "default_value": "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt",
             "description": "URL of the TESSERA v2 student checkpoint (`.pt`) to load. Defaults to the released `student_nano` weights.",
             "schema": {
                 "type": "string"

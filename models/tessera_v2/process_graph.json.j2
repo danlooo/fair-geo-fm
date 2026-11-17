@@ -18,20 +18,12 @@
     "loadcollection1": {
       "process_id": "load_collection",
       "arguments": {
-        "bands": [
-          "B04",
-          "B02",
-          "B03",
-          "B08",
-          "B8A",
-          "B05",
-          "B06",
-          "B07",
-          "B11",
-          "B12",
-          "SCL"
-        ],
-        "id": "SENTINEL2_L2A",
+        "bands": {
+          "from_parameter": "s2_bands"
+        },
+        "id": {
+          "from_parameter": "s2_collection_id"
+        },
         "properties": {
           "eo:cloud_cover": {
             "process_graph": {
@@ -49,26 +41,22 @@
           }
         },
         "spatial_extent": {
-          "west": 4.56,
-          "south": 43.61,
-          "east": 4.69,
-          "north": 43.7,
-          "crs": 4326
+          "from_parameter": "spatial_extent"
         },
-        "temporal_extent": [
-          "2025-01-01",
-          "2025-12-31"
-        ]
+        "temporal_extent": {
+          "from_parameter": "temporal_extent"
+        }
       }
     },
     "loadcollection2": {
       "process_id": "load_collection",
       "arguments": {
-        "bands": [
-          "VV",
-          "VH"
-        ],
-        "id": "SENTINEL1_GRD",
+        "bands": {
+          "from_parameter": "s1_bands"
+        },
+        "id": {
+          "from_parameter": "s1_collection_id"
+        },
         "properties": {
           "sat:orbit_state": {
             "process_graph": {
@@ -86,16 +74,11 @@
           }
         },
         "spatial_extent": {
-          "west": 4.56,
-          "south": 43.61,
-          "east": 4.69,
-          "north": 43.7,
-          "crs": 4326
+          "from_parameter": "spatial_extent"
         },
-        "temporal_extent": [
-          "2025-01-01",
-          "2025-12-31"
-        ]
+        "temporal_extent": {
+          "from_parameter": "temporal_extent"
+        }
       }
     },
     "sarbackscatter1": {
@@ -211,11 +194,12 @@
     "loadcollection3": {
       "process_id": "load_collection",
       "arguments": {
-        "bands": [
-          "VV",
-          "VH"
-        ],
-        "id": "SENTINEL1_GRD",
+        "bands": {
+          "from_parameter": "s1_bands"
+        },
+        "id": {
+          "from_parameter": "s1_collection_id"
+        },
         "properties": {
           "sat:orbit_state": {
             "process_graph": {
@@ -233,16 +217,11 @@
           }
         },
         "spatial_extent": {
-          "west": 4.56,
-          "south": 43.61,
-          "east": 4.69,
-          "north": 43.7,
-          "crs": 4326
+          "from_parameter": "spatial_extent"
         },
-        "temporal_extent": [
-          "2025-01-01",
-          "2025-12-31"
-        ]
+        "temporal_extent": {
+          "from_parameter": "temporal_extent"
+        }
       }
     },
     "sarbackscatter2": {
@@ -367,6 +346,11 @@
             "runudf1": {
               "process_id": "run_udf",
               "arguments": {
+                "context": {
+                  "weights_url": {
+                    "from_parameter": "weights_url"
+                  }
+                },
                 "data": {
                   "from_parameter": "data"
                 },

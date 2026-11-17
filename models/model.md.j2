@@ -82,19 +82,18 @@ login()
 
 # The R client cannot attach a process namespace URL to a node yet
 # (Open-EO/openeo-r-client#143), so fetch the definition and bind its
-# parameters locally instead.
+# parameters locally instead. Start from the defaults the process declares,
+# then override the required parameters.
 definition <- jsonlite::fromJSON(
   "{{ process_graph_url }}",
   simplifyVector = FALSE
 )
-definition$parameters <- NULL
+parameters <- lapply(definition$parameters, `[[`, "default")
+names(parameters) <- vapply(definition$parameters, `[[`, "", "name")
+{% for parameter in required_parameters %}parameters${{ parameter.name }} <- {{ parameter.example_r }}
+{% endfor %}definition$parameters <- NULL
 
-graph <- parse_graph(
-  definition,
-  parameters = list(
-{% for parameter in required_parameters %}    {{ parameter.name }} = {{ parameter.example_r }}{% if not loop.last %},{% endif %}
-{% endfor %}  )
-)
+graph <- parse_graph(definition, parameters = parameters)
 
 compute_result(
   graph = graph,

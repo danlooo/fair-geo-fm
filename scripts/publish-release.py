@@ -70,6 +70,7 @@ from process_graphs import (
     render,
     render_readme,
     validate_model_config,
+    validate_parameter_usage,
     validate_runtime_reference,
 )
 from stac_catalog import build_catalog, write_catalog
@@ -288,8 +289,10 @@ def stage_files(
             process_dir, base_url, version=version, zenodo_url=record_url
         )
         rendered[process_dir.name] = (text, graph, graph_url, archive_url)
-        problems = validate_model_config(process_dir) + validate_runtime_reference(
-            process_dir, graph, archive_url
+        problems = (
+            validate_model_config(process_dir)
+            + validate_runtime_reference(process_dir, graph, archive_url)
+            + validate_parameter_usage(graph)
         )
         if problems:
             raise SystemExit("\n".join(problems))

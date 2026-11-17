@@ -176,12 +176,49 @@ def documented_parameters(config: dict) -> list[dict]:
         }
         if not parameter.get("required"):
             entry["optional"] = True
+            # Optional parameters are referenced by the graph, so a default is
+            # what makes omitting them work; the ``default`` in config.json is
+            # the markdown display string and cannot be used here.
+            if "default_value" in parameter:
+                entry["default"] = copy.deepcopy(parameter["default_value"])
         schema = copy.deepcopy(parameter.get("schema") or {})
         if "example" in parameter:
             schema["examples"] = [copy.deepcopy(parameter["example"])]
         entry["schema"] = schema
         parameters.append(entry)
     return parameters
+
+
+def validate_parameter_usage(graph: dict) -> list[str]:
+    """Check that every declared process parameter is actually referenced.
+
+    A top-level ``parameters`` entry that no node reads is dead metadata, so
+    the graph must consume each one through ``{"from_parameter": ...}``.
+    """
+    declared = [
+        parameter.get("name")
+        for parameter in graph.get("parameters") or []
+        if isinstance(parameter, dict)
+    ]
+    used: set[object] = set()
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            reference = node.get("from_parameter")
+            if isinstance(reference, str):
+                used.add(reference)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(graph.get("process_graph"))
+    return [
+        f"parameter {name!r} is declared but never referenced with from_parameter"
+        for name in declared
+        if name not in used
+    ]
 
 
 def runtime_name(process_dir: Path) -> str:
@@ -240,6 +277,12 @@ def validate_model_config(process_dir: Path) -> list[str]:
             if required and "example" not in parameter:
                 problems.append(
                     f"{where}.example is required for a required parameter"
+                )
+            # The graph passes every parameter by reference, so an optional
+            # parameter needs a real default to fall back to when omitted.
+            if required is False and "default_value" not in parameter:
+                problems.append(
+                    f"{where}.default_value is required for an optional parameter"
                 )
 
     publication = config.get("publication")

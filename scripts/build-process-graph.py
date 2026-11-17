@@ -53,6 +53,7 @@ from process_graphs import (
     render,
     render_readme,
     validate_model_config,
+    validate_parameter_usage,
     validate_runtime_reference,
 )
 
@@ -61,8 +62,10 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
     graph_path = process_dir / "process_graph.json"
     text, graph, graph_url, archive_url = render(process_dir, base_url)
 
-    problems = validate_model_config(process_dir) + validate_runtime_reference(
-        process_dir, graph, archive_url
+    problems = (
+        validate_model_config(process_dir)
+        + validate_runtime_reference(process_dir, graph, archive_url)
+        + validate_parameter_usage(graph)
     )
     if problems:
         for problem in problems:
