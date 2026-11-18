@@ -59,6 +59,17 @@
                 "type": "string",
                 "subtype": "collection-id"
             }
+        },
+        {
+            "name": "dummy_band",
+            "required": false,
+            "default": "`DEM`",
+            "default_value": "DEM",
+            "description": "Band of `dummy_collection` used only to define the output grid and trigger the UDF; its values are ignored. Override it when another backend names the band of the static reference collection differently.",
+            "schema": {
+                "type": "string",
+                "subtype": "band-name"
+            }
         }
     ],
     "publication": {
