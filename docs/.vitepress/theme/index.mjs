@@ -9,6 +9,7 @@ import "./custom.css";
 import StacCatalogLink from "./StacCatalogLink.vue";
 import StacNavLink from "./StacNavLink.vue";
 import VersionBanner from "./VersionBanner.vue";
+import ZenodoLink from "./ZenodoLink.vue";
 import ZenodoNavLink from "./ZenodoNavLink.vue";
 import ProcessGraph from "./ProcessGraph.vue";
 
@@ -25,6 +26,7 @@ export default {
     app.use(enhanceAppWithTabs);
     app.component("StacCatalogLink", StacCatalogLink);
     app.component("StacNavLink", StacNavLink);
+    app.component("ZenodoLink", ZenodoLink);
     app.component("ZenodoNavLink", ZenodoNavLink);
     app.component("VersionSwitcher", VersionSwitcher);
     app.component("ProcessGraph", ProcessGraph);
