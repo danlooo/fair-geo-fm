@@ -4,9 +4,21 @@ This site collects geospatial foundation models and their embedding workflows in
 a form that is ready to use from [openEO](https://openeo.org) at the
 [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu) (CDSE).
 
-Models are shipped either as **weights** or as **pre-calculated frozen
-embeddings**. Weights are cheaper to produce; frozen embeddings are cheaper to
-use. The catalogue covers both approaches.
+## What are geospatial foundation models?
+
+Foundation models are large neural networks pretrained on broad data. Geospatial
+ones learn from satellite imagery, radar, elevation and climate data.
+Their main output is an embedding: a short list of numbers per pixel or area
+(e.g. 64 or 128 values) summarising vegetation, water, built-up land or
+seasonality — far smaller than the source imagery.
+Training is already done, so embeddings can be reused for land cover, crops,
+habitats, change detection or disaster response, and are most valuable where
+labelled data are scarce.
+Models here are either frozen embeddings to download or model weights run
+on demand; weights are cheaper to produce, frozen embeddings cheaper to use.
+Both are usable as openEO processes from the Web Editor, Python or R.
+Please note that embeddings are learned representations, not ground truth; validate results
+before decisions.
 
 ## Get Started
 
