@@ -6,7 +6,8 @@ a form that is ready to use from [openEO](https://openeo.org) at the
 
 ## Get started
 
-Get precomputed frozen [AlphaEarth embeddings](/models/alphaearth/) for the region around Jena, Germany in 2025:
+Get precomputed, frozen [TESSERA v1 embeddings](/models/tessera_v1/) for the
+region around Jena, Germany in 2025, sampled onto a 10 m UTM grid:
 
 ::: tabs
 
@@ -21,10 +22,10 @@ Get precomputed frozen [AlphaEarth embeddings](/models/alphaearth/) for the regi
 ```json
 {
   "process_graph": {
-    "alphaearth_embeddings1": {
-      "process_id": "alphaearth_embeddings",
-      "namespace": "https://danlooo.github.io/fair-geo-fm/main/models/alphaearth/process_graph.json",
-      "description": "Documentation: https://danlooo.github.io/fair-geo-fm/main/models/alphaearth/",
+    "tessera_v1_embeddings1": {
+      "process_id": "tessera_v1_embeddings",
+      "namespace": "https://danlooo.github.io/fair-geo-fm/main/models/tessera_v1/process_graph.json",
+      "description": "Documentation: https://danlooo.github.io/fair-geo-fm/main/models/tessera_v1/",
       "arguments": {
         "spatial_extent": {
           "west": 11.55,
@@ -32,13 +33,14 @@ Get precomputed frozen [AlphaEarth embeddings](/models/alphaearth/) for the regi
           "east": 11.65,
           "north": 50.96
         },
-        "temporal_extent": ["2025-01-01", "2026-01-01"]
+        "temporal_extent": ["2025-01-01", "2026-01-01"],
+        "projection": 32632
       }
     },
     "save1": {
       "process_id": "save_result",
       "arguments": {
-        "data": { "from_node": "alphaearth_embeddings1" },
+        "data": { "from_node": "tessera_v1_embeddings1" },
         "format": "NETCDF"
       },
       "result": true
@@ -64,20 +66,22 @@ connection = openeo.connect("https://openeo.dataspace.copernicus.eu")
 connection.authenticate_oidc()
 
 embeddings = connection.datacube_from_process(
-    "alphaearth_embeddings",
+    "tessera_v1_embeddings",
     namespace=(
         "https://danlooo.github.io/fair-geo-fm/main/"
-        "models/alphaearth/process_graph.json"
+        "models/tessera_v1/process_graph.json"
     ),
     spatial_extent={
         "west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96
     },
     temporal_extent=["2025-01-01", "2026-01-01"],
+    # UTM zone 32N; output pixels are 10 m in this CRS.
+    projection=32632,
 )
 
 job = embeddings.create_job(out_format="NETCDF")
 job.start_and_wait()
-job.download_result("alphaearth_embeddings.nc")
+job.download_result("tessera_v1_embeddings.nc")
 ```
 
 == R
@@ -103,7 +107,7 @@ login()
 definition <- jsonlite::fromJSON(
   paste0(
     "https://danlooo.github.io/fair-geo-fm/main/",
-    "models/alphaearth/process_graph.json"
+    "models/tessera_v1/process_graph.json"
   ),
   simplifyVector = FALSE
 )
@@ -115,6 +119,8 @@ parameters$spatial_extent <- list(
 parameters$temporal_extent <- list(
   "2025-01-01", "2026-01-01"
 )
+# UTM zone 32N; output pixels are 10 m in this CRS.
+parameters$projection <- 32632L
 definition$parameters <- NULL
 
 graph <- parse_graph(definition, parameters = parameters)
@@ -122,7 +128,7 @@ graph <- parse_graph(definition, parameters = parameters)
 compute_result(
   graph = graph,
   format = "NETCDF",
-  output_file = "alphaearth_embeddings.nc"
+  output_file = "tessera_v1_embeddings.nc"
 )
 ```
 
