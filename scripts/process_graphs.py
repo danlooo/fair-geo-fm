@@ -70,6 +70,21 @@ STAC_BROWSER_BASE = "https://browser.moregeo.it/external/"
 # and DOCS_ZENODO_CONCEPT_ID in scripts/prepare-docs.mjs.
 CONCEPT_DOI = "10.5281/zenodo.24275707"
 
+# Every model's documentation and graph examples should point at the same
+# place and year, so the site shows one consistent region everywhere. The
+# values stay in each ``config.json`` (a model directory is self-contained and
+# its config is published verbatim), and this mapping is the single source the
+# build validates them against.
+SHARED_EXAMPLES: dict[str, object] = {
+    "spatial_extent": {
+        "west": 11.55,
+        "south": 50.88,
+        "east": 11.65,
+        "north": 50.96,
+    },
+    "temporal_extent": ["2025-01-01", "2026-01-01"],
+}
+
 RUNTIME_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/runtimes/{{ runtime }}.zip#feature_deps"
 )
@@ -294,6 +309,14 @@ def validate_model_config(process_dir: Path) -> list[str]:
             if required and "example" not in parameter:
                 problems.append(
                     f"{where}.example is required for a required parameter"
+                )
+            # Keep the shared spatial and temporal example uniform across
+            # models; the values live in each config.json, so without this
+            # check they drift one model at a time.
+            shared = SHARED_EXAMPLES.get(parameter.get("name"))
+            if shared is not None and parameter.get("example") != shared:
+                problems.append(
+                    f"{where}.example must match the shared example {shared!r}"
                 )
             # The graph passes every parameter by reference, so an optional
             # parameter needs a real default to fall back to when omitted.

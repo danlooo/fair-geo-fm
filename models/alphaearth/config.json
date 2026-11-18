@@ -22,10 +22,10 @@
                 "subtype": "bounding-box"
             },
             "example": {
-                "west": 11.52,
+                "west": 11.55,
                 "south": 50.88,
-                "east": 11.66,
-                "north": 50.97
+                "east": 11.65,
+                "north": 50.96
             }
         },
         {
@@ -38,8 +38,8 @@
                 "subtype": "temporal-interval"
             },
             "example": [
-                "2024-01-01T00:00:00Z",
-                "2025-01-01T00:00:00Z"
+                "2025-01-01",
+                "2026-01-01"
             ]
         },
         {

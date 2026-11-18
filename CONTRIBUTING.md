@@ -43,6 +43,9 @@ Conventions for the models and runtimes in this repository.
     `example` value (plain JSON), optional ones a `default_value`. The usage
     examples render one argument per required parameter, formatting that
     value as a JSON, Python and R literal, and ignore optional parameters.
+    The `spatial_extent` and `temporal_extent` examples must match
+    `SHARED_EXAMPLES` in `scripts/process_graphs.py`, so every model shows the
+    same region and year; the build rejects a mismatch.
     `process_graph.json` declares all parameters in a top-level openEO
     `parameters` array, with each example copied into its `schema.examples`
     and each `default_value` published as the parameter default. Every

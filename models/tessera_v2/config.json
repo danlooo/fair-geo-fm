@@ -32,7 +32,10 @@
                 "type": "array",
                 "subtype": "temporal-interval"
             },
-            "example": ["2025-01-01", "2026-01-01"]
+            "example": [
+                "2025-01-01",
+                "2026-01-01"
+            ]
         },
         {
             "name": "s2_collection_id",

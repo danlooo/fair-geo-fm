@@ -6,7 +6,7 @@ a form that is ready to use from [openEO](https://openeo.org) at the
 
 ## Get started
 
-Get precomputed frozen [AlphaEarth embeddings](/models/alphaearth/) for the region around Jena, Germany in 2024:
+Get precomputed frozen [AlphaEarth embeddings](/models/alphaearth/) for the region around Jena, Germany in 2025:
 
 ::: tabs
 
@@ -27,12 +27,12 @@ Get precomputed frozen [AlphaEarth embeddings](/models/alphaearth/) for the regi
       "description": "Documentation: https://danlooo.github.io/fair-geo-fm/main/models/alphaearth/",
       "arguments": {
         "spatial_extent": {
-          "west": 11.52,
+          "west": 11.55,
           "south": 50.88,
-          "east": 11.66,
-          "north": 50.97
+          "east": 11.65,
+          "north": 50.96
         },
-        "temporal_extent": ["2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"]
+        "temporal_extent": ["2025-01-01", "2026-01-01"]
       }
     },
     "save1": {
@@ -70,9 +70,9 @@ embeddings = connection.datacube_from_process(
         "models/alphaearth/process_graph.json"
     ),
     spatial_extent={
-        "west": 11.52, "south": 50.88, "east": 11.66, "north": 50.97
+        "west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96
     },
-    temporal_extent=["2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"],
+    temporal_extent=["2025-01-01", "2026-01-01"],
 )
 
 job = embeddings.create_job(out_format="NETCDF")
@@ -110,10 +110,10 @@ definition <- jsonlite::fromJSON(
 parameters <- lapply(definition$parameters, `[[`, "default")
 names(parameters) <- vapply(definition$parameters, `[[`, "", "name")
 parameters$spatial_extent <- list(
-  west = 11.52, south = 50.88, east = 11.66, north = 50.97
+  west = 11.55, south = 50.88, east = 11.65, north = 50.96
 )
 parameters$temporal_extent <- list(
-  "2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"
+  "2025-01-01", "2026-01-01"
 )
 definition$parameters <- NULL
 
