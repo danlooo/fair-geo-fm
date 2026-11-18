@@ -11,9 +11,10 @@
 //   docs/public/main/runtimes/  built runtime archives for the default branch,
 //                             overwritten on every deployment
 //   docs/public/main/models/  rendered process graphs for the default branch
-//   docs/public/logo.svg, favicon.svg, favicon.ico, apple-touch-icon.png
-//                             site mark and icons, copied from
-//                             docs/.vitepress/theme/
+//   docs/public/logo.svg, false-color-fm.svg, alphaearth-false-color.png,
+//   openeo-graph.png, favicon.svg, favicon.ico, apple-touch-icon.png
+//                             site mark, home-page image and icons, copied
+//                             from docs/.vitepress/theme/
 //   docs/public/vendor/openeo/  openEO ModelBuilder web component, copied from
 //                             node_modules to render the graphs on model pages
 //   docs/public/vendor/fontawesome/  icons for the model builder's toolbar
@@ -513,12 +514,19 @@ function writeFontAwesome() {
   );
 }
 
-// The logo and icon set are tracked with the theme sources so the SVGs can be
-// edited. Copy them to the site root: the navbar and hero use logo.svg; the
-// favicon and touch icon are referenced from the head in config.mjs.
-function writeLogos() {
+// Site visuals and icons are tracked with the theme sources. Copy them to the
+// site root so the hero, home-page card and browser chrome can load them.
+function writeThemeAssets() {
   mkdirSync(publicDir, { recursive: true });
-  const files = ["logo.svg", "favicon.svg", "favicon.ico", "apple-touch-icon.png"];
+  const files = [
+    "logo.svg",
+    "false-color-fm.svg",
+    "alphaearth-false-color.png",
+    "openeo-graph.png",
+    "favicon.svg",
+    "favicon.ico",
+    "apple-touch-icon.png",
+  ];
   for (const file of files) cpSync(join(themeDir, file), join(publicDir, file));
   console.log(`prepare-docs: wrote ${files.join(", ")}`);
 }
@@ -1065,7 +1073,7 @@ if (!withArchives) {
   writeStagingStac();
   writeVueComponents();
   writeFontAwesome();
-  writeLogos();
+  writeThemeAssets();
   process.exit(0);
 }
 
@@ -1113,4 +1121,4 @@ writeRuntimeAssets();
 writeStagingStac();
 writeVueComponents();
 writeFontAwesome();
-writeLogos();
+writeThemeAssets();

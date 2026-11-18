@@ -78,6 +78,60 @@
   opacity: 0.4;
 }
 
+.feature-card {
+  display: flex;
+  align-items: stretch;
+  max-width: 1152px;
+  margin: 16px auto;
+  padding: 0;
+  border: 1px solid var(--vp-c-bg-soft);
+  border-radius: 12px;
+  background-color: var(--vp-c-bg-soft);
+}
+
+.feature-card img {
+  flex: 0 0 50%;
+  width: 50%;
+  border-radius: 11px 0 0 11px;
+  object-fit: cover;
+}
+
+.feature-card>div {
+  padding: 24px;
+}
+
+.feature-card h2 {
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.feature-card p {
+  margin: 8px 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+@media (max-width: 639px) {
+  .feature-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .feature-card img {
+    flex-basis: auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    border-radius: 11px 11px 0 0;
+  }
+}
+
 /**
  * Model pages embed the interactive process graph. A slightly wider content
  * column gives it more room than the 688 px default while still leaving space
