@@ -306,7 +306,7 @@ def validate_model_config(process_dir: Path) -> list[str]:
     if not isinstance(publication, dict):
         problems.append(f"{config_file}: 'publication' must be an object")
     else:
-        for key in ("citation", "abstract"):
+        for key in ("title", "url", "citation", "abstract"):
             value = publication.get(key)
             if not isinstance(value, str) or not value.strip():
                 problems.append(

@@ -35,8 +35,9 @@ Conventions for the models and runtimes in this repository.
   - `config.json` — the model's single source of truth: the display `name`,
     `description`, optional `runtime` and badge `tags`, plus the `parameters`
     table,
-    `publication` (citation and abstract) and `links` list of its page. The
-    build reads the runtime from it, both templates receive it as `config`, and
+    `publication` (title, URL, citation and abstract) and `links` list of its
+    page. The build reads the runtime from it, both templates receive it as
+    `config`, and
     the docs build renders the model cards and page sections from it. Each
     parameter also carries an openEO `schema`; required parameters carry an
     `example` value (plain JSON), optional ones a `default_value`. The usage
@@ -140,6 +141,21 @@ Conventions for the models and runtimes in this repository.
 > examples, this README, or the documentation page instead. The published graph
 > in this repository carries `id`, `version`, `model`, `default_job_options`
 > and `process_graph`, plus `zenodo_url` on a released graph, and nothing else.
+
+## Publication metadata
+
+Each `config.json` carries a `publication` object:
+
+- `title` — the paper title exactly as published, including its capitalisation.
+- `url` — the paper page, for example its arXiv abstract page or DOI resolver
+  URL. The model page renders `title` as a link to it.
+- `citation` — the bibliographic details without the title, such as authors,
+  year, venue and access date.
+- `abstract` — the **exact** abstract from the paper, copied verbatim from its
+  publisher or arXiv page. Do not paraphrase, shorten, reformat, or tidy the
+  wording, punctuation or capitalisation, and do not leave placeholder text
+  such as `this https URL` in place of a URL. The model page renders the
+  abstract verbatim, so any deviation misrepresents the paper.
 
 ## STAC metadata
 

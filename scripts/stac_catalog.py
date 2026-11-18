@@ -226,8 +226,15 @@ def _item(
         properties["processing:software"] = processing["software"]
 
     publication = config.get("publication") or {}
-    if isinstance(publication.get("citation"), str) and publication["citation"].strip():
-        properties["sci:citation"] = publication["citation"]
+    citation = publication.get("citation")
+    title = publication.get("title")
+    if isinstance(citation, str) and citation.strip():
+        citation = citation.strip()
+        # The page renders the title separately as a link, but the citation is
+        # published as plain text, so keep the title in it.
+        if isinstance(title, str) and title.strip():
+            citation = f"{title.strip()}. {citation}"
+        properties["sci:citation"] = citation
     if isinstance(stac.get("publications"), list) and stac["publications"]:
         properties["sci:publications"] = stac["publications"]
     if doi:
