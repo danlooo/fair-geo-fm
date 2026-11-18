@@ -1,0 +1,64 @@
+{
+  "id": "tessera_v1",
+  "title": "TESSERA v1",
+  "license": "MIT",
+  "keywords": [
+    "embeddings",
+    "Sentinel-1",
+    "Sentinel-2",
+    "openEO",
+    "precomputed"
+  ],
+  "datetime": "2025-06-25T00:00:00Z",
+  "bbox": [-180.0, -90.0, 180.0, 90.0],
+  "properties": {
+    "mlm:architecture": "Transformer",
+    "mlm:tasks": ["representation-learning"],
+    "mlm:framework": "PyTorch",
+    "mlm:pretrained": true,
+    "mlm:pretrained_source": "Barlow Twins pretraining on Sentinel-1 and Sentinel-2 time series",
+    "mlm:input": [
+      {
+        "name": "sentinel-1-and-2-time-series",
+        "description": "Per-pixel time series of Sentinel-2 reflectance bands and Sentinel-1 VV/VH backscatter, one full year per embedding.",
+        "bands": [],
+        "variables": [],
+        "input": {
+          "shape": [-1, -1, 15],
+          "dim_order": ["batch", "time", "bands"],
+          "data_type": "float32"
+        },
+        "value_scaling": null,
+        "resize_type": null,
+        "pre_processing_function": null
+      }
+    ],
+    "mlm:output": [
+      {
+        "name": "embedding",
+        "description": "128-dimensional pixel embedding from the frozen global annual TESSERA v1 product.",
+        "tasks": ["representation-learning"],
+        "bands": [],
+        "variables": [],
+        "result": {
+          "shape": [-1, 128],
+          "dim_order": ["batch", "embedding"],
+          "data_type": "float32"
+        },
+        "post_processing_function": null
+      }
+    ]
+  },
+  "processing": {
+    "lineage": "Frozen global annual 10 m TESSERA v1 tiles are downloaded from the Source Cooperative mirror and nearest-neighbour sampled onto the requested UTM grid by the openEO user-defined process tessera_v1_embeddings.",
+    "software": {
+      "Python": "3.11"
+    }
+  },
+  "publications": [
+    {
+      "citation": "Feng, Z. et al. (2025) 'TESSERA: Temporal Embeddings of Surface Spectra for Earth Representation and Analysis', arXiv:2506.20380",
+      "doi": "10.48550/arXiv.2506.20380"
+    }
+  ]
+}

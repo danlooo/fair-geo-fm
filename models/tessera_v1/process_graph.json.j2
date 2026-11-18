@@ -1,0 +1,85 @@
+{
+  "id": "tessera_v1_embeddings",
+  "version": "{{ version }}",
+{% if zenodo_url %}  "zenodo_url": "{{ zenodo_url }}",
+{% endif %}  "model": {{ config_json | indent(2) }},
+  "parameters": {{ parameters_json }},
+  "default_job_options": {
+    "driver-memory": "3g",
+    "executor-memory": "3g",
+    "executor-memoryOverhead": "2g",
+    "python-memory": "5g"
+  },
+  "process_graph": {
+    "loadcollection1": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "DEM"
+        ],
+        "id": {
+          "from_parameter": "dummy_collection"
+        },
+        "spatial_extent": {
+          "from_parameter": "spatial_extent"
+        }
+      }
+    },
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "method": "near",
+        "projection": {
+          "from_parameter": "projection"
+        },
+        "resolution": 10
+      }
+    },
+    "applydimension1": {
+      "process_id": "apply_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "resamplespatial1"
+        },
+        "dimension": "t",
+        "process": {
+          "process_graph": {
+            "runudf1": {
+              "process_id": "run_udf",
+              "arguments": {
+                "context": {
+                  "target_crs": {
+                    "from_parameter": "projection"
+                  },
+                  "temporal_extent": {
+                    "from_parameter": "temporal_extent"
+                  }
+                },
+                "data": {
+                  "from_parameter": "data"
+                },
+                "runtime": "Python",
+                "udf": {{ udf_json }}
+              },
+              "result": true
+            }
+          }
+        }
+      }
+    },
+    "saveresult1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": {
+          "from_node": "applydimension1"
+        },
+        "format": "NetCDF",
+        "options": {}
+      },
+      "result": true
+    }
+  }
+}

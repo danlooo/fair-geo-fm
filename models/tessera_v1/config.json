@@ -1,0 +1,84 @@
+{
+    "name": "TESSERA v1",
+    "description": "Frozen global annual 10 m pixel embeddings from the TESSERA v1 model, read on demand from Source Cooperative and sampled onto a UTM grid.",
+    "tags": [
+        "precomputed",
+        "Sentinel 1+2"
+    ],
+    "parameters": [
+        {
+            "name": "spatial_extent",
+            "required": true,
+            "default": "—",
+            "description": "Area to read embeddings for (WGS84 bounding box).",
+            "schema": {
+                "type": "object",
+                "subtype": "bounding-box"
+            },
+            "example": {
+                "west": 11.55,
+                "south": 48.12,
+                "east": 11.62,
+                "north": 48.18
+            }
+        },
+        {
+            "name": "temporal_extent",
+            "required": true,
+            "default": "—",
+            "description": "Period whose annual embeddings to read. Only the start year is used.",
+            "schema": {
+                "type": "array",
+                "subtype": "temporal-interval"
+            },
+            "example": [
+                "2021-01-01",
+                "2022-01-01"
+            ]
+        },
+        {
+            "name": "projection",
+            "required": true,
+            "default": "—",
+            "description": "EPSG code of the target UTM zone, e.g. `32632` for UTM 32N. Output pixels are 10 m in this CRS.",
+            "schema": {
+                "type": "integer",
+                "subtype": "epsg-code",
+                "minimum": 32601,
+                "maximum": 32760
+            },
+            "example": 32632
+        },
+        {
+            "name": "dummy_collection",
+            "required": false,
+            "default": "`COPERNICUS_30`",
+            "default_value": "COPERNICUS_30",
+            "description": "Collection used only to define the output grid and provide a temporal dimension for the UDF trigger; its pixel values are ignored. Override it when another backend names the static reference collection differently.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
+        }
+    ],
+    "publication": {
+        "title": "TESSERA: Temporal Embeddings of Surface Spectra for Earth Representation and Analysis",
+        "url": "https://arxiv.org/abs/2506.20380",
+        "citation": "Feng, Z. et al. (2026). _arXiv_ [Preprint]. Accessed: 18 November 2026.",
+        "abstract": "Satellite Earth-observation (EO) time series in the optical and microwave ranges of the electromagnetic spectrum are often irregular due to orbital patterns and cloud obstruction. Compositing addresses these issues but loses information with respect to vegetation phenology, which is critical for many downstream tasks. Instead, we present TESSERA, a pixel-wise foundation model for multi-modal (Sentinel-1/2) EO time series that learns robust, label-efficient embeddings. During model training, TESSERA uses Barlow Twins and sparse random temporal sampling to enforce invariance to the selection of valid observations. We employ two key regularizers: global shuffling to decorrelate spatial neighborhoods and mix-based regulation to improve invariance under extreme sparsity. We find that for diverse classification, segmentation, and regression tasks, TESSERA embeddings deliver state-of-the-art accuracy with high label efficiency, often requiring only a small task head and minimal computation. To democratize access, adhere to FAIR - principles, and simplify use, we release global, annual, 10m, pixel-wise int8 embeddings together with open weights/code and lightweight adaptation heads, thus providing practical tooling for large-scale retrieval and inference at planetary scale. All code and data are available at: https://github.com/ucam-eo/tessera"
+    },
+    "links": [
+        {
+            "title": "TESSERA code and weights",
+            "url": "https://github.com/ucam-eo/tessera"
+        },
+        {
+            "title": "GeoTessera tile access client",
+            "url": "https://github.com/ucam-eo/geotessera"
+        },
+        {
+            "title": "TESSERA v1 tile mirror on Source Cooperative",
+            "url": "https://source.coop/tessera/tessera"
+        }
+    ]
+}
