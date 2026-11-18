@@ -17,6 +17,12 @@
 {% endif %}
 
 {{ config.description }}
+{% if config.warning %}
+
+::: warning
+{{ config.warning }}
+:::
+{% endif %}
 
 ## Usage
 

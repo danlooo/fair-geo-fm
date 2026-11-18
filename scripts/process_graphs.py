@@ -256,6 +256,12 @@ def validate_model_config(process_dir: Path) -> list[str]:
         problems.append(
             f"{config_file}: 'runtime' must be a non-empty string when set"
         )
+    if "warning" in config and (
+        not isinstance(config["warning"], str) or not config["warning"].strip()
+    ):
+        problems.append(
+            f"{config_file}: 'warning' must be a non-empty string when set"
+        )
     tags = config.get("tags", [])
     if not isinstance(tags, list) or any(
         not isinstance(tag, str) or not tag.strip() for tag in tags
@@ -585,7 +591,9 @@ def render_readme(
         autoescape=False,
         undefined=jinja2.StrictUndefined,
     )
-    config = model_config(process_dir)
+    # ``warning`` is optional in config.json, but the page template reads it
+    # under StrictUndefined; default it so models without one still render.
+    config = {"warning": "", **model_config(process_dir)}
     text = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(

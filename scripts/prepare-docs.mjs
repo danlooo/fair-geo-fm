@@ -799,7 +799,9 @@ function renderModelTemplate(text, version, model, source, config, stac) {
     });
   const values = {
     ...modelTemplateValues(version, model, itemId),
-    config,
+    // ``warning`` is optional in config.json, but the page template reads it
+    // unconditionally inside an if block; default it for models without one.
+    config: { warning: "", ...config },
     required_parameters: requiredParameters,
   };
   return renderTemplate(text, values, source);
