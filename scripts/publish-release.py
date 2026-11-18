@@ -58,6 +58,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.parse
 from datetime import date
 from pathlib import Path
@@ -87,6 +88,18 @@ DEFAULT_CONCEPT_DOI = CONCEPT_DOI
 INVENIO_ACCEPT = "application/vnd.inveniordm.v1+json"
 
 
+# Zenodo's reverse proxy occasionally returns a 5xx on an otherwise valid
+# request; a 504 on a 20 kB upload aborted the v0.3 release. Retry those and
+# connection failures with exponential backoff before giving up. Only
+# idempotent methods are retried: a POST that the backend already processed
+# (e.g. draft file initialization) would be rejected on a second attempt.
+# Drafts can be resumed with ``--deposition-id`` instead.
+RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+RETRY_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE"})
+RETRY_ATTEMPTS = 5
+RETRY_BACKOFF_SECONDS = 3
+
+
 class ApiError(Exception):
     """A non-2xx response from the Zenodo API."""
 
@@ -96,6 +109,15 @@ class ApiError(Exception):
         self.url = url
         self.status = status
         self.body = body
+
+
+def _rewind(data: object | None) -> None:
+    """Rewind a streamed request body so a retry sends the same bytes."""
+    if hasattr(data, "seek"):
+        try:
+            data.seek(0)
+        except (OSError, ValueError):
+            pass
 
 
 def api_request(
@@ -109,22 +131,56 @@ def api_request(
     accept: str = "application/json",
     timeout: int = 300,
 ) -> dict:
-    """Call the Zenodo API and return the decoded JSON response."""
+    """Call the Zenodo API and return the decoded JSON response.
+
+    Transient failures (connection errors and 429/5xx responses) are retried;
+    a file-like ``data`` body is rewound before each attempt.
+    """
     headers = {"Accept": accept}
     if content_type:
         headers["Content-Type"] = content_type
+    retryable = method.upper() in RETRY_METHODS
 
-    response = session.request(
-        method, url, json=json_body, data=data, headers=headers, timeout=timeout
-    )
-    if not response.ok:
-        raise ApiError(method, url, response.status_code, response.text)
-    if not response.content:
-        return {}
-    try:
-        return response.json()
-    except ValueError:
-        return {}
+    delay = RETRY_BACKOFF_SECONDS
+    last_error: Exception | None = None
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        _rewind(data)
+        try:
+            response = session.request(
+                method, url, json=json_body, data=data, headers=headers,
+                timeout=timeout,
+            )
+        except (requests.ConnectionError, requests.Timeout) as error:
+            last_error = error
+            if not retryable or attempt == RETRY_ATTEMPTS:
+                raise ApiError(
+                    method, url, 0, f"{type(error).__name__}: {error}"
+                ) from error
+        else:
+            if response.ok:
+                if not response.content:
+                    return {}
+                try:
+                    return response.json()
+                except ValueError:
+                    return {}
+            last_error = ApiError(
+                method, url, response.status_code, response.text
+            )
+            if (
+                not retryable
+                or response.status_code not in RETRY_STATUSES
+                or attempt == RETRY_ATTEMPTS
+            ):
+                raise last_error
+        print(
+            f"{method} {url} failed ({last_error}); retrying in {delay}s "
+            f"(attempt {attempt + 1}/{RETRY_ATTEMPTS})",
+            file=sys.stderr,
+        )
+        time.sleep(delay)
+        delay = min(delay * 2, 60)
+    raise last_error  # unreachable: the loop raises on the final attempt
 
 
 def draft_doi(draft: dict) -> str | None:
@@ -775,6 +831,17 @@ def main() -> None:
         )
     except ApiError as error:
         print(error, file=sys.stderr)
+        # Surface the failure on the run page as well: Actions logs need a
+        # signed-in download, so the summary is what a maintainer sees first.
+        write_summary([
+            "### Zenodo release failed",
+            "",
+            f"- `{error.method} {error.url}` returned {error.status}",
+            "",
+            "```",
+            error.body[:2000],
+            "```",
+        ])
         raise SystemExit(1)
 
 
