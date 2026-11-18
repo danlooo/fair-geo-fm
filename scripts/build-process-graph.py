@@ -11,7 +11,9 @@ its published URLs. A remote process definition has to carry the UDF as inline
 source, so the template receives it as ``udf_json``; the archive URL is
 rendered from the runtime named in the model's ``config.json`` plus the target
 base URL. ``config.json`` also holds the model's display name and badge tags
-for the catalogue page, so it is validated here as well.
+for the catalogue page, so it is validated here as well. Both are optional: a
+graph built only from built-in openEO processes has no ``udf.py`` and needs no
+runtime, so it receives an empty ``udf_json`` and ``runtime_url``.
 
 Two publication targets share the same layout:
 
@@ -36,8 +38,9 @@ build catches unknown variables before the docs or release pipeline does; the
 rendered page itself is not written here.
 
 ``--check`` writes nothing. It always renders the template (validating the
-graph structure, the inlined UDF and the runtime reference) and exits non-zero
-when an existing ``process_graph.json`` no longer matches the template. A
+graph structure, the inlined UDF if present, and the runtime reference) and
+exits non-zero when an existing ``process_graph.json`` no longer matches the
+template. A
 missing generated file is fine: ``process_graph.json`` is rendered from the
 template rather than committed.
 """
@@ -73,7 +76,7 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
         return 1
 
     print(f"process graph: {graph_url}")
-    print(f"runtime archive: {archive_url}")
+    print(f"runtime archive: {archive_url or '(none)'}")
 
     # The model page is rendered by the docs and release pipelines, not here,
     # but rendering it validates its template variables during the build.
@@ -110,7 +113,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "process_dir", type=Path,
-        help="process directory containing process_graph.json.j2 and udf.py",
+        help=(
+            "process directory containing process_graph.json.j2 and, for UDF "
+            "models, udf.py"
+        ),
     )
     parser.add_argument(
         "--base-url", default=DEFAULT_BASE_URL,

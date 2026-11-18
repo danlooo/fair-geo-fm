@@ -28,9 +28,13 @@ Conventions for the models and runtimes in this repository.
     `config.json` by `scripts/build-process-graph.py`; never edit it by hand
     and do not commit it. CI renders it to validate the template, and the
     publish workflows render it for the served site and release.
-  - `udf.py` — UDF source, when the UDF is specific to this model
+  - `udf.py` — UDF source, when the UDF is specific to this model. A graph
+    built only from built-in openEO processes (for example one that loads
+    precomputed embeddings) has no `udf.py` and needs no `runtime` in
+    `config.json`.
   - `config.json` — the model's single source of truth: the display `name`,
-    `description`, `runtime` and badge `tags`, plus the `parameters` table,
+    `description`, optional `runtime` and badge `tags`, plus the `parameters`
+    table,
     `publication` (citation and abstract) and `links` list of its page. The
     build reads the runtime from it, both templates receive it as `config`, and
     the docs build renders the model cards and page sections from it. Each
@@ -64,8 +68,10 @@ Conventions for the models and runtimes in this repository.
   The template receives it as <code v-pre>{{ udf_json }}</code>, which the build script fills
   from `udf.py`; do not paste the UDF into the template.
   If it grows too large to maintain inline, reference `udf.py` by URL from
-  `run_udf` instead. `udf.py` must exist either way: the build reads it for
-  <code v-pre>{{ udf_json }}</code> and CI only checks directories that have one.
+  `run_udf` instead. `udf.py` is required when the graph runs a UDF: the build
+  reads it for <code v-pre>{{ udf_json }}</code> and the STAC Item links it. A graph with
+  only built-in processes omits it, receives an empty `udf_json`, and CI still
+  validates it because the template identifies the model directory.
 - Do not hardcode publication URLs. The process graph template is rendered for
   a base URL and exposes <code v-pre>{{ runtime_url }}</code> (the dependency archive, with
   `#feature_deps`), <code v-pre>{{ process_graph_url }}</code>, <code v-pre>{{ version }}</code>
@@ -151,6 +157,8 @@ scientific and version extensions) inside the `fair-geo-fm-models` Collection;
   is read from the rendered process graph's `weights_url`. Pin external weight
   URLs to a commit or release tag rather than a mutable branch such as
   `resolve/main`, so the Item and the graph keep resolving to the same file.
+  Omit it for a model that loads precomputed embeddings; the Item then has no
+  `model` asset.
 
 The display name, description, runtime and publication come from `config.json`.
 The conventional asset keys are `model` (weights), `process_graph`, `udf`,
@@ -188,6 +196,10 @@ belongs in a separate embedding catalog and links back to the model Item with
 - A model selects its runtime with the `runtime` field of its `config.json`,
   next to the display `name` and badge `tags`. One file per model keeps the
   catalogue, the documentation and the process graph in sync.
+- The runtime is optional: a graph built only from built-in openEO processes
+  has no UDF and no dependency archive, so it omits `runtime` and
+  `default_job_options.udf-dependency-archives`. The build rejects a graph that
+  declares archives without naming a runtime.
 - One directory per interpreter/stack combination, named after both, containing
   only `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
   is encoded in the name (`py311` -> 3.11) and the file may pin an index via

@@ -1,0 +1,75 @@
+{
+  "id": "alphaearth_embeddings",
+  "version": "{{ version }}",
+{% if zenodo_url %}  "zenodo_url": "{{ zenodo_url }}",
+{% endif %}  "model": {{ config_json | indent(2) }},
+  "parameters": {{ parameters_json }},
+  "process_graph": {
+    "loadstac1": {
+      "process_id": "load_stac",
+      "arguments": {
+        "url": {
+          "from_parameter": "stac_url"
+        },
+        "spatial_extent": {
+          "from_parameter": "spatial_extent"
+        },
+        "temporal_extent": {
+          "from_parameter": "temporal_extent"
+        }
+      }
+    },
+    "apply1": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "loadstac1"
+        },
+        "process": {
+          "process_graph": {
+            "divide1": {
+              "process_id": "divide",
+              "arguments": {
+                "x": {
+                  "from_parameter": "x"
+                },
+                "y": 127.5
+              }
+            },
+            "absolute1": {
+              "process_id": "absolute",
+              "arguments": {
+                "x": {
+                  "from_node": "divide1"
+                }
+              }
+            },
+            "multiply1": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": {
+                  "from_node": "divide1"
+                },
+                "y": {
+                  "from_node": "absolute1"
+                }
+              },
+              "result": true
+            }
+          }
+        }
+      }
+    },
+    "saveresult1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": {
+          "from_node": "apply1"
+        },
+        "format": "NetCDF",
+        "options": {}
+      },
+      "result": true
+    }
+  }
+}

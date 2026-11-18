@@ -54,7 +54,8 @@ COLLECTION_DESCRIPTION = (
     "Geospatial foundation models published by the NFDI4Earth FAIR geospatial "
     "foundation models project, ready to use through openEO user-defined "
     "processes. Each Item describes one major model version and links its "
-    "weights, process graph, UDF, inference runtime and documentation."
+    "process graph and, where the model has them, its weights, UDF, inference "
+    "runtime and documentation."
 )
 DEFAULT_LICENSE = "CC0-1.0"
 MODEL_ROLES = ["mlm:model", "mlm:weights", "data"]
@@ -83,9 +84,10 @@ def load_json(path: Path) -> dict:
 def find_weights_url(node: Any) -> str | None:
     """Find the first ``weights_url`` URL in a rendered process graph.
 
-    TESSERA v2 downloads its checkpoint at runtime from a URL passed through
+    A model can download its checkpoint at runtime from a URL passed through
     ``run_udf``'s ``context``. Searching the graph avoids duplicating that URL
-    in ``stac.json``; an explicit ``weights.href`` there still wins.
+    in ``stac.json``; an explicit ``weights.href`` there still wins, and models
+    that load precomputed embeddings have neither.
     """
     if isinstance(node, dict):
         for key, value in node.items():
@@ -164,28 +166,27 @@ def _item(
     udf_url = f"{base_url}/models/{model}/udf.py"
     docs_url = f"{docs_base_url}/models/{model}/"
 
+    # A model that loads precomputed embeddings has no checkpoint to link. The
+    # weights are optional; only describe a model asset when there is one.
     weights = stac.get("weights") or {}
     weights_href = weights.get("href") or find_weights_url(graph)
-    if not weights_href:
-        raise SystemExit(
-            f"{stac_path}: no weights URL found; add 'weights.href' or pass "
-            "the checkpoint URL through the process graph's context"
-        )
     # The graph's runtime URL carries #feature_deps, which tells openEO where
     # to extract the archive. The STAC asset points at the archive itself.
     runtime_href = archive_url.split("#", 1)[0]
-    weights_asset: dict[str, Any] = {
-        "href": weights_href,
-        "type": weights.get(
-            "type", "application/octet-stream; framework=pytorch"
-        ),
-        "title": weights.get("title", f"{config['name']} weights"),
-        "description": weights.get(
-            "description", "Checkpoint used for inference by the process graph."
-        ),
-        "roles": MODEL_ROLES,
-        "mlm:artifact_type": weights.get("mlm:artifact_type", "torch.save"),
-    }
+    weights_asset: dict[str, Any] | None = None
+    if weights_href:
+        weights_asset = {
+            "href": weights_href,
+            "type": weights.get(
+                "type", "application/octet-stream; framework=pytorch"
+            ),
+            "title": weights.get("title", f"{config['name']} weights"),
+            "description": weights.get(
+                "description", "Checkpoint used for inference by the process graph."
+            ),
+            "roles": MODEL_ROLES,
+            "mlm:artifact_type": weights.get("mlm:artifact_type", "torch.save"),
+        }
 
     properties: dict[str, Any] = {
         "title": stac.get("title", config["name"]),
@@ -207,7 +208,7 @@ def _item(
                 name = band if isinstance(band, str) else (band or {}).get("name")
                 if isinstance(name, str) and name and name not in input_bands:
                     input_bands.append(name)
-    if input_bands:
+    if input_bands and weights_asset is not None:
         weights_asset["eo:bands"] = [{"name": name} for name in input_bands]
 
     processing = stac.get("processing") or {}
@@ -240,7 +241,6 @@ def _item(
     item_id = stac.get("id") or model
 
     assets: dict[str, Any] = {
-        "model": weights_asset,
         "process_graph": {
             "href": graph_url,
             "type": "application/json",
@@ -251,14 +251,27 @@ def _item(
             ),
             "roles": ["process", "metadata"],
         },
-        "udf": {
+        "documentation": {
+            "href": docs_url,
+            "type": "text/html",
+            "title": f"{config['name']} documentation",
+            "roles": ["metadata"],
+        },
+    }
+    if weights_asset is not None:
+        assets["model"] = weights_asset
+    # udf.py and the runtime are only assets for models that run a UDF; a
+    # graph built from built-in processes has neither.
+    if (process_dir / "udf.py").is_file():
+        assets["udf"] = {
             "href": udf_url,
             "type": "text/x-python",
             "title": f"{config['name']} UDF",
             "description": "User-defined function executed by the process graph.",
             "roles": ["code"],
-        },
-        "runtime": {
+        }
+    if runtime_href:
+        assets["runtime"] = {
             "href": runtime_href,
             "type": "application/zip",
             "title": f"{runtime} inference runtime",
@@ -267,14 +280,7 @@ def _item(
                 "`udf-dependency-archives` job option."
             ),
             "roles": ["mlm:inference-runtime", "runtime"],
-        },
-        "documentation": {
-            "href": docs_url,
-            "type": "text/html",
-            "title": f"{config['name']} documentation",
-            "roles": ["metadata"],
-        },
-    }
+        }
     if source_archive_key:
         assets["source_code"] = {
             "href": f"{base_url}/{source_archive_key.lstrip('/')}",
@@ -566,13 +572,17 @@ def validate(
                         )
 
         assets = document.get("assets") or {}
-        model_asset = assets.get("model") or {}
-        if "mlm:model" not in (model_asset.get("roles") or []):
-            problems.append(f"{path}: assets.model needs the mlm:model role")
-        if not model_asset.get("mlm:artifact_type"):
-            problems.append(
-                f"{path}: assets.model.mlm:artifact_type is required"
-            )
+        # Weights and a UDF runtime are optional: a model that only loads
+        # precomputed embeddings has no checkpoint, and a graph built from
+        # built-in processes has no UDF or dependency archive.
+        model_asset = assets.get("model")
+        if model_asset is not None:
+            if "mlm:model" not in (model_asset.get("roles") or []):
+                problems.append(f"{path}: assets.model needs the mlm:model role")
+            if not model_asset.get("mlm:artifact_type"):
+                problems.append(
+                    f"{path}: assets.model.mlm:artifact_type is required"
+                )
         for name, asset in assets.items():
             href = asset.get("href", "")
             if not _absolute(href):
@@ -580,9 +590,8 @@ def validate(
                     f"{path}: assets.{name}.href must be an absolute URL, "
                     f"got {href!r}"
                 )
-        for name in ("process_graph", "udf", "runtime"):
-            if name not in assets:
-                problems.append(f"{path}: assets.{name} is required")
+        if "process_graph" not in assets:
+            problems.append(f"{path}: assets.process_graph is required")
 
         declared_bands: list[str] = []
         if isinstance(inputs, list):
@@ -611,7 +620,7 @@ def validate(
                 )
             eo_band_names = {
                 band.get("name")
-                for band in model_asset.get("eo:bands", [])
+                for band in (model_asset or {}).get("eo:bands", [])
                 if isinstance(band, dict)
             }
             for band in declared_bands:
@@ -712,10 +721,6 @@ def build_catalog(
         if not (process_dir / "process_graph.json.j2").is_file():
             continue
         problems.extend(validate_model_config(process_dir))
-        if not (process_dir / "udf.py").is_file():
-            problems.append(
-                f"{process_dir}/udf.py is required; the STAC Item links it"
-            )
         item, summary = _item(
             process_dir,
             base_url=base_url,

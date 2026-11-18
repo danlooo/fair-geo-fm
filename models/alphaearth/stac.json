@@ -1,0 +1,89 @@
+{
+    "id": "alphaearth",
+    "title": "AlphaEarth",
+    "license": "CC-BY-4.0",
+    "keywords": [
+        "embeddings",
+        "AlphaEarth",
+        "Google DeepMind",
+        "precomputed",
+        "openEO",
+        "Sentinel-1",
+        "Sentinel-2",
+        "Landsat 8/9",
+        "PALSAR-2",
+        "GEDI",
+        "GRACE"
+    ],
+    "datetime": "2026-11-18T00:00:00Z",
+    "bbox": [
+        -180.0,
+        -90.0,
+        180.0,
+        90.0
+    ],
+    "properties": {
+        "mlm:architecture": "AlphaEarth Foundations",
+        "mlm:tasks": [
+            "representation-learning"
+        ],
+        "mlm:pretrained": true,
+        "mlm:pretrained_source": "Global annual satellite embeddings produced by Google and Google DeepMind.",
+        "mlm:input": [
+            {
+                "name": "earth-observation-time-series",
+                "description": "Optical and radar Earth observation imagery and ancillary data used by AlphaEarth Foundations to produce the annual embeddings.",
+                "bands": [],
+                "variables": [],
+                "input": {
+                    "shape": [
+                        -1,
+                        -1,
+                        -1
+                    ],
+                    "dim_order": [
+                        "batch",
+                        "y",
+                        "x"
+                    ],
+                    "data_type": "float32"
+                },
+                "value_scaling": null,
+                "resize_type": null,
+                "pre_processing_function": null
+            }
+        ],
+        "mlm:output": [
+            {
+                "name": "embedding",
+                "description": "64-dimensional annual per-pixel embedding (channels A00–A63), decoded from signed 8-bit integers to floats in [-1, 1].",
+                "tasks": [
+                    "representation-learning"
+                ],
+                "bands": [],
+                "variables": [],
+                "result": {
+                    "shape": [
+                        -1,
+                        64
+                    ],
+                    "dim_order": [
+                        "batch",
+                        "embedding"
+                    ],
+                    "data_type": "float32"
+                },
+                "post_processing_function": null
+            }
+        ]
+    },
+    "processing": {
+        "lineage": "Annual AlphaEarth Foundations embeddings are read from a STAC collection as Cloud-Optimized GeoTIFFs and decoded by the openEO user-defined process alphaearth_embeddings. Each signed 8-bit channel value v is converted with float_val = math.copysign((v / 127.5) ** 2, v)."
+    },
+    "publications": [
+        {
+            "citation": "AlphaEarth Foundations: An embedding field model for accurate and efficient global mapping from sparse label data. arXiv:2507.22291 (2025).",
+            "doi": "10.48550/arXiv.2507.22291"
+        }
+    ]
+}

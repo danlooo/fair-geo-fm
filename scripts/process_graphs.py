@@ -1,16 +1,19 @@
 """Shared rendering of openEO process graphs from their Jinja2 templates.
 
 Each model directory keeps a ``process_graph.json.j2`` template with the graph
-structure, ``udf.py`` with the user-defined function and ``config.json`` with
-the model metadata: its display ``name``, ``description``, ``runtime``,
-badge ``tags``, ``parameters``, ``publication`` and ``links``. The template
-receives
+structure, ``config.json`` with the model metadata (its display ``name``,
+``description``, optional ``runtime``, badge ``tags``, ``parameters``,
+``publication`` and ``links``) and, for models that run a UDF, ``udf.py`` with
+the user-defined function. A graph built only from built-in openEO processes
+needs neither ``udf.py`` nor a runtime. The template receives
 
 - ``udf_json`` -- the UDF source as a JSON string literal, read from ``udf.py``
+  (``""`` when the model has no UDF)
 - ``config`` / ``config_json`` -- the parsed ``config.json`` and the same
   mapping as a JSON literal; the template copies it into its ``model`` entry so
   the published graph is independent of the separate config file
-- ``runtime_url`` -- the dependency-archive URL, with ``#feature_deps``
+- ``runtime_url`` -- the dependency-archive URL, with ``#feature_deps``;
+  empty when ``config.json`` declares no runtime
 - ``process_graph_url`` -- where the rendered graph is published
 - ``version`` -- the release the graph belongs to, or ``main`` for a branch
   render, so the graph identifies itself
@@ -242,9 +245,17 @@ def validate_model_config(process_dir: Path) -> list[str]:
 
     config = model_config(process_dir)
     problems = []
-    for key in ("name", "description", "runtime"):
+    for key in ("name", "description"):
         if not isinstance(config.get(key), str) or not config[key].strip():
             problems.append(f"{config_file}: '{key}' must be a non-empty string")
+    # The runtime is optional: a graph built only from built-in openEO
+    # processes needs no dependency archive.
+    if "runtime" in config and (
+        not isinstance(config["runtime"], str) or not config["runtime"].strip()
+    ):
+        problems.append(
+            f"{config_file}: 'runtime' must be a non-empty string when set"
+        )
     tags = config.get("tags", [])
     if not isinstance(tags, list) or any(
         not isinstance(tag, str) or not tag.strip() for tag in tags
@@ -338,11 +349,20 @@ def validate_runtime_reference(
     """Validate the ``runtime`` from ``config.json`` against ``runtimes/``.
 
     Also checks that the graph's ``default_job_options`` reference the archive
-    of that runtime. A model without ``config.json`` yields no problem here;
-    ``validate_model_config`` reports the missing file.
+    of that runtime. A model without a runtime is fine, but it must not declare
+    ``udf-dependency-archives``; a model without ``config.json`` yields no
+    problem here because ``validate_model_config`` reports the missing file.
     """
     name = runtime_name(process_dir)
+    archives = (graph.get("default_job_options") or {}).get(
+        "udf-dependency-archives"
+    ) or []
     if not name:
+        if archives:
+            return [
+                f"{process_dir / 'config.json'}: declares "
+                "udf-dependency-archives but sets no 'runtime'"
+            ]
         return []
 
     if any(character.isspace() for character in name):
@@ -359,7 +379,6 @@ def validate_runtime_reference(
             f"but runtimes/{name}/ does not exist"
         )
 
-    archives = (graph.get("default_job_options") or {}).get("udf-dependency-archives") or []
     if not archives:
         problems.append(
             f"{process_dir / 'config.json'}: default_job_options has no udf-dependency-archives"
@@ -405,21 +424,18 @@ def render(
             f"{template_path} not found; process graphs are rendered from "
             "process_graph.json.j2"
         )
+    # Models built only from built-in processes have no udf.py and no runtime.
+    # The template still receives both variables, as empty values, so a shared
+    # template can omit them.
     udf_path = process_dir / "udf.py"
-    if not udf_path.is_file():
-        raise SystemExit(f"{udf_path} not found")
+    udf_source = udf_path.read_text(encoding="utf-8") if udf_path.is_file() else ""
 
     model = process_dir.name
     config = model_config(process_dir)
     runtime = config.get("runtime")
     runtime = runtime.strip() if isinstance(runtime, str) else ""
-    if not runtime:
-        raise SystemExit(
-            f"{process_dir / 'config.json'} is required and must set 'runtime'; "
-            "the template references {{ runtime_url }}"
-        )
 
-    archive_url = runtime_url(base_url, runtime)
+    archive_url = runtime_url(base_url, runtime) if runtime else ""
     graph_url = process_graph_url(base_url, model)
     version = version or "main"
     zenodo_url = zenodo_url or ""
@@ -428,7 +444,7 @@ def render(
     rendered = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(
-        udf_json=json.dumps(udf_path.read_text(encoding="utf-8"), ensure_ascii=False),
+        udf_json=json.dumps(udf_source, ensure_ascii=False),
         # The graph copies these into its ``model`` entry, so the published
         # process_graph.json is self-contained and does not read config.json.
         config=config,
