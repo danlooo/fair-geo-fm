@@ -90,16 +90,15 @@
 }
 
 /**
- * Model catalogue: a config.json-driven card grid from models/index.md.j2.
- * auto-fit follows the available page width: one column on narrow screens,
- * two on tablets and three within the documentation's 688 px content column.
- * Each card shows the display name and the badge tags of the model's
+ * Model catalogue: a config.json-driven card list from models/index.md.j2.
+ * Always one column so cards stay full width.
+ * Each card shows the display name, description and badge tags of the model's
  * config.json. The DOI is deliberately not repeated there: it is the same for
  * every model and already on each model page.
  */
 .model-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   margin: 24px 0;
 }
