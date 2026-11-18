@@ -632,6 +632,7 @@ async function fetchZenodoReleases() {
           // Same files, but the API route sends CORS headers, so browser-based
           // readers can fetch STAC documents from it; see stacDocumentUrl.
           apiFilesBase: `${zenodoApiUrl}/records/${hit.id}/files`,
+          recordUrl: `${zenodoSiteUrl}/records/${hit.id}`,
           doi: typeof hit.doi === "string" ? hit.doi : "",
         });
       }
@@ -1018,6 +1019,21 @@ for (const version of zenodoReleases.keys()) {
 writeFileSync(
   join(docsRoot, ".vitepress", "stac-bases.json"),
   `${JSON.stringify(stacBases, null, 2)}\n`,
+);
+
+// The navbar Zenodo link follows the version being viewed: a released tag
+// opens its own record, while main and unresolved refs open the concept DOI,
+// which resolves to the latest release. A failed lookup leaves only the
+// fallback, so the link still points somewhere meaningful.
+const zenodoRecords = {
+  main: `https://doi.org/${zenodoConceptDoi}`,
+};
+for (const [version, release] of zenodoReleases) {
+  zenodoRecords[version] = release.recordUrl;
+}
+writeFileSync(
+  join(docsRoot, ".vitepress", "zenodo-records.json"),
+  `${JSON.stringify(zenodoRecords, null, 2)}\n`,
 );
 
 let fromRef = false;

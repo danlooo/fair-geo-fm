@@ -41,6 +41,21 @@ function resolveStacBases() {
 
 const stacBases = resolveStacBases();
 
+// Zenodo record URLs per version, written by prepare-docs.mjs: a released tag's
+// own record or, for main and unresolved refs, the concept DOI, which resolves
+// to the latest release. The navbar component falls back the same way.
+function resolveZenodoRecords() {
+  try {
+    return JSON.parse(
+      readFileSync(new URL("./zenodo-records.json", import.meta.url), "utf8"),
+    );
+  } catch {
+    return {};
+  }
+}
+
+const zenodoRecords = resolveZenodoRecords();
+
 // Map a versioned page back to the canonical file in the repository.
 // `filePath` is the generated folder (docs/src or docs/archive/<ref>), so the
 // version prefix and archive segment are stripped here. The function is
@@ -177,11 +192,14 @@ export default defineVersionedConfig({
     logo: { light: "/logo.svg", dark: "/logo.svg", alt: "fair-geo-fm" },
     // Read by StacNavLink; version -> public base of the generated STAC tree.
     stacBases,
+    // Read by ZenodoNavLink; version -> its Zenodo record.
+    zenodoRecords,
     nav: [
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/" },
       { text: "Models", link: "/models/" },
       { component: "StacNavLink" },
+      { component: "ZenodoNavLink" },
       { text: "Contributing", link: "/contributing" },
       // Switches version while keeping the current page; falls back to the
       // version home only when that page does not exist there.

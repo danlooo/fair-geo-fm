@@ -28,3 +28,4 @@ docs/archive/
 docs/public/
 docs/.vitepress/current-version.json
 docs/.vitepress/stac-bases.json
+docs/.vitepress/zenodo-records.json
