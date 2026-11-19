@@ -2,6 +2,14 @@
 
 Conventions for the models and runtimes in this repository.
 
+## Language
+
+Write in **American English** (`color`, `normalize`, `initialize`, `license`,
+`behavior`, `center`) in documentation, comments, commit messages, model
+descriptions, STAC fields we author and the code itself. The term names defined
+by external standards keep their published spelling even when that differs
+(for example `cube:dimensions` or the title of a paper quoted verbatim).
+
 ## Models
 
 - Each model is a user-defined process (UDP) served through the
@@ -161,14 +169,14 @@ Conventions for the models and runtimes in this repository.
 
 Each `config.json` carries a `publication` object:
 
-- `title` — the paper title exactly as published, including its capitalisation.
+- `title` — the paper title exactly as published, including its capitalization.
 - `url` — the paper page, for example its arXiv abstract page or DOI resolver
   URL. The model page renders `title` as a link to it.
 - `citation` — the bibliographic details without the title, such as authors,
   year, venue and access date.
 - `abstract` — the **exact** abstract from the paper, copied verbatim from its
   publisher or arXiv page. Do not paraphrase, shorten, reformat, or tidy the
-  wording, punctuation or capitalisation, and do not leave placeholder text
+  wording, punctuation or capitalization, and do not leave placeholder text
   such as `this https URL` in place of a URL. The model page renders the
   abstract verbatim, so any deviation misrepresents the paper.
 

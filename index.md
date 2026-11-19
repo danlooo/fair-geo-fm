@@ -32,7 +32,7 @@ features:
   <div>
     <h2>Geospatial foundation models</h2>
     <p>
-      Foundation models are large neural networks pretrained on broad data. They learn from satellite imagery, radar, elevation and climate data. Their main output is an embedding: a short list of numbers per pixel or area (e.g. 64 or 128 values) summarising vegetation, water, built-up land or seasonality — far smaller than the source imagery. Training is already done, so embeddings can be reused for land cover, crops, habitats, change detection or disaster response, and are most valuable where labelled data are scarce.
+      Foundation models are large neural networks pertained on broad data. They learn from satellite imagery, radar, elevation and climate data. Their main output is an embedding: a short list of numbers per pixel or area (e.g. 64 or 128 values) summarizing vegetation, water, built-up land or seasonality — far smaller than the source imagery. Training is already done, so embeddings can be reused for land cover, crops, habitats, change detection or disaster response, and are most valuable where labelled data are scarce.
     </p>
   </div>
 </div>
@@ -41,7 +41,7 @@ features:
   <div>
     <h2>Run them in openEO</h2>
     <p>
-      Each foundation model is shipped as a single openEO process node that can be integrated in your workflows. The underlying process graph and required runtime environments are uploaded to zenodo for reproducible execution.  
+      Each foundation model is shipped as a single openEO process node that can be integrated in your workflows. The underlying process graph and required runtime environments are uploaded to zenodo for reproducible execution. Additionally, models can be also explored using the provided STAC catalog.
     </p>
   </div>
   <img src="/openeo-graph.png" alt="AlphaEarth false-color satellite composite" />
