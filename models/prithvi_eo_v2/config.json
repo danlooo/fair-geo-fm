@@ -1,0 +1,165 @@
+{
+    "name": "Prithvi-EO-2.0",
+    "description": "On-demand 768-dimensional embeddings from the frozen Prithvi-EO-2.0 100M-TL encoder, computed from CDSE Sentinel-2 L2A time series resampled to 30 m.",
+    "warning": "Prithvi-EO-2.0 was pretrained on NASA HLS at 30 m, which is not a CDSE collection. This process uses Sentinel-2 L2A as a proxy: B02, B03, B04, B8A, B11 and B12 map to Blue, Green, Red, Narrow NIR, SWIR 1 and SWIR 2, with scene-level cloud filtering and SCL masking. HLS harmonization and S2 L2A processing differ, so embeddings can differ from HLS-based inference. The default 30 m grid matches the pretraining resolution; target_resolution=10 uses the native CDSE grid but is off-distribution. Prithvi is a patch model: its 16x16-pixel token grid is upsampled to the output grid, so neighboring pixels share context and chunk edges see less context.",
+    "runtime": "py311-torch231",
+    "type": "weights",
+    "architecture": "Vision Transformer",
+    "input_sources": [
+        "Sentinel-2"
+    ],
+    "multimodal": false,
+    "spatial_extent": [
+        -180.0,
+        -90.0,
+        180.0,
+        90.0
+    ],
+    "temporal_extent": [
+        "2015-06-27",
+        "2026-12-31"
+    ],
+    "spatial_resolution": "30 m",
+    "temporal_resolution": "irregular",
+    "dimensions": [
+        768
+    ],
+    "parameters": [
+        {
+            "name": "spatial_extent",
+            "required": true,
+            "default": "—",
+            "description": "Area to compute embeddings for (WGS84 bounding box).",
+            "schema": {
+                "type": "object",
+                "subtype": "bounding-box"
+            },
+            "example": {
+                "west": 11.55,
+                "south": 50.88,
+                "east": 11.65,
+                "north": 50.96
+            }
+        },
+        {
+            "name": "temporal_extent",
+            "required": true,
+            "default": "—",
+            "description": "Period to compute embeddings for. A window of a few months up to about one year matches Prithvi's 4-timestep, 1-6 month-gap pretraining.",
+            "schema": {
+                "type": "array",
+                "subtype": "temporal-interval"
+            },
+            "example": [
+                "2024-01-01",
+                "2025-01-01"
+            ]
+        },
+        {
+            "name": "projection",
+            "required": true,
+            "default": "—",
+            "description": "EPSG code of the UTM zone containing the area, e.g. `32632` for UTM 32N. Used as the output CRS and to resolve the tile center to latitude/longitude for Prithvi's location encoding.",
+            "schema": {
+                "type": "integer",
+                "subtype": "epsg-code",
+                "minimum": 32601,
+                "maximum": 32760
+            },
+            "example": 32632
+        },
+        {
+            "name": "target_resolution",
+            "required": false,
+            "default": "`30`",
+            "default_value": 30,
+            "description": "Output grid resolution in metres. `30` matches Prithvi's HLS pretraining; `10` is the native CDSE Sentinel-2 grid but is off-distribution and more expensive.",
+            "schema": {
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 120
+            }
+        },
+        {
+            "name": "s2_collection_id",
+            "required": false,
+            "default": "`SENTINEL2_L2A`",
+            "default_value": "SENTINEL2_L2A",
+            "description": "Sentinel-2 L2A collection id.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
+        },
+        {
+            "name": "s2_bands",
+            "required": false,
+            "default": "`B02`, `B03`, `B04`, `B8A`, `B11`, `B12`",
+            "default_value": [
+                "B02",
+                "B03",
+                "B04",
+                "B8A",
+                "B11",
+                "B12"
+            ],
+            "description": "Sentinel-2 reflectance bands in Prithvi order: Blue, Green, Red, Narrow NIR, SWIR 1, SWIR 2.",
+            "schema": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "subtype": "band-name"
+                }
+            }
+        },
+        {
+            "name": "scl_band",
+            "required": false,
+            "default": "`SCL`",
+            "default_value": "SCL",
+            "description": "Scene classification band used for per-pixel cloud masking; loaded separately because it is categorical.",
+            "schema": {
+                "type": "string",
+                "subtype": "band-name"
+            }
+        },
+        {
+            "name": "max_cloud_cover",
+            "required": false,
+            "default": "`50`",
+            "default_value": 50,
+            "description": "Maximum scene-level cloud cover (percent) for scenes used in the temporal composites.",
+            "schema": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+            }
+        },
+        {
+            "name": "weights_url",
+            "required": false,
+            "default": "`https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL/resolve/2c84e383194986040f883cc43d7869002c425e1b/Prithvi_EO_V2_100M_TL.pt`",
+            "default_value": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL/resolve/2c84e383194986040f883cc43d7869002c425e1b/Prithvi_EO_V2_100M_TL.pt",
+            "description": "URL of the Prithvi-EO-2.0 100M-TL checkpoint to load. Defaults to the pinned released weights; point it at a CDSE-local mirror to avoid re-downloading from Hugging Face.",
+            "schema": {
+                "type": "string"
+            }
+        }
+    ],
+    "publication": {
+        "title": "Prithvi-EO-2.0: A Versatile Multi-Temporal Foundation Model for Earth Observation Applications",
+        "url": "https://arxiv.org/abs/2412.02732",
+        "citation": "Szwarcman, D. et al. (2024). _arXiv_ [Preprint]. Accessed: 19 November 2026.",
+        "abstract": "This paper presents Prithvi-EO-2.0, a new geospatial foundation model that offers significant improvements over its predecessor, Prithvi-EO-1.0. Trained on 4.2 million global time series samples from NASA's Harmonized Landsat and Sentinel-2 data archive at 30-m resolution, the new model incorporates temporal and location embeddings for enhanced performance across various geospatial tasks. Through extensive benchmarking with GEO-Bench, the model outperforms the previous Prithvi-EO model by 8% across a range of tasks. It also outperforms six other geospatial foundation models when benchmarked on remote sensing tasks from different domains and resolutions (i.e. from 0.1 m to 15 m). The results demonstrate the versatility of the model in both classical Earth observation and high-resolution applications. Early involvement of end-users and subject matter experts (SMEs) allowed constant feedback on model and dataset design, enabling customization across diverse SME-led applications in disaster response, land cover and crop mapping, and ecosystem dynamics monitoring. Prithvi-EO-2.0 is available as an open-source model on Hugging Face and IBM TerraTorch, with additional resources on GitHub. The project exemplifies the Trusted Open Science approach embraced by all involved organizations."
+    },
+    "links": [
+        {
+            "title": "Prithvi-EO-2.0 model card and weights",
+            "url": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL"
+        },
+        {
+            "title": "NASA-IMPACT Prithvi-EO-2.0 code and fine-tuning examples",
+            "url": "https://github.com/NASA-IMPACT/Prithvi-EO-2.0"
+        }
+    ]
+}

@@ -1,0 +1,176 @@
+{
+  "id": "prithvi_eo_v2_embeddings",
+  "version": "{{ version }}",
+{% if zenodo_url %}  "zenodo_url": "{{ zenodo_url }}",
+{% endif %}  "model": {{ config_json | indent(2) }},
+  "parameters": {{ parameters_json }},
+  "default_job_options": {
+    "driver-memory": "3g",
+    "executor-memory": "3g",
+    "executor-memoryOverhead": "3g",
+    "python-memory": "8g",
+    "soft-errors": 0.1,
+    "udf-dependency-archives": [
+      "{{ runtime_url }}"
+    ]
+  },
+  "process_graph": {
+    "loadcollection1": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": {
+          "from_parameter": "s2_bands"
+        },
+        "id": {
+          "from_parameter": "s2_collection_id"
+        },
+        "properties": {
+          "eo:cloud_cover": {
+            "process_graph": {
+              "lte1": {
+                "process_id": "lte",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": {
+                    "from_parameter": "max_cloud_cover"
+                  }
+                },
+                "result": true
+              }
+            }
+          }
+        },
+        "spatial_extent": {
+          "from_parameter": "spatial_extent"
+        },
+        "temporal_extent": {
+          "from_parameter": "temporal_extent"
+        }
+      }
+    },
+    "loadcollection2": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          {
+            "from_parameter": "scl_band"
+          }
+        ],
+        "id": {
+          "from_parameter": "s2_collection_id"
+        },
+        "properties": {
+          "eo:cloud_cover": {
+            "process_graph": {
+              "lte2": {
+                "process_id": "lte",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": {
+                    "from_parameter": "max_cloud_cover"
+                  }
+                },
+                "result": true
+              }
+            }
+          }
+        },
+        "spatial_extent": {
+          "from_parameter": "spatial_extent"
+        },
+        "temporal_extent": {
+          "from_parameter": "temporal_extent"
+        }
+      }
+    },
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "method": "average",
+        "projection": {
+          "from_parameter": "projection"
+        },
+        "resolution": {
+          "from_parameter": "target_resolution"
+        }
+      }
+    },
+    "resamplecubespatial1": {
+      "process_id": "resample_cube_spatial",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection2"
+        },
+        "method": "mode",
+        "target": {
+          "from_node": "resamplespatial1"
+        }
+      }
+    },
+    "mergecubes1": {
+      "process_id": "merge_cubes",
+      "arguments": {
+        "cube1": {
+          "from_node": "resamplespatial1"
+        },
+        "cube2": {
+          "from_node": "resamplecubespatial1"
+        }
+      }
+    },
+    "applydimension1": {
+      "process_id": "apply_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "mergecubes1"
+        },
+        "dimension": "t",
+        "process": {
+          "process_graph": {
+            "runudf1": {
+              "process_id": "run_udf",
+              "arguments": {
+                "context": {
+                  "projection": {
+                    "from_parameter": "projection"
+                  },
+                  "scl_band": {
+                    "from_parameter": "scl_band"
+                  },
+                  "weights_url": {
+                    "from_parameter": "weights_url"
+                  }
+                },
+                "data": {
+                  "from_parameter": "data"
+                },
+                "runtime": "Python",
+                "udf": {{ udf_json }}
+              },
+              "result": true
+            }
+          }
+        },
+        "target_dimension": "bands"
+      }
+    },
+    "saveresult1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": {
+          "from_node": "applydimension1"
+        },
+        "format": "NetCDF",
+        "options": {}
+      },
+      "result": true
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+    "id": "prithvi_eo_v2",
+    "title": "Prithvi-EO-2.0",
+    "license": "Apache-2.0",
+    "keywords": [
+        "embeddings",
+        "Sentinel-2",
+        "openEO",
+        "PyTorch",
+        "Prithvi"
+    ],
+    "datetime": "2024-12-03T00:00:00Z",
+    "bbox": [-180.0, -90.0, 180.0, 90.0],
+    "properties": {
+        "mlm:architecture": "Vision Transformer",
+        "mlm:tasks": ["representation-learning"],
+        "mlm:framework": "PyTorch",
+        "mlm:framework_version": "2.3.1",
+        "mlm:pretrained": true,
+        "mlm:pretrained_source": "Masked-autoencoder pretraining on 4.2 million NASA HLS 4-timestep, 30 m time series",
+        "mlm:input": [
+            {
+                "name": "sentinel-2-l2a-time-series",
+                "description": "Six Sentinel-2 L2A reflectance bands used as a CDSE proxy for the HLS input: B02 (Blue), B03 (Green), B04 (Red), B8A (Narrow NIR), B11 (SWIR 1) and B12 (SWIR 2), plus SCL for cloud masking.",
+                "bands": ["B02", "B03", "B04", "B8A", "B11", "B12"],
+                "variables": [],
+                "input": {
+                    "shape": [-1, 6, 4, -1, -1],
+                    "dim_order": ["batch", "bands", "time", "height", "width"],
+                    "data_type": "float32"
+                },
+                "value_scaling": null,
+                "resize_type": null,
+                "pre_processing_function": null
+            }
+        ],
+        "mlm:output": [
+            {
+                "name": "embedding",
+                "description": "768-dimensional per-pixel embedding from the frozen Prithvi-EO-2.0 100M-TL encoder.",
+                "tasks": ["representation-learning"],
+                "bands": [],
+                "variables": [],
+                "result": {
+                    "shape": [-1, 768],
+                    "dim_order": ["batch", "embedding"],
+                    "data_type": "float32"
+                },
+                "post_processing_function": null
+            }
+        ]
+    },
+    "processing": {
+        "lineage": "Per-pixel embeddings inferred by the frozen Prithvi-EO-2.0 100M-TL encoder from CDSE Sentinel-2 L2A time series resampled to 30 m. Sentinel-2 L2A substitutes for the HLS input used in pretraining, with scene-level cloud filtering and SCL masking; embeddings can therefore differ from HLS-based inference.",
+        "software": {
+            "PyTorch": "2.3.1"
+        }
+    },
+    "publications": [
+        {
+            "citation": "Szwarcman, D. et al. (2024) 'Prithvi-EO-2.0: A Versatile Multi-Temporal Foundation Model for Earth Observation Applications', arXiv:2412.02732",
+            "doi": "10.48550/arXiv.2412.02732"
+        }
+    ],
+    "weights": {
+        "href": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL/resolve/2c84e383194986040f883cc43d7869002c425e1b/Prithvi_EO_V2_100M_TL.pt",
+        "title": "Prithvi-EO-2.0 100M-TL checkpoint",
+        "mlm:artifact_type": "torch.save"
+    }
+}
