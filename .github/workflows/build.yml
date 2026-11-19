@@ -36,9 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
 
       - name: Render and validate process graphs and model READMEs
         run: |
@@ -77,16 +77,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: "runtimes/*/requirements.txt"
 
       - name: Restore unchanged archives
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: runtimes/*/dependencies.zip
           key: dependency-archives-${{ hashFiles('runtimes/*/requirements.txt', 'scripts/create-python-dependency-archive.py') }}
@@ -146,7 +146,7 @@ jobs:
       - name: Record checksums
         run: sha256sum runtimes/*/dependencies.zip | tee checksums.sha256
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dependency-archives
           path: |
