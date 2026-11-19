@@ -2,6 +2,7 @@
     "name": "TESSERA v1",
     "description": "Frozen global annual 10 m pixel embeddings from the TESSERA v1 model, read on demand from Source Cooperative and sampled onto a UTM grid.",
     "type": "frozen embeddings",
+    "architecture": "Transformer",
     "input_sources": [
         "Sentinel-1",
         "Sentinel-2"
@@ -21,7 +22,6 @@
     "dimensions": [
         128
     ],
-    "tags": [],
     "parameters": [
         {
             "name": "spatial_extent",

@@ -33,19 +33,20 @@ Conventions for the models and runtimes in this repository.
     `config.json`.
   - `config.json` — the model's single source of truth: the display `name`,
     `description`, optional `runtime`, the model `type` (`"frozen embeddings"`
-    or `"weights"`), its `input_sources`, the `spatial_extent`
+    or `"weights"`), its `architecture` (the same value as the Item's
+    `mlm:architecture`), `input_sources`, the `spatial_extent`
     (`[west, south, east, north]`, WGS 84) and `temporal_extent`
     (`[start, end]`, RFC 3339 timecodes) of the product it serves,
     `spatial_resolution` (a string such as `"10 m"`), `temporal_resolution`
     (such as `"annual"`), and the embedding
     `dimensions` (ascending, one entry per usable output width, e.g. `[128]` or
     the Matryoshka prefixes `[16, 32, 64, 128]`). `dimensions_label` optionally
-    annotates the values, e.g. `"Matryoshka"`. Badge `tags` follow, plus the
-    `parameters` table,
+    annotates the values, e.g. `"Matryoshka"`. Then the `parameters` table,
     `publication` (title, URL, citation and abstract) and `links` list of its
-    page. The model page renders all of these as a properties table. Tags are
-    badges only: keep facts the table already states out of them, and use them
-    for what it cannot express, such as storage encoding or architecture. The
+    page. The model page renders these as a properties table. Badge tags are
+    **generated** from those fields rather than stored: `type`,
+    `dimensions_label`, `<max dimension>-dim`, `spatial_resolution` and
+    `temporal_resolution`. Do not add a `tags` key; the build rejects it. The
     build reads the runtime from it,
     both templates receive it as `config`, and
     the docs build renders the model cards and page sections from it. Each
@@ -69,8 +70,9 @@ Conventions for the models and runtimes in this repository.
   `index.md` for the version being published.
 - The catalogue page `models/index.md.j2` is a Jinja2 template.
   `scripts/prepare-docs.mjs` exposes a `models` list at docs-build time, one
-  entry per model directory with a `config.json`, with `slug`, `name`,
-  `description` and `tags` taken from that file. It also exposes
+  entry per model directory with a `config.json`, with `slug`, `name` and
+  `description` taken from that file and `tags` derived from its properties.
+  It also exposes
   <code v-pre>{{ stac_catalog_url }}</code> and
   <code v-pre>{{ stac_collection_url }}</code> for the version's generated STAC
   tree, both opened in the external STAC browser. The page renders one card per
@@ -189,7 +191,17 @@ scientific and version extensions) inside the `fair-geo-fm-models` Collection;
   Omit it for a model that loads precomputed embeddings; the Item then has no
   `model` asset.
 
-The display name, description, runtime and publication come from `config.json`.
+The display name, description, runtime and publication come from `config.json`,
+and so does the coverage: `temporal_extent` becomes the Item's
+`start_datetime`/`end_datetime` plus a `cube:dimensions.t` entry (with an ISO
+8601 `step` from `temporal_resolution`), `spatial_resolution` becomes `gsd`,
+and `architecture` must match `mlm:architecture`. The remaining model
+properties have no consulted extension field, so they are published with the
+project prefix: `fairgeofm:type`, `fairgeofm:input_sources`,
+`fairgeofm:dimensions`, `fairgeofm:spatial_resolution`,
+`fairgeofm:temporal_resolution` and the derived `fairgeofm:tags`. Prefixed fields are not covered by a schema yet; move them to
+the `emb:` extension if one takes them over.
+
 The conventional asset keys are `model` (weights), `process_graph`, `udf`,
 `runtime`, `documentation` and, on a release, `source_code`; a Collection
 `item_assets` template documents them.
@@ -223,8 +235,8 @@ belongs in a separate embedding catalog and links back to the model Item with
 - Shared dependency archives live in `runtimes/`, never inside a process
   directory, and are reused across models.
 - A model selects its runtime with the `runtime` field of its `config.json`,
-  next to the display `name` and badge `tags`. One file per model keeps the
-  catalogue, the documentation and the process graph in sync.
+  next to the display `name`. One file per model keeps the catalogue, the
+  documentation and the process graph in sync.
 - The runtime is optional: a graph built only from built-in openEO processes
   has no UDF and no dependency archive, so it omits `runtime` and
   `default_job_options.udf-dependency-archives`. The build rejects a graph that

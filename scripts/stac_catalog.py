@@ -28,6 +28,7 @@ This module is imported by ``scripts/build-stac.py`` and
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Callable
 
@@ -37,15 +38,37 @@ from typing import Any, Callable
 # such as Zenodo releases browsed by STAC Browser (see ``publish-release.py``).
 LinkHref = Callable[[str], str]
 
-from process_graphs import model_config, render, validate_model_config
+from process_graphs import model_config, model_tags, render, validate_model_config
 
 STAC_VERSION = "1.0.0"
 MLM_SCHEMA = "https://stac-extensions.github.io/mlm/v1.6.0/schema.json"
 EO_SCHEMA = "https://stac-extensions.github.io/eo/v1.1.0/schema.json"
+CUBE_SCHEMA = "https://stac-extensions.github.io/datacube/v2.3.0/schema.json"
 PROCESSING_SCHEMA = "https://stac-extensions.github.io/processing/v1.3.0/schema.json"
 SCIENTIFIC_SCHEMA = "https://stac-extensions.github.io/scientific/v1.0.0/schema.json"
 VERSION_SCHEMA = "https://stac-extensions.github.io/version/v1.2.0/schema.json"
 ITEM_ASSETS_SCHEMA = "https://stac-extensions.github.io/item-assets/v1.0.0/schema.json"
+
+# Fields that no consulted extension defines are published under the project
+# prefix. They carry the values shown on the model page so a STAC client sees
+# the same facts, but they are not covered by a schema yet.
+PREFIX = "fairgeofm:"
+
+# Common temporal resolutions mapped to the ISO 8601 duration the datacube
+# extension expects in ``cube:dimensions.<name>.step``.
+TEMPORAL_STEPS = {
+    "annual": "P1Y",
+    "yearly": "P1Y",
+    "quarterly": "P3M",
+    "monthly": "P1M",
+    "weekly": "P1W",
+    "daily": "P1D",
+}
+RESOLUTION_METERS = re.compile(
+    r"^\s*(?P<value>[0-9]+(?:\.[0-9]+)?)\s*m(?:etres?|eters?)?\s*$",
+    re.IGNORECASE,
+)
+DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 CATALOG_ID = "fair-geo-fm"
 COLLECTION_ID = "fair-geo-fm-models"
@@ -122,6 +145,37 @@ def bbox_geometry(bbox: list[float]) -> dict:
     }
 
 
+def rfc3339_day_bound(value: str, *, end: bool) -> str:
+    """Widen a date-only config timecode to an RFC 3339 instant.
+
+    ``config.json`` stores coverage as calendar dates; STAC wants RFC 3339.
+    A full timestamp passes through unchanged.
+    """
+    if DATE_ONLY.match(value):
+        return f"{value}T{'23:59:59' if end else '00:00:00'}Z"
+    return value
+
+
+def spatial_resolution_meters(value: object) -> float | None:
+    """The numeric ground sample distance of a string such as ``"10 m"``."""
+    if not isinstance(value, str):
+        return None
+    match = RESOLUTION_METERS.match(value)
+    return float(match["value"]) if match else None
+
+
+def temporal_step(value: object) -> str | None:
+    """An ISO 8601 duration for ``cube:dimensions``, or None when unknown."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if text.lower() in TEMPORAL_STEPS:
+        return TEMPORAL_STEPS[text.lower()]
+    if re.fullmatch(r"P(?=\d)[0-9YMWD]+", text, re.IGNORECASE):
+        return text.upper()
+    return None
+
+
 def _absolute(href: str) -> bool:
     return href.startswith(("http://", "https://"))
 
@@ -196,6 +250,39 @@ def _item(
         "mlm:name": config["name"],
     }
     properties.update(stac.get("properties") or {})
+
+    # Emit the coverage and model properties the documentation page shows.
+    # Core, EO and datacube fields are used where they exist; the remaining
+    # values are namespaced with the project prefix until an extension
+    # (e.g. the proposed ``emb:`` one) defines them.
+    temporal = config.get("temporal_extent")
+    cube_dimensions: dict[str, Any] | None = None
+    if (
+        isinstance(temporal, list)
+        and len(temporal) == 2
+        and all(isinstance(value, str) and value for value in temporal)
+    ):
+        start = rfc3339_day_bound(temporal[0], end=False)
+        end = rfc3339_day_bound(temporal[1], end=True)
+        properties["start_datetime"] = start
+        properties["end_datetime"] = end
+        dimension: dict[str, Any] = {"type": "temporal", "extent": [start, end]}
+        step = temporal_step(config.get("temporal_resolution"))
+        if step:
+            dimension["step"] = step
+        cube_dimensions = {"t": dimension}
+        properties["cube:dimensions"] = cube_dimensions
+
+    gsd = spatial_resolution_meters(config.get("spatial_resolution"))
+    if gsd is not None:
+        properties["gsd"] = gsd
+
+    properties[f"{PREFIX}type"] = config["type"]
+    properties[f"{PREFIX}input_sources"] = config["input_sources"]
+    properties[f"{PREFIX}dimensions"] = config["dimensions"]
+    properties[f"{PREFIX}spatial_resolution"] = config["spatial_resolution"]
+    properties[f"{PREFIX}temporal_resolution"] = config["temporal_resolution"]
+    properties[f"{PREFIX}tags"] = model_tags(config)
 
     # MLM requires every band named in mlm:input to have a definition in the
     # Item. The eo extension supplies that; put it on the model asset, as in
@@ -343,8 +430,10 @@ def _item(
         SCIENTIFIC_SCHEMA,
         VERSION_SCHEMA,
     ]
-    if input_bands:
+    if input_bands or "gsd" in properties:
         stac_extensions.append(EO_SCHEMA)
+    if cube_dimensions:
+        stac_extensions.append(CUBE_SCHEMA)
 
     item = {
         "type": "Feature",
@@ -545,6 +634,34 @@ def validate(
         properties = document.get("properties") or {}
         if not properties.get("datetime"):
             problems.append(f"{path}: properties.datetime is required")
+        start_datetime = properties.get("start_datetime")
+        end_datetime = properties.get("end_datetime")
+        if (start_datetime is None) != (end_datetime is None):
+            problems.append(
+                f"{path}: start_datetime and end_datetime must be set together"
+            )
+        elif start_datetime is not None and (
+            not isinstance(start_datetime, str)
+            or not isinstance(end_datetime, str)
+            or start_datetime > end_datetime
+        ):
+            problems.append(
+                f"{path}: start_datetime must not be after end_datetime"
+            )
+        gsd = properties.get("gsd")
+        if gsd is not None and (
+            isinstance(gsd, bool) or not isinstance(gsd, (int, float)) or gsd <= 0
+        ):
+            problems.append(f"{path}: properties.gsd must be a positive number")
+        dimensions = properties.get("cube:dimensions")
+        if dimensions is not None:
+            temporal_dimension = (dimensions or {}).get("t")
+            if not isinstance(temporal_dimension, dict):
+                problems.append(
+                    f"{path}: cube:dimensions.t must describe the temporal dimension"
+                )
+            elif temporal_dimension.get("type") != "temporal":
+                problems.append(f"{path}: cube:dimensions.t must be temporal")
         for key in REQUIRED_MLM_PROPERTIES:
             if key not in properties:
                 problems.append(f"{path}: properties.{key} is required")

@@ -2,7 +2,7 @@
 
 Each model directory keeps a ``process_graph.json.j2`` template with the graph
 structure, ``config.json`` with the model metadata (its display ``name``,
-``description``, optional ``runtime``, badge ``tags``, ``parameters``,
+``description``, optional ``runtime``, its model properties, ``parameters``,
 ``publication`` and ``links``) and, for models that run a UDF, ``udf.py`` with
 the user-defined function. A graph built only from built-in openEO processes
 needs neither ``udf.py`` nor a runtime. The template receives
@@ -104,10 +104,10 @@ def model_config(process_dir: Path) -> dict:
     """The model's ``config.json``, or an empty mapping when absent.
 
     The file is the single source of truth for the model's display ``name``,
-    ``description``, ``runtime``, ``type``, ``input_sources``,
+    ``description``, ``runtime``, ``type``, ``architecture``, ``input_sources``,
     ``spatial_extent``/``temporal_extent``, ``spatial_resolution``/
     ``temporal_resolution``, ``dimensions`` (optionally with
-    ``dimensions_label``), badge ``tags`` and
+    ``dimensions_label``) and
     the ``parameters``, ``publication`` and ``links`` sections of its
     documentation page.
     """
@@ -121,6 +121,37 @@ def model_config(process_dir: Path) -> dict:
     if not isinstance(config, dict):
         raise SystemExit(f"{config_file}: expected a JSON object")
     return config
+
+
+def model_tags(config: dict) -> list[str]:
+    """Badge tags derived from the model properties.
+
+    The tags summarize the properties table on the catalogue card, so deriving
+    them from the same fields keeps the two in sync. A ``tags`` key in
+    ``config.json`` is ignored; ``validate_model_config`` rejects it.
+    Mirrors ``autoTags`` in ``scripts/prepare-docs.mjs``.
+    """
+    tags: list[str] = []
+
+    def add(value: object) -> None:
+        if isinstance(value, str) and value.strip() and value.strip() not in tags:
+            tags.append(value.strip())
+
+    add(config.get("type"))
+    add(config.get("dimensions_label"))
+    dimensions = config.get("dimensions")
+    if (
+        isinstance(dimensions, list)
+        and dimensions
+        and all(
+            isinstance(dimension, int) and not isinstance(dimension, bool)
+            for dimension in dimensions
+        )
+    ):
+        add(f"{max(dimensions)}-dim")
+    add(config.get("spatial_resolution"))
+    add(config.get("temporal_resolution"))
+    return tags
 
 
 _R_IDENTIFIER = re.compile(r"^[A-Za-z.][A-Za-z0-9._]*$")
@@ -285,11 +316,11 @@ def validate_model_config(process_dir: Path) -> list[str]:
         problems.append(
             f"{config_file}: 'warning' must be a non-empty string when set"
         )
-    tags = config.get("tags", [])
-    if not isinstance(tags, list) or any(
-        not isinstance(tag, str) or not tag.strip() for tag in tags
-    ):
-        problems.append(f"{config_file}: 'tags' must be a list of non-empty strings")
+    if "tags" in config:
+        problems.append(
+            f"{config_file}: 'tags' is generated from the model properties; "
+            "remove it"
+        )
 
     # The properties table on the model page renders these four fields, so a
     # missing or mistyped one would either break the page or misstate coverage.
@@ -297,6 +328,25 @@ def validate_model_config(process_dir: Path) -> list[str]:
         problems.append(
             f"{config_file}: 'type' must be one of {sorted(MODEL_TYPES)}"
         )
+    architecture = config.get("architecture")
+    if not isinstance(architecture, str) or not architecture.strip():
+        problems.append(
+            f"{config_file}: 'architecture' must be a non-empty string"
+        )
+    # The same value is published as mlm:architecture in the STAC Item; keep
+    # the page tag and the Item from disagreeing.
+    stac_file = process_dir / "stac.json"
+    if isinstance(architecture, str) and stac_file.is_file():
+        try:
+            stac = json.loads(stac_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            stac = {}
+        expected = (stac.get("properties") or {}).get("mlm:architecture")
+        if expected is not None and expected != architecture:
+            problems.append(
+                f"{config_file}: 'architecture' must match stac.json "
+                f"mlm:architecture {expected!r}"
+            )
     sources = config.get("input_sources")
     if (
         not isinstance(sources, list)
@@ -674,8 +724,9 @@ def render_readme(
     The page comes from the shared ``model.md.j2`` in the parent directory.
     ``base_url`` locates the model's published files (the process graph),
     ``docs_base_url`` the version's documentation page. The page title,
-    description, badge tags, parameters, publication and links come from the
-    model's ``config.json``, passed as ``config``.
+    description, parameters, publication and links come from the model's
+    ``config.json``, passed as ``config``; the badge tags are derived from its
+    properties by ``model_tags``.
     ``release_version`` and
     ``doi`` describe the release the page advertises (its header links both):
     they default to the newest ``v*`` tag and to the concept DOI for a release
@@ -710,13 +761,16 @@ def render_readme(
     # page template reads them under StrictUndefined; default them so models
     # without one still render.
     config = {"warning": "", "dimensions_label": "", **model_config(process_dir)}
+    # The badges are derived from the properties, never hand-maintained.
+    config["tags"] = model_tags(config)
     text = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(
         base_url=base_url.rstrip("/"),
         # The parsed config.json is the model's single source of truth; the
-        # page title, description, badge tags, input parameters, publication
-        # and links come from it rather than being duplicated in the template.
+        # page title, description, input parameters, publication and links
+        # come from it rather than being duplicated in the template. The badge
+        # tags are derived from it just above.
         config=config,
         # The usage examples show the required parameters only, filled with
         # the per-language example literals from config.json, so the page

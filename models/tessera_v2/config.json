@@ -3,6 +3,7 @@
     "description": "On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins.",
     "runtime": "py311-torch231",
     "type": "weights",
+    "architecture": "Transformer",
     "input_sources": [
         "Sentinel-1",
         "Sentinel-2"
@@ -26,7 +27,6 @@
         128
     ],
     "dimensions_label": "Matryoshka",
-    "tags": [],
     "parameters": [
         {
             "name": "spatial_extent",

@@ -146,7 +146,8 @@ function markdownFiles(dir) {
 // Model pages are rendered from the shared models/model.md.j2 with the release
 // values of the version being published. The models index template iterates a
 // `models` list built from each model directory's config.json, the single
-// source of truth for the model's display name, runtime and badge tags.
+// source of truth for the model's display name, runtime and properties; badge
+// tags are derived from those properties by autoTags.
 function modelConfig(dir) {
   const file = join(dir, "config.json");
   if (!existsSync(file)) return {};
@@ -180,6 +181,32 @@ function stacConfig(dir) {
   } catch (error) {
     throw new Error(`prepare-docs: ${file}: ${error.message}`);
   }
+}
+
+// Badge tags derived from the model properties, so the catalogue card and the
+// model page's badge row cannot drift from the properties table. Mirrors
+// model_tags in scripts/process_graphs.py; a tags key in config.json is
+// ignored.
+function autoTags(config) {
+  const tags = [];
+  const add = (value) => {
+    if (typeof value !== "string") return;
+    const tag = value.trim();
+    if (tag && !tags.includes(tag)) tags.push(tag);
+  };
+  add(config.type);
+  add(config.dimensions_label);
+  const dimensions = config.dimensions;
+  if (
+    Array.isArray(dimensions) &&
+    dimensions.length > 0 &&
+    dimensions.every(Number.isInteger)
+  ) {
+    add(`${Math.max(...dimensions)}-dim`);
+  }
+  add(config.spatial_resolution);
+  add(config.temporal_resolution);
+  return tags;
 }
 
 const HTML_ESCAPES = {
@@ -216,11 +243,7 @@ function modelCards(root) {
 
     const config = modelConfig(dir);
     const name = config.name.trim();
-    const tags = Array.isArray(config.tags)
-      ? config.tags
-          .filter((tag) => typeof tag === "string" && tag.trim())
-          .map((tag) => escapeHtml(tag.trim()))
-      : [];
+    const tags = autoTags(config).map(escapeHtml);
     const description =
       typeof config.description === "string" ? config.description.trim() : "";
 
@@ -811,7 +834,12 @@ function renderModelTemplate(text, version, model, source, config, stac) {
     // ``warning`` and ``dimensions_label`` are optional in config.json, but
     // the page template reads them unconditionally inside an if block;
     // default them for models without one.
-    config: { warning: "", dimensions_label: "", ...config },
+    config: {
+      warning: "",
+      dimensions_label: "",
+      ...config,
+      tags: autoTags(config),
+    },
     required_parameters: requiredParameters,
   };
   return renderTemplate(text, values, source);
