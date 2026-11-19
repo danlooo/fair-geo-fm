@@ -6,6 +6,7 @@
 #     "netcdf4",
 #     "numpy",
 #     "openeo>=0.39.1",
+#     "requests",
 #     "xarray",
 # ]
 # ///
@@ -63,6 +64,7 @@ from pathlib import Path
 
 import numpy as np
 import openeo
+import requests
 import xarray as xr
 
 from process_graphs import DEFAULT_BASE_URL, render
@@ -213,10 +215,35 @@ def band_count(dataset) -> tuple[int, str]:
     )
 
 
-def download_and_verify(job, download_dir: Path, config: dict) -> Path:
+def download_results(job, download_dir: Path, attempts: int = 4, delay: float = 30.0):
+    """Download the job results, retrying transient connection failures.
+
+    Large results are fetched in ranges, but a connection that breaks while a
+    response body is streamed surfaces as ``ChunkedEncodingError``/
+    ``IncompleteRead`` and is not retried by urllib3 (only failures at request
+    time are). Retry here; the client truncates the target file on each
+    attempt, so a partial download is not resumed or appended to.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return job.get_results().download_files(target=download_dir)
+        except requests.exceptions.RequestException as error:
+            if attempt == attempts:
+                raise
+            pause = delay * 2 ** (attempt - 1)
+            print(
+                f"  download attempt {attempt}/{attempts} failed: {error}; "
+                f"retrying in {pause:.0f}s"
+            )
+            time.sleep(pause)
+
+
+def download_and_verify(
+    job, download_dir: Path, config: dict, *, download_attempts: int = 4
+) -> Path:
     """Download the result and check the embedding shape and values."""
     download_dir.mkdir(parents=True, exist_ok=True)
-    files = job.get_results().download_files(target=download_dir)
+    files = download_results(job, download_dir, attempts=download_attempts)
     result = next(
         (
             path
@@ -288,6 +315,7 @@ def test_model(
     poll_interval: float,
     download_dir: Path,
     keep_jobs: bool,
+    download_attempts: int = 4,
 ) -> Path:
     """Render, submit and verify one model's documented example."""
     config = json.loads((process_dir / "config.json").read_text(encoding="utf-8"))
@@ -315,7 +343,9 @@ def test_model(
     succeeded = False
     try:
         wait_for_job(job, timeout_seconds, poll_interval)
-        result = download_and_verify(job, download_dir, config)
+        result = download_and_verify(
+            job, download_dir, config, download_attempts=download_attempts
+        )
         succeeded = True
         return result
     finally:
@@ -376,6 +406,12 @@ def main() -> None:
         help="keep downloaded results here instead of a temporary directory",
     )
     parser.add_argument(
+        "--download-retries",
+        type=int,
+        default=4,
+        help="attempts to download a job result before giving up (default: 4)",
+    )
+    parser.add_argument(
         "--keep-jobs",
         action="store_true",
         help="do not delete the CDSE jobs after the test",
@@ -403,6 +439,7 @@ def main() -> None:
                 poll_interval=args.poll_interval,
                 download_dir=download_root / process_dir.name,
                 keep_jobs=args.keep_jobs,
+                download_attempts=args.download_retries,
             )
             elapsed = time.monotonic() - started
             print(f"[{process_dir.name}] ok after {elapsed:.1f}s: {result}")
