@@ -1,10 +1,27 @@
 {
     "name": "TESSERA v1",
     "description": "Frozen global annual 10 m pixel embeddings from the TESSERA v1 model, read on demand from Source Cooperative and sampled onto a UTM grid.",
-    "tags": [
-        "precomputed",
-        "Sentinel 1+2"
+    "type": "frozen embeddings",
+    "input_sources": [
+        "Sentinel-1",
+        "Sentinel-2"
     ],
+    "spatial_extent": [
+        -180.0,
+        -90.0,
+        180.0,
+        90.0
+    ],
+    "temporal_extent": [
+        "2017-01-01",
+        "2025-12-31"
+    ],
+    "spatial_resolution": "10 m",
+    "temporal_resolution": "annual",
+    "dimensions": [
+        128
+    ],
+    "tags": [],
     "parameters": [
         {
             "name": "spatial_extent",

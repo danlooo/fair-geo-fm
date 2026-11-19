@@ -2,15 +2,36 @@
     "name": "AlphaEarth",
     "description": "Annual 64-band satellite embeddings from Google DeepMind, derived from Sentinel-1/2, Landsat 8/9, PALSAR-2, GEDI and GRACE imagery plus ancillary climate, topography, land-cover and text data. Loaded from a STAC catalogue at CloudFerro and decoded from signed 8-bit channels into values ranging from -1 to 1.",
     "warning": "The provider is currently generating the embeddings. The STAC catalog does not have global coverage for all years yet.",
-    "tags": [
-        "precomputed",
-        "Sentinel 1+2",
-        "Landsat 8+9",
-        "PALSAR",
+    "type": "frozen embeddings",
+    "input_sources": [
+        "Sentinel-1",
+        "Sentinel-2",
+        "Landsat 8",
+        "Landsat 9",
+        "PALSAR-2",
         "GEDI",
         "GRACE",
-        "Text input"
+        "Ancillary climate",
+        "Topography",
+        "Land cover",
+        "Text"
     ],
+    "spatial_extent": [
+        -180.0,
+        -90.0,
+        180.0,
+        90.0
+    ],
+    "temporal_extent": [
+        "2017-01-01",
+        "2024-12-31"
+    ],
+    "spatial_resolution": "10 m",
+    "temporal_resolution": "annual",
+    "dimensions": [
+        64
+    ],
+    "tags": [],
     "parameters": [
         {
             "name": "spatial_extent",

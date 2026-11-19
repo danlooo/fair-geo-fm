@@ -14,10 +14,9 @@ Conventions for the models and runtimes in this repository.
   `model_version` parameter cannot change the process contract.
 - Process ids are model-first, end with `_embeddings`, and carry no `infer_` or
   `load_` prefix. The suffix states the output type; a verb would collide with
-  the generic `load_embeddings` and `ml_predict` processes. Say whether a model
-  computes on demand or reads archived tiles in the `tags` of its `config.json`
-  (`"computed on demand"`), which the catalogue page renders as badges on the
-  model card.
+  the generic `load_embeddings` and `ml_predict` processes. State whether a
+  model reads published embedding tiles or loads weights and computes on demand
+  in the `type` of its `config.json` (`"frozen embeddings"` or `"weights"`).
 - One embedding per process graph: do not pack several models into one UDP.
 - Use openEO-friendly file names with underscores. Process ids must match
   `^\w+$`, so no hyphens or dots.
@@ -33,11 +32,22 @@ Conventions for the models and runtimes in this repository.
     precomputed embeddings) has no `udf.py` and needs no `runtime` in
     `config.json`.
   - `config.json` — the model's single source of truth: the display `name`,
-    `description`, optional `runtime` and badge `tags`, plus the `parameters`
-    table,
+    `description`, optional `runtime`, the model `type` (`"frozen embeddings"`
+    or `"weights"`), its `input_sources`, the `spatial_extent`
+    (`[west, south, east, north]`, WGS 84) and `temporal_extent`
+    (`[start, end]`, RFC 3339 timecodes) of the product it serves,
+    `spatial_resolution` (a string such as `"10 m"`), `temporal_resolution`
+    (such as `"annual"`), and the embedding
+    `dimensions` (ascending, one entry per usable output width, e.g. `[128]` or
+    the Matryoshka prefixes `[16, 32, 64, 128]`). `dimensions_label` optionally
+    annotates the values, e.g. `"Matryoshka"`. Badge `tags` follow, plus the
+    `parameters` table,
     `publication` (title, URL, citation and abstract) and `links` list of its
-    page. The build reads the runtime from it, both templates receive it as
-    `config`, and
+    page. The model page renders all of these as a properties table. Tags are
+    badges only: keep facts the table already states out of them, and use them
+    for what it cannot express, such as storage encoding or architecture. The
+    build reads the runtime from it,
+    both templates receive it as `config`, and
     the docs build renders the model cards and page sections from it. Each
     parameter also carries an openEO `schema`; required parameters carry an
     `example` value (plain JSON), optional ones a `default_value`. The usage

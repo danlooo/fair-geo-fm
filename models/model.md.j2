@@ -24,6 +24,18 @@
 :::
 {% endif %}
 
+## Properties
+
+| Property | Value |
+| -------- | ----- |
+| Type | {{ config.type }} |
+| Input sources | {% for source in config.input_sources %}{{ source }}{% if not loop.last %}, {% endif %}{% endfor %} |
+| Spatial extent | {% for value in config.spatial_extent %}{{ value }}{% if not loop.last %}, {% endif %}{% endfor %} (WGS 84) |
+| Spatial resolution | {{ config.spatial_resolution }} |
+| Temporal extent | {% for value in config.temporal_extent %}{{ value }}{% if not loop.last %} to {% endif %}{% endfor %} |
+| Temporal resolution | {{ config.temporal_resolution }} |
+| Dimensions | {% for dimension in config.dimensions %}{{ dimension }}{% if not loop.last %}, {% endif %}{% endfor %}{% if config.dimensions_label %} ({{ config.dimensions_label }}){% endif %} |
+
 ## Usage
 
 ::: tabs

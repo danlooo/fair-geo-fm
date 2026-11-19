@@ -85,6 +85,10 @@ SHARED_EXAMPLES: dict[str, object] = {
     "temporal_extent": ["2025-01-01", "2026-01-01"],
 }
 
+# How a model is distributed: an archive of precomputed embedding tiles, or
+# weights the process graph loads to compute embeddings on demand.
+MODEL_TYPES = {"frozen embeddings", "weights"}
+
 RUNTIME_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/runtimes/{{ runtime }}.zip#feature_deps"
 )
@@ -100,8 +104,12 @@ def model_config(process_dir: Path) -> dict:
     """The model's ``config.json``, or an empty mapping when absent.
 
     The file is the single source of truth for the model's display ``name``,
-    ``description``, ``runtime``, badge ``tags`` and the ``parameters``,
-    ``publication`` and ``links`` sections of its documentation page.
+    ``description``, ``runtime``, ``type``, ``input_sources``,
+    ``spatial_extent``/``temporal_extent``, ``spatial_resolution``/
+    ``temporal_resolution``, ``dimensions`` (optionally with
+    ``dimensions_label``), badge ``tags`` and
+    the ``parameters``, ``publication`` and ``links`` sections of its
+    documentation page.
     """
     config_file = process_dir / "config.json"
     if not config_file.is_file():
@@ -282,6 +290,90 @@ def validate_model_config(process_dir: Path) -> list[str]:
         not isinstance(tag, str) or not tag.strip() for tag in tags
     ):
         problems.append(f"{config_file}: 'tags' must be a list of non-empty strings")
+
+    # The properties table on the model page renders these four fields, so a
+    # missing or mistyped one would either break the page or misstate coverage.
+    if config.get("type") not in MODEL_TYPES:
+        problems.append(
+            f"{config_file}: 'type' must be one of {sorted(MODEL_TYPES)}"
+        )
+    sources = config.get("input_sources")
+    if (
+        not isinstance(sources, list)
+        or not sources
+        or any(not isinstance(source, str) or not source.strip() for source in sources)
+    ):
+        problems.append(
+            f"{config_file}: 'input_sources' must be a non-empty list of "
+            "non-empty strings"
+        )
+    bbox = config.get("spatial_extent")
+    if (
+        not isinstance(bbox, list)
+        or len(bbox) != 4
+        or any(
+            isinstance(value, bool) or not isinstance(value, (int, float))
+            for value in bbox
+        )
+    ):
+        problems.append(
+            f"{config_file}: 'spatial_extent' must be a [west, south, east, north] "
+            "array of numbers"
+        )
+    elif not (-180 <= bbox[0] <= bbox[2] <= 180 and -90 <= bbox[1] <= bbox[3] <= 90):
+        problems.append(
+            f"{config_file}: 'spatial_extent' must satisfy "
+            "-180 <= west <= east <= 180 and -90 <= south <= north <= 90"
+        )
+    temporal = config.get("temporal_extent")
+    if (
+        not isinstance(temporal, list)
+        or len(temporal) != 2
+        or any(not isinstance(value, str) or not value.strip() for value in temporal)
+    ):
+        problems.append(
+            f"{config_file}: 'temporal_extent' must be a [start, end] array of "
+            "non-empty strings"
+        )
+    elif temporal[0] > temporal[1]:
+        problems.append(f"{config_file}: 'temporal_extent' start is after its end")
+    resolution = config.get("spatial_resolution")
+    if not isinstance(resolution, str) or not resolution.strip():
+        problems.append(
+            f"{config_file}: 'spatial_resolution' must be a non-empty string"
+        )
+    temporal_resolution = config.get("temporal_resolution")
+    if (
+        not isinstance(temporal_resolution, str)
+        or not temporal_resolution.strip()
+    ):
+        problems.append(
+            f"{config_file}: 'temporal_resolution' must be a non-empty string"
+        )
+    dimensions = config.get("dimensions")
+    if (
+        not isinstance(dimensions, list)
+        or not dimensions
+        or any(
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+            for value in dimensions
+        )
+    ):
+        problems.append(
+            f"{config_file}: 'dimensions' must be a non-empty list of positive "
+            "integers"
+        )
+    elif dimensions != sorted(set(dimensions)):
+        problems.append(
+            f"{config_file}: 'dimensions' must be unique and in ascending order"
+        )
+    if "dimensions_label" in config and (
+        not isinstance(config["dimensions_label"], str)
+        or not config["dimensions_label"].strip()
+    ):
+        problems.append(
+            f"{config_file}: 'dimensions_label' must be a non-empty string when set"
+        )
 
     parameters = config.get("parameters")
     if not isinstance(parameters, list):
@@ -614,9 +706,10 @@ def render_readme(
         autoescape=False,
         undefined=jinja2.StrictUndefined,
     )
-    # ``warning`` is optional in config.json, but the page template reads it
-    # under StrictUndefined; default it so models without one still render.
-    config = {"warning": "", **model_config(process_dir)}
+    # ``warning`` and ``dimensions_label`` are optional in config.json, but the
+    # page template reads them under StrictUndefined; default them so models
+    # without one still render.
+    config = {"warning": "", "dimensions_label": "", **model_config(process_dir)}
     text = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(

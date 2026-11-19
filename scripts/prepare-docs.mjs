@@ -808,9 +808,10 @@ function renderModelTemplate(text, version, model, source, config, stac) {
     });
   const values = {
     ...modelTemplateValues(version, model, itemId),
-    // ``warning`` is optional in config.json, but the page template reads it
-    // unconditionally inside an if block; default it for models without one.
-    config: { warning: "", ...config },
+    // ``warning`` and ``dimensions_label`` are optional in config.json, but
+    // the page template reads them unconditionally inside an if block;
+    // default them for models without one.
+    config: { warning: "", dimensions_label: "", ...config },
     required_parameters: requiredParameters,
   };
   return renderTemplate(text, values, source);
