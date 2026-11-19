@@ -1,0 +1,104 @@
+name: test
+
+# Smoke-test the documented openEO example of every model on CDSE.
+#
+# This is the release gate: publish-release.yml calls this workflow before its
+# Zenodo job, so a release whose example does not run is never uploaded. It can
+# also be started by hand from the Actions tab to test a branch or tag without
+# releasing it.
+#
+# Deliberately no `release` trigger: publish-release.yml is the single release
+# entry point and calls this workflow once for the tag. Adding `release` here
+# would run every example a second time for the same release.
+#
+# Authentication uses OIDC client credentials (the only non-interactive option
+# on CDSE). The OPENEO_AUTH_CLIENT_ID and OPENEO_AUTH_CLIENT_SECRET repository
+# secrets belong to a CDSE service account or Sentinel Hub OAuth client.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to test (a release tag when called from publish-release)"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      OPENEO_AUTH_CLIENT_ID:
+        required: true
+      OPENEO_AUTH_CLIENT_SECRET:
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to test (default: the branch selected in the UI)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: discover models
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      models: ${{ steps.models.outputs.models }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Find model directories
+        id: models
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          models = sorted(
+              path.name
+              for path in Path("models").iterdir()
+              if path.is_dir()
+              and (path / "config.json").is_file()
+              and (path / "process_graph.json.j2").is_file()
+          )
+          if not models:
+              raise SystemExit("no model directories with a process graph template found")
+          print(f"models={json.dumps(models)}")
+          PY
+
+  examples:
+    name: ${{ matrix.model }}
+    needs: discover
+    runs-on: ubuntu-latest
+    # One model per job so a slow model does not use up another model's time
+    # and a failure in one model does not hide the results of the others.
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ${{ fromJSON(needs.discover.outputs.models) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Run the documented example
+        env:
+          OPENEO_AUTH_CLIENT_ID: ${{ secrets.OPENEO_AUTH_CLIENT_ID }}
+          OPENEO_AUTH_CLIENT_SECRET: ${{ secrets.OPENEO_AUTH_CLIENT_SECRET }}
+          OPENEO_BACKEND: https://openeo.dataspace.copernicus.eu
+        run: >-
+          uv run scripts/test-models.py
+          --model "${{ matrix.model }}"
+          --version "${{ inputs.ref || github.ref_name }}"
+          --timeout-minutes 150
