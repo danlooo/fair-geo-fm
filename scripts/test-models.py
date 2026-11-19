@@ -39,6 +39,9 @@ archive URL rendered into ``udf-dependency-archives``; the staging site
 (``https://danlooo.github.io/fair-geo-fm/main``) is reachable during the
 release workflow.
 
+Failed jobs are kept (their logs and results remain on CDSE for inspection);
+successful jobs are deleted unless ``--keep-jobs`` is given.
+
 Usage:
     OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \\
         uv run scripts/test-models.py
@@ -67,6 +70,7 @@ from process_graphs import DEFAULT_BASE_URL, render
 DEFAULT_BACKEND = "https://openeo.dataspace.copernicus.eu"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TERMINAL_STATUSES = {"finished", "error", "canceled"}
+SPATIAL_DIMENSIONS = ("x", "y", "lon", "lat")
 
 
 def connect(backend: str):
@@ -166,12 +170,47 @@ def wait_for_job(job, timeout_seconds: float, poll_interval: float) -> None:
         time.sleep(poll_interval)
 
     if status != "finished":
+        print(f"  job {job.job_id} did not finish; fetching its logs")
         try:
-            for entry in job.logs(level="error"):
-                print(f"  log: {entry}")
-        except Exception:  # noqa: BLE001 - logs are diagnostic only
-            pass
+            entries = job.logs(audience="all")
+        except Exception as error:  # noqa: BLE001 - logs are diagnostic only
+            print(f"  could not fetch job logs with audience=all: {error}")
+            try:
+                entries = job.logs()
+            except Exception as fallback_error:  # noqa: BLE001
+                print(f"  could not fetch job logs: {fallback_error}")
+                entries = []
+        for entry in entries:
+            print(f"  log: {entry}")
         raise RuntimeError(f"job {job.job_id} finished with status {status!r}")
+
+
+def band_count(dataset) -> tuple[int, str]:
+    """Number of embedding bands in a CDSE NetCDF result.
+
+    The raster writer may expose bands as a ``bands``/``band`` dimension, as a
+    coordinate, or (as the CDSE NetCDF writer does for these graphs) as one
+    data variable per band with only ``t``/``y``/``x`` dimensions. Accept all
+    three representations.
+    """
+    for name in ("bands", "band"):
+        if name in dataset.sizes:
+            return dataset.sizes[name], f"{name!r} dimension"
+        if name in dataset.coords:
+            return dataset.coords[name].size, f"{name!r} coordinate"
+
+    spatial = [
+        variable
+        for variable in dataset.data_vars.values()
+        if sum(name in variable.dims for name in SPATIAL_DIMENSIONS) >= 2
+        and variable.dtype.kind in "fiu"
+    ]
+    if spatial:
+        return len(spatial), "one data variable per band"
+    raise RuntimeError(
+        f"cannot determine the band count; dims={dict(dataset.sizes)}, "
+        f"data variables={list(dataset.data_vars)[:10]}"
+    )
 
 
 def download_and_verify(job, download_dir: Path, config: dict) -> Path:
@@ -195,26 +234,28 @@ def download_and_verify(job, download_dir: Path, config: dict) -> Path:
     expected = set(config.get("dimensions") or [])
     with xr.open_dataset(result) as dataset:
         sizes = dict(dataset.sizes)
+        bands, source = band_count(dataset)
         print(f"  result: {result} dims={sizes}")
-
-        band_dimension = next(
-            (name for name in ("bands", "band") if name in sizes), None
+        print(
+            f"  bands: {bands} ({source}); "
+            f"data variables: {len(dataset.data_vars)} "
+            f"{list(dataset.data_vars)[:5]}"
         )
-        if band_dimension:
-            if expected and sizes[band_dimension] not in expected:
-                raise RuntimeError(
-                    f"{band_dimension} dimension is {sizes[band_dimension]}, "
-                    f"expected one of {sorted(expected)}"
-                )
-        elif not (expected & set(sizes.values())):
+
+        if expected and bands not in expected:
             raise RuntimeError(
-                f"no dimension matches the configured embedding sizes "
-                f"{sorted(expected)}: {sizes}"
+                f"{bands} embedding bands ({source}), expected one of "
+                f"{sorted(expected)}; dims={sizes}, "
+                f"data variables={list(dataset.data_vars)[:10]}"
             )
 
-        if not all(name in sizes for name in ("x", "y")):
-            raise RuntimeError(f"result has no x/y spatial dimensions: {sizes}")
-        if any(sizes[name] == 0 for name in ("x", "y")):
+        spatial_dims = [name for name in SPATIAL_DIMENSIONS if name in sizes]
+        if len(spatial_dims) < 2:
+            raise RuntimeError(
+                f"result has no spatial dimensions ({', '.join(SPATIAL_DIMENSIONS)}): "
+                f"{sizes}"
+            )
+        if any(sizes[name] == 0 for name in spatial_dims):
             raise RuntimeError(f"result has an empty spatial dimension: {sizes}")
 
         for variable in dataset.data_vars.values():
@@ -226,7 +267,7 @@ def download_and_verify(job, download_dir: Path, config: dict) -> Path:
                 {
                     name: slice(0, 16)
                     for name in variable.dims
-                    if name in ("t", "band", "bands", "x", "y")
+                    if name in ("t", "band", "bands", *SPATIAL_DIMENSIONS)
                 }
             )
             if np.isfinite(np.asarray(subset.values)).any():
@@ -271,12 +312,18 @@ def test_model(
     )
     print(f"  created job {job.job_id}")
 
+    succeeded = False
     try:
         wait_for_job(job, timeout_seconds, poll_interval)
-        return download_and_verify(job, download_dir, config)
+        result = download_and_verify(job, download_dir, config)
+        succeeded = True
+        return result
     finally:
-        if keep_jobs:
-            print(f"  keeping job {job.job_id}")
+        # Keep failed jobs so their logs and results can be inspected with the
+        # service-account credentials after the CI run.
+        if keep_jobs or not succeeded:
+            reason = "requested" if keep_jobs else "failure"
+            print(f"  keeping job {job.job_id} ({reason})")
         else:
             try:
                 job.delete()

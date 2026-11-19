@@ -7,7 +7,7 @@ a form that is ready to use from [openEO](https://openeo.org) at the
 ## Get started
 
 Get precomputed, frozen [TESSERA v1 embeddings](/models/tessera_v1/) for the
-region around Jena, Germany in 2025, sampled onto a 10 m UTM grid:
+region around Jena, Germany in 2024, sampled onto a 10 m UTM grid:
 
 ::: tabs
 
@@ -33,7 +33,7 @@ region around Jena, Germany in 2025, sampled onto a 10 m UTM grid:
           "east": 11.65,
           "north": 50.96
         },
-        "temporal_extent": ["2025-01-01", "2026-01-01"],
+        "temporal_extent": ["2024-01-01", "2025-01-01"],
         "projection": 32632
       }
     },
@@ -74,7 +74,7 @@ embeddings = connection.datacube_from_process(
     spatial_extent={
         "west": 11.55, "south": 50.88, "east": 11.65, "north": 50.96
     },
-    temporal_extent=["2025-01-01", "2026-01-01"],
+    temporal_extent=["2024-01-01", "2025-01-01"],
     # UTM zone 32N; output pixels are 10 m in this CRS.
     projection=32632,
 )
@@ -117,7 +117,7 @@ parameters$spatial_extent <- list(
   west = 11.55, south = 50.88, east = 11.65, north = 50.96
 )
 parameters$temporal_extent <- list(
-  "2025-01-01", "2026-01-01"
+  "2024-01-01", "2025-01-01"
 )
 # UTM zone 32N; output pixels are 10 m in this CRS.
 parameters$projection <- 32632L

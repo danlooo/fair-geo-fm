@@ -74,7 +74,8 @@ CONCEPT_DOI = "10.5281/zenodo.24275707"
 # place and year, so the site shows one consistent region everywhere. The
 # values stay in each ``config.json`` (a model directory is self-contained and
 # its config is published verbatim), and this mapping is the single source the
-# build validates them against.
+# build validates them against. 2024 is the latest year available for every
+# model around Jena: the APEx AlphaEarth catalogue has no 2025 item there.
 SHARED_EXAMPLES: dict[str, object] = {
     "spatial_extent": {
         "west": 11.55,
@@ -82,7 +83,7 @@ SHARED_EXAMPLES: dict[str, object] = {
         "east": 11.65,
         "north": 50.96,
     },
-    "temporal_extent": ["2025-01-01", "2026-01-01"],
+    "temporal_extent": ["2024-01-01", "2025-01-01"],
 }
 
 # How a model is distributed: an archive of precomputed embedding tiles, or
