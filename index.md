@@ -39,10 +39,10 @@ features:
 
 <div class="feature-card">
   <div>
-    <h2>Run them in openEO</h2>
+    <h2>Ready to use in openEO</h2>
     <p>
       Each foundation model is shipped as a single openEO process node that can be integrated in your workflows. The underlying process graph and required runtime environments are uploaded to zenodo for reproducible execution. Additionally, models can be also explored using the provided STAC catalog.
     </p>
   </div>
-  <img src="/openeo-graph.png" alt="AlphaEarth false-color satellite composite" />
+  <img src="/openeo-graph.png" alt="openEO process graph for tessera embeddings" />
 </div>
