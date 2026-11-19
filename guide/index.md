@@ -13,7 +13,7 @@ region around Jena, Germany in 2024, sampled onto a 10 m UTM grid:
 
 == Web editor
 
-1. Go to an openEO Web Editor page e.g. https://openeofed.dataspace.copernicus.eu
+1. Go to the CDSE openEO Web Editor at https://openeo.dataspace.copernicus.eu
 1. Click on Log in at the bottom of the page if required.
 1. Click on the `</> Code` button
 1. Replace the content with this code
@@ -130,6 +130,90 @@ compute_result(
   format = "NETCDF",
   output_file = "tessera_v1_embeddings.nc"
 )
+```
+
+:::
+
+## Scaling
+
+Each model publishes `default_job_options` for batch jobs in its process graph,
+and the back-end applies them automatically when you use the model's process. A
+larger spatial or temporal extent produces more tiles and needs more memory. If
+a job fails with a JVM out-of-memory error or exit code 52, raise the limits
+below. Job options passed with the request override the model's defaults.
+
+| Option | What it controls |
+| --- | --- |
+| `driver-memory` | JVM heap of the driver, which holds results while writing NetCDF |
+| `executor-memory` | JVM heap of the workers; the usual cause of a JVM out-of-memory error |
+| `executor-memoryOverhead` | Extra container memory for native and Python processes |
+| `python-memory` | Memory limit for the Python worker that runs the UDF |
+| `max-executors` | Maximum number of parallel workers, for cost control |
+
+Start from the model's defaults and increase them until the job fits. The
+back-end rejects a request whose `executor-memory + executor-memoryOverhead +
+python-memory` exceeds its per-executor limit, and more memory per executor can
+mean fewer executors, so raise it only as needed.
+
+::: tabs
+
+== Web editor
+
+Open the CDSE Web Editor at https://openeo.dataspace.copernicus.eu. The
+federated https://openeofed.dataspace.copernicus.eu editor only lists the
+budget under **Advanced Parameters**, because its aggregator backend does not
+advertise the Spark job options.
+
+1. Load the model's process graph as in [Get started](#get-started).
+1. In the **Jobs** panel click **Create Batch Job** (or **Run with options**
+   for a synchronous result).
+1. In the dialog that opens, expand **Advanced Parameters**.
+1. Set `driver-memory`, `executor-memory`, `executor-memoryOverhead` and
+   `python-memory`, for example `8g`, `8g`, `4g` and `8g`.
+1. Create the job, or run it directly.
+
+If the options are still not listed, use the Python or R tab.
+
+== Python
+
+Pass `job_options` to `create_job` (or `execute_batch`):
+
+```python
+job = embeddings.create_job(
+    out_format="NETCDF",
+    job_options={
+        "driver-memory": "8g",
+        "executor-memory": "8g",
+        "executor-memoryOverhead": "4g",
+        "python-memory": "8g",
+    },
+)
+job.start_and_wait()
+job.download_result("embeddings.nc")
+```
+
+== R
+
+Pass the options as the non-standard top-level `job_options` property through
+`additional` in `create_job()`:
+
+```r
+job <- create_job(
+  graph = graph,
+  title = "embeddings",
+  additional = list(
+    job_options = list(
+      "driver-memory" = "8g",
+      "executor-memory" = "8g",
+      "executor-memoryOverhead" = "4g",
+      "python-memory" = "8g"
+    )
+  )
+)
+start_job(job)
+
+# start_job() only queues the job; download once it has finished.
+download_results(job, folder = "embeddings")
 ```
 
 :::
