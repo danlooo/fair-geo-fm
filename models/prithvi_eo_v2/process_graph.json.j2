@@ -5,8 +5,12 @@
 {% endif %}  "model": {{ config_json | indent(2) }},
   "parameters": {{ parameters_json }},
   "default_job_options": {
-    "driver-memory": "3g",
-    "executor-memory": "3g",
+    {# 768 float32 output bands make one 128x128 tile about 50 MB. The CDSE
+       NetCDF writer materializes a whole partition while serializing the
+       result, so the six-tile example extent needs more than the default 3g
+       JVM heap on both the executors and the driver. #}
+    "driver-memory": "6g",
+    "executor-memory": "6g",
     "executor-memoryOverhead": "3g",
     "python-memory": "8g",
     "soft-errors": 0.1,
