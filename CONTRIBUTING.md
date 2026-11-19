@@ -211,7 +211,8 @@ and `architecture` must match `mlm:architecture`. The remaining model
 properties have no consulted extension field, so they are published with the
 project prefix: `fairgeofm:type`, `fairgeofm:input_sources`,
 `fairgeofm:dimensions`, `fairgeofm:spatial_resolution`,
-`fairgeofm:temporal_resolution` and the derived `fairgeofm:tags`. Prefixed fields are not covered by a schema yet; move them to
+`fairgeofm:temporal_resolution`, the derived `fairgeofm:tags` and the
+`fairgeofm:multimodal` boolean. Prefixed fields are not covered by a schema yet; move them to
 the `emb:` extension if one takes them over.
 
 The conventional asset keys are `model` (weights), `process_graph`, `udf`,

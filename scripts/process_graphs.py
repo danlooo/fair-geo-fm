@@ -124,13 +124,16 @@ def model_config(process_dir: Path) -> dict:
     return config
 
 
-def model_tags(config: dict) -> list[str]:
+def model_tags(config: dict, *, include_multimodal: bool = True) -> list[str]:
     """Badge tags derived from the model properties.
 
     The tags summarize the properties table on the catalogue card, so deriving
     them from the same fields keeps the two in sync. A ``tags`` key in
     ``config.json`` is ignored; ``validate_model_config`` rejects it.
     Mirrors ``autoTags`` in ``scripts/prepare-docs.mjs``.
+
+    ``include_multimodal`` is false for the STAC Item, which publishes the
+    modality as the explicit ``fairgeofm:multimodal`` boolean instead.
     """
     tags: list[str] = []
 
@@ -152,7 +155,7 @@ def model_tags(config: dict) -> list[str]:
         add(f"{max(dimensions)}-dim")
     add(config.get("spatial_resolution"))
     add(config.get("temporal_resolution"))
-    if config.get("multimodal") is True:
+    if include_multimodal and config.get("multimodal") is True:
         add("multimodal")
     return tags
 

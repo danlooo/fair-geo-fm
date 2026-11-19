@@ -282,7 +282,8 @@ def _item(
     properties[f"{PREFIX}dimensions"] = config["dimensions"]
     properties[f"{PREFIX}spatial_resolution"] = config["spatial_resolution"]
     properties[f"{PREFIX}temporal_resolution"] = config["temporal_resolution"]
-    properties[f"{PREFIX}tags"] = model_tags(config)
+    properties[f"{PREFIX}tags"] = model_tags(config, include_multimodal=False)
+    properties[f"{PREFIX}multimodal"] = config.get("multimodal") is True
 
     # MLM requires every band named in mlm:input to have a definition in the
     # Item. The eo extension supplies that; put it on the model asset, as in
