@@ -5,7 +5,7 @@
 #     "jinja2",
 #     "netcdf4",
 #     "numpy",
-#     "openeo>=0.39.1",
+#     "openeo>=0.41.0",
 #     "requests",
 #     "xarray",
 # ]
@@ -74,6 +74,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TERMINAL_STATUSES = {"finished", "error", "canceled"}
 SPATIAL_DIMENSIONS = ("x", "y", "lon", "lat")
 
+# The matrix runs all models in parallel against the same service account, so
+# the backend answers some calls with ``429 Too Many Requests``. The client's
+# default retry policy does not cover that: urllib3 only retries idempotent
+# methods, and starting a job is a POST. Allow every method and honour the
+# ``Retry-After`` header the backend sends.
+RATE_LIMIT_RETRY = {
+    "total": 5,
+    "backoff_factor": 2.0,
+    "status_forcelist": [429, 502, 503, 504],
+    "allowed_methods": None,
+}
+
 
 def connect(backend: str):
     """Return an authenticated connection using client credentials."""
@@ -84,7 +96,7 @@ def connect(backend: str):
             "OPENEO_AUTH_CLIENT_ID and OPENEO_AUTH_CLIENT_SECRET must be set"
         )
 
-    connection = openeo.connect(backend)
+    connection = openeo.connect(backend, retry=RATE_LIMIT_RETRY)
     arguments = {"client_id": client_id, "client_secret": client_secret}
     if provider_id := os.environ.get("OPENEO_AUTH_PROVIDER_ID"):
         arguments["provider_id"] = provider_id
