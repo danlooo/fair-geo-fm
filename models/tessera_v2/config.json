@@ -124,6 +124,22 @@
             }
         },
         {
+            "name": "embedding_length",
+            "required": false,
+            "default": "`128`",
+            "default_value": 128,
+            "description": "Embedding length: one of the Matryoshka prefixes `16`, `32`, `64` or `128`. Shorter prefixes trade a little accuracy for substantially less storage.",
+            "schema": {
+                "type": "integer",
+                "enum": [
+                    16,
+                    32,
+                    64,
+                    128
+                ]
+            }
+        },
+        {
             "name": "weights_url",
             "required": false,
             "default": "`https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt`",

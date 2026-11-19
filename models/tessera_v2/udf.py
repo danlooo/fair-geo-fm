@@ -16,12 +16,16 @@ via the "udf-dependency-archives" job option, e.g.:
     }
 
 The checkpoint itself (a `student_*.pt` file) is downloaded by the UDF at
-runtime. The optional ``weights_url`` context entry selects a different
-checkpoint; when omitted it defaults to ``DEFAULT_WEIGHTS_URL`` (the released
-student_nano checkpoint), so a call can run with no context at all:
+runtime. The optional ``embedding_length`` context entry selects a Matryoshka
+prefix of the embedding (one of the checkpoint's trained cuts, 16/32/64/128);
+it defaults to the full width. The optional ``weights_url`` context entry
+selects a different checkpoint; when omitted it defaults to
+``DEFAULT_WEIGHTS_URL`` (the released student_nano checkpoint), so a call can
+run with no context at all:
 
     openeo.UDF.from_file("udf_tessera_embedding.py",
-                          context={"weights_url": "https://.../student_nano.pt"})
+                          context={"embedding_length": 64,
+                                   "weights_url": "https://.../student_nano.pt"})
 
 Expects the merged input cube to contain (at least) these bands, produced by
 merge_cubes() of three separately-loaded collections (see TesseraEmbedding.ipynb):
@@ -537,13 +541,37 @@ def _get_model(context: dict):
     return _load_model_from_url(url)
 
 
+def _output_width(model, context: dict) -> int:
+    """The requested Matryoshka width, validated against the checkpoint.
+
+    ``embedding_length`` is optional; omitting it returns the full embedding. Only
+    the cuts the model was trained with are meaningful, so an arbitrary prefix
+    is rejected.
+    """
+    value = (context or {}).get("embedding_length")
+    if value is None or value == "":
+        return model.repr_dim
+    try:
+        width = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"context['embedding_length'] must be an integer, got {value!r}"
+        ) from None
+    if width not in model.matryoshka_dims:
+        raise ValueError(
+            f"context['embedding_length']={width} is not a trained Matryoshka cut; "
+            f"choose one of {list(model.matryoshka_dims)}"
+        )
+    return width
+
+
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
-    # This UDF collapses the time dimension into 128 output bands, so it must
+    # This UDF collapses the time dimension into output bands, so it must
     # be invoked via apply_dimension(dimension="t", target_dimension="bands")
     # (see TesseraEmbedding.ipynb). The metadata rename below assumes t is
     # already gone by the time the callback runs.
     model = _get_model(context)
-    band_names = [f"tessera_{i}" for i in range(model.repr_dim)]
+    band_names = [f"tessera_{i}" for i in range(_output_width(model, context))]
     return metadata.rename_labels(dimension="bands", target=band_names)
 
 
@@ -615,9 +643,12 @@ def apply_datacube(cube: XarrayDataCube, context: dict) -> XarrayDataCube:
         context=context,
     )  # (H, W, repr_dim)
 
+    width = _output_width(model, context)
+    embedding = embedding[:, :, :width]
+
     result = xr.DataArray(
         embedding.transpose(2, 0, 1),
         dims=["bands", "y", "x"],
-        coords={"bands": [f"tessera_{i}" for i in range(model.repr_dim)], "y": da.coords["y"], "x": da.coords["x"]},
+        coords={"bands": [f"tessera_{i}" for i in range(width)], "y": da.coords["y"], "x": da.coords["x"]},
     )
     return XarrayDataCube(result)
