@@ -51,13 +51,16 @@ by external standards keep their published spelling even when that differs
     the Matryoshka prefixes `[16, 32, 64, 128]`). `dimensions_label` optionally
     annotates the values, e.g. `"Matryoshka"`. `multimodal` optionally states
     whether the model combines satellite imagery with another modality such as
-    text or climate variables; when `true` the page gets a `multimodal` badge.
+    text or climate variables; the model page shows it as a `Multimodal` row in
+    the properties table, and the models overview card gets a `multimodal`
+    badge when it is `true`.
     Then the `parameters` table,
     `publication` (title, URL, citation and abstract) and `links` list of its
     page. The model page renders these as a properties table. Badge tags are
     **generated** from those fields rather than stored: `type`,
     `dimensions_label`, `<max dimension>-dim`, `spatial_resolution`,
-    `temporal_resolution` and, when `multimodal` is `true`, `multimodal`.
+    `temporal_resolution` and, when `multimodal` is `true`, `multimodal` on the
+    overview card (model pages omit that badge in favor of the properties row).
     Do not add a `tags` key; the build rejects it. The
     build reads the runtime from it,
     both templates receive it as `config`, and

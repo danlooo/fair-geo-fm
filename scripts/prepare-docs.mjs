@@ -186,8 +186,9 @@ function stacConfig(dir) {
 // Badge tags derived from the model properties, so the catalogue card and the
 // model page's badge row cannot drift from the properties table. Mirrors
 // model_tags in scripts/process_graphs.py; a tags key in config.json is
-// ignored.
-function autoTags(config) {
+// ignored. `includeMultimodal` is false for the model page, which shows
+// modality as a properties row instead of a badge.
+function autoTags(config, { includeMultimodal = true } = {}) {
   const tags = [];
   const add = (value) => {
     if (typeof value !== "string") return;
@@ -206,7 +207,7 @@ function autoTags(config) {
   }
   add(config.spatial_resolution);
   add(config.temporal_resolution);
-  if (config.multimodal === true) add("multimodal");
+  if (includeMultimodal && config.multimodal === true) add("multimodal");
   return tags;
 }
 
@@ -832,14 +833,15 @@ function renderModelTemplate(text, version, model, source, config, stac) {
     });
   const values = {
     ...modelTemplateValues(version, model, itemId),
-    // ``warning`` and ``dimensions_label`` are optional in config.json, but
-    // the page template reads them unconditionally inside an if block;
-    // default them for models without one.
+    // ``warning``, ``dimensions_label`` and ``multimodal`` are optional in
+    // config.json, but the page template reads them unconditionally inside an
+    // if block; default them for models without one.
     config: {
       warning: "",
       dimensions_label: "",
+      multimodal: false,
       ...config,
-      tags: autoTags(config),
+      tags: autoTags(config, { includeMultimodal: false }),
     },
     required_parameters: requiredParameters,
   };

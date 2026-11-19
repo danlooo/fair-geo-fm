@@ -29,6 +29,7 @@
 | Property | Value |
 | -------- | ----- |
 | Type | {{ config.type }} |
+| Multimodal | {% if config.multimodal %}yes{% endif %}{% if not config.multimodal %}no{% endif %} |
 | Input sources | {% for source in config.input_sources %}{{ source }}{% if not loop.last %}, {% endif %}{% endfor %} |
 | Spatial extent | {% for value in config.spatial_extent %}{{ value }}{% if not loop.last %}, {% endif %}{% endfor %} (WGS 84) |
 | Spatial resolution | {{ config.spatial_resolution }} |

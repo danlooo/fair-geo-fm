@@ -769,9 +769,16 @@ def render_readme(
     # ``warning`` and ``dimensions_label`` are optional in config.json, but the
     # page template reads them under StrictUndefined; default them so models
     # without one still render.
-    config = {"warning": "", "dimensions_label": "", **model_config(process_dir)}
-    # The badges are derived from the properties, never hand-maintained.
-    config["tags"] = model_tags(config)
+    config = {
+        "warning": "",
+        "dimensions_label": "",
+        "multimodal": False,
+        **model_config(process_dir),
+    }
+    # The badges are derived from the properties, never hand-maintained. The
+    # page shows modality as a properties row instead, so only the catalogue
+    # cards carry the multimodal badge.
+    config["tags"] = model_tags(config, include_multimodal=False)
     text = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(
