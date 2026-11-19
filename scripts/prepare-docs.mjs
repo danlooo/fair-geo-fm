@@ -206,6 +206,7 @@ function autoTags(config) {
   }
   add(config.spatial_resolution);
   add(config.temporal_resolution);
+  if (config.multimodal === true) add("multimodal");
   return tags;
 }
 

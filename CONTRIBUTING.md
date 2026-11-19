@@ -49,12 +49,16 @@ by external standards keep their published spelling even when that differs
     (such as `"annual"`), and the embedding
     `dimensions` (ascending, one entry per usable output width, e.g. `[128]` or
     the Matryoshka prefixes `[16, 32, 64, 128]`). `dimensions_label` optionally
-    annotates the values, e.g. `"Matryoshka"`. Then the `parameters` table,
+    annotates the values, e.g. `"Matryoshka"`. `multimodal` optionally states
+    whether the model combines satellite imagery with another modality such as
+    text or climate variables; when `true` the page gets a `multimodal` badge.
+    Then the `parameters` table,
     `publication` (title, URL, citation and abstract) and `links` list of its
     page. The model page renders these as a properties table. Badge tags are
     **generated** from those fields rather than stored: `type`,
-    `dimensions_label`, `<max dimension>-dim`, `spatial_resolution` and
-    `temporal_resolution`. Do not add a `tags` key; the build rejects it. The
+    `dimensions_label`, `<max dimension>-dim`, `spatial_resolution`,
+    `temporal_resolution` and, when `multimodal` is `true`, `multimodal`.
+    Do not add a `tags` key; the build rejects it. The
     build reads the runtime from it,
     both templates receive it as `config`, and
     the docs build renders the model cards and page sections from it. Each

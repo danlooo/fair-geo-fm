@@ -7,6 +7,7 @@
         "Sentinel-1",
         "Sentinel-2"
     ],
+    "multimodal": false,
     "spatial_extent": [
         -180.0,
         -90.0,

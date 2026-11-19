@@ -17,6 +17,7 @@
         "Land cover",
         "Text"
     ],
+    "multimodal": true,
     "spatial_extent": [
         -180.0,
         -90.0,

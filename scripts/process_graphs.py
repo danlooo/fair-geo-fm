@@ -152,6 +152,8 @@ def model_tags(config: dict) -> list[str]:
         add(f"{max(dimensions)}-dim")
     add(config.get("spatial_resolution"))
     add(config.get("temporal_resolution"))
+    if config.get("multimodal") is True:
+        add("multimodal")
     return tags
 
 
@@ -358,6 +360,9 @@ def validate_model_config(process_dir: Path) -> list[str]:
             f"{config_file}: 'input_sources' must be a non-empty list of "
             "non-empty strings"
         )
+    multimodal = config.get("multimodal")
+    if multimodal is not None and not isinstance(multimodal, bool):
+        problems.append(f"{config_file}: 'multimodal' must be a boolean")
     bbox = config.get("spatial_extent")
     if (
         not isinstance(bbox, list)
