@@ -38,13 +38,7 @@ from typing import Any, Callable
 # such as Zenodo releases browsed by STAC Browser (see ``publish-release.py``).
 LinkHref = Callable[[str], str]
 
-from process_graphs import (
-    SITE_BASE_URL,
-    model_config,
-    model_tags,
-    render,
-    validate_model_config,
-)
+from process_graphs import model_config, model_tags, render, validate_model_config
 
 STAC_VERSION = "1.0.0"
 MLM_SCHEMA = "https://stac-extensions.github.io/mlm/v1.6.0/schema.json"
@@ -419,16 +413,6 @@ def _item(
             "type": "text/html",
             "title": "Model documentation",
         },
-        {
-            # The HTML representation of this Item on the documentation site.
-            # Built from ``version`` so a release links its own archived page
-            # (e.g. /v0.3/models/...) even though the Item itself lives on
-            # Zenodo.
-            "rel": "alternate",
-            "href": f"{SITE_BASE_URL}/{version}/models/{model}/",
-            "type": "text/html",
-            "title": f"{config['name']} documentation page",
-        },
     ]
     if doi:
         links.append(
@@ -732,20 +716,6 @@ def validate(
                 )
         if "process_graph" not in assets:
             problems.append(f"{path}: assets.process_graph is required")
-        alternate = next(
-            (
-                link
-                for link in document.get("links") or []
-                if link.get("rel") == "alternate"
-            ),
-            None,
-        )
-        if alternate is None:
-            problems.append(f"{path}: an alternate documentation link is required")
-        elif not _absolute(alternate.get("href", "")):
-            problems.append(
-                f"{path}: the alternate documentation link must be absolute"
-            )
 
         declared_bands: list[str] = []
         if isinstance(inputs, list):
