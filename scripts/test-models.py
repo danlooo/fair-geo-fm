@@ -306,7 +306,7 @@ def test_model(
 
     job = connection.create_job(
         {"process_graph": process_graph},
-        title=f"fair-geo-fm smoke test: {process_dir.name}",
+        title=f"ci_test_{process_dir.name}",
         description=f"Smoke test of the documented {process_dir.name} example",
         job_options=graph.get("default_job_options") or None,
     )
@@ -392,6 +392,7 @@ def main() -> None:
     failures = []
     for process_dir in models:
         print(f"[{process_dir.name}]")
+        started = time.monotonic()
         try:
             result = test_model(
                 connection,
@@ -403,9 +404,14 @@ def main() -> None:
                 download_dir=download_root / process_dir.name,
                 keep_jobs=args.keep_jobs,
             )
-            print(f"[{process_dir.name}] ok: {result}")
+            elapsed = time.monotonic() - started
+            print(f"[{process_dir.name}] ok after {elapsed:.1f}s: {result}")
         except Exception as error:  # noqa: BLE001 - run all models, report at the end
-            print(f"[{process_dir.name}] FAILED: {error}", file=sys.stderr)
+            elapsed = time.monotonic() - started
+            print(
+                f"[{process_dir.name}] FAILED after {elapsed:.1f}s: {error}",
+                file=sys.stderr,
+            )
             traceback.print_exc()
             failures.append(process_dir.name)
 
