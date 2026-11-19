@@ -103,6 +103,13 @@ by external standards keep their published spelling even when that differs
   reads it for <code v-pre>{{ udf_json }}</code> and the STAC Item links it. A graph with
   only built-in processes omits it, receives an empty `udf_json`, and CI still
   validates it because the template identifies the model directory.
+- Do not add `from __future__ import annotations` to `udf.py`. The openEO UDF
+  runner picks its entry point (`apply_datacube`, `apply_metadata`, ...) by
+  comparing the *evaluated* annotations with `openeo.udf.XarrayDataCube` and
+  friends. Postponed annotations are plain strings such as `"XarrayDataCube"`,
+  which never match, so the backend fails every task with
+  `openeo.udf.OpenEoUdfException: No UDF found.` even though the function is
+  defined. Annotate with names that are imported at module level instead.
 - Do not hardcode publication URLs. The process graph template is rendered for
   a base URL and exposes <code v-pre>{{ runtime_url }}</code> (the dependency archive, with
   `#feature_deps`), <code v-pre>{{ process_graph_url }}</code>, <code v-pre>{{ version }}</code>

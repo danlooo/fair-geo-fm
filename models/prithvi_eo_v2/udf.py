@@ -25,9 +25,16 @@ it receives `[t, bands, y, x]`, bins the time series into at most four frames
 (matching Prithvi's 4-timestep pretraining), masks clouds from SCL, runs the
 frozen encoder, and returns `[768, y, x]`. Prithvi is a patch model: the token
 grid is upsampled back to the input grid, so neighboring pixels share context.
-"""
-from __future__ import annotations
 
+Keep the openEO annotations as runtime objects: do not add
+``from __future__ import annotations``. The openEO UDF runner locates its entry
+point by comparing the evaluated parameter and return annotations with
+``openeo.udf.XarrayDataCube``; postponed annotations become the plain string
+``"XarrayDataCube"``, which never matches, so every executor fails the job with
+``openeo.udf.OpenEoUdfException: No UDF found.`` even though ``apply_datacube``
+is defined. Every name used in an annotation here is imported or defined at
+module level before use, so the annotations evaluate at definition time.
+"""
 import functools
 import math
 import os
@@ -437,6 +444,8 @@ def _encode(
 # =============================================================================
 # openEO entry points
 # =============================================================================
+# These annotations must stay evaluated types; see the module docstring for why
+# `from __future__ import annotations` would break `run_udf` with "No UDF found".
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     del context  # the output width is fixed for the 100M-TL checkpoint
     return metadata.rename_labels(
