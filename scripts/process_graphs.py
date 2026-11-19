@@ -59,7 +59,7 @@ import jinja2
 # docs/.vitepress/config.mjs (base: "/fair-geo-fm/") and with
 # scripts/prepare-docs.mjs.
 SITE_BASE_URL = "https://danlooo.github.io/fair-geo-fm"
-# Where ``publish`` serves the default branch.
+# Where ``publish-staging`` serves the default branch.
 DEFAULT_BASE_URL = f"{SITE_BASE_URL}/main"
 # External STAC browser. Its /external/ route takes the target URL without the
 # scheme, so model pages can link the Item in the browser instead of raw JSON.

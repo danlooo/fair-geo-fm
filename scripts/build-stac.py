@@ -19,7 +19,7 @@ The catalog is written to ``stac/`` by default (git-ignored):
     uv run scripts/build-stac.py --base-url <url> --version v0.2 --doi <doi>
 
 ``publish-release.py`` writes the same catalog into the Zenodo record, with
-asset URLs pointing at the record's file base; ``publish.yml`` renders the
+asset URLs pointing at the record's file base; ``publish-staging.yml`` renders the
 staging catalog under ``stac/`` for the Pages site.
 """
 

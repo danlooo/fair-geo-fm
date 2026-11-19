@@ -212,7 +212,7 @@ The catalog is generated, never committed:
     uv run scripts/build-stac.py             # write stac/ for the staging base URL
     uv run scripts/build-stac.py --base-url <record-files-url> --version v0.2 --doi <doi>
 
-`publish.yml` serves the staging catalog at `/main/stac/`. `publish-release.py`
+`publish-staging.yml` serves the staging catalog at `/main/stac/`. `publish-release.py`
 writes the same tree into the Zenodo record under `stac/`, with asset URLs
 pointing at the record's own files. Its catalog links are absolute URLs on
 Zenodo's API route (`/api/records/<record-id>/files/stac/.../content`): the
@@ -327,7 +327,7 @@ Two publication targets share one layout, selected by a base URL:
 
 | Target | Base URL | Contents |
 | --- | --- | --- |
-| Staging (`publish`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives, STAC catalog |
+| Staging (`publish-staging`) | `https://danlooo.github.io/fair-geo-fm/main` | docs site, process graphs, runtime archives, STAC catalog |
 | Release (`publish-release`) | `https://zenodo.org/records/<record-id>/files` | process graphs, UDFs, model READMEs, runtime archives, STAC catalog, full source archive |
 
 The staging target is rebuilt automatically after every successful push build.
@@ -353,7 +353,7 @@ Three workflows carry a commit from validation to publication.
   writes `checksums.sha256`, and uploads all of it as the `dependency-archives`
   artifact (30 days). Unchanged archives are restored from a cache keyed on the
   requirements files instead of rebuilt.
-- `publish` deploys the documentation site to GitHub Pages. It is triggered by a
+- `publish-staging` deploys the documentation site to GitHub Pages. It is triggered by a
   completed `build` run, refuses to publish unless that run was a successful
   push build for the commit, and takes the runtime archives from the build's
   artifact.
@@ -463,7 +463,7 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
   header at all. The docs build resolves the version records and DOIs from the
   concept record through the Zenodo API and falls back to the staging base and
   the concept DOI if that lookup fails.
-- `publish-release` dispatches `publish` after the Zenodo record is published,
+- `publish-release` dispatches `publish-staging` after the Zenodo record is published,
   so the tag page is rebuilt against the new version record/DOI instead of the
   staging URLs from the deployment that ran when the tag was pushed. A
   rehearsal (`dry_run`) does not rebuild, because the draft is deleted.

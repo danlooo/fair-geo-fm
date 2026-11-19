@@ -21,7 +21,7 @@ name: publish-release
 # the record's own runtime URL; the DOI remains the citable identifier. The
 # record is published last.
 #
-# Once the record exists, the workflow dispatches `publish` to rebuild the
+# Once the record exists, the workflow dispatches `publish-staging` to rebuild the
 # documentation site. Tag pages resolve their tag to this version record, and
 # the deployment triggered by the tag push ran before the record existed, so
 # without this rebuild they would keep linking to the staging URLs.
@@ -160,6 +160,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh workflow run publish.yml \
+          gh workflow run publish-staging.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "${{ github.event.repository.default_branch }}"

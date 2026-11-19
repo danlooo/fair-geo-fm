@@ -355,7 +355,7 @@ function writeRuntimeAssets() {
 }
 
 // Rendered process graphs are git-ignored build outputs, so ref worktrees
-// never contain them. The publish workflow renders the default branch's graphs
+// never contain them. The publish-staging workflow renders the default branch's graphs
 // in the checkout; serve them at the fixed /main/ path that model pages link
 // to. Copy rather than writeTree, for the same reason as writeRuntimeAssets.
 function writeStagingProcessGraphs() {

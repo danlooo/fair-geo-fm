@@ -9,10 +9,10 @@ name: build
 #     errors (see scripts/build-process-graph.py)
 #   - dependency archives: builds every runtimes/*/requirements.txt into a
 #     deterministic dependencies.zip and smoke-tests the imports on the pinned
-#     Python. Publishing is deliberately not automated; see publish.yml.
+#     Python. Publishing is deliberately not automated; see publish-staging.yml.
 #
 # It runs on every push and pull request, not only on changes that touch the
-# build inputs: publish.yml is triggered by this workflow's completion, so a
+# build inputs: publish-staging.yml is triggered by this workflow's completion, so a
 # successful build run must exist for every commit that may be published.
 # Unchanged archives are restored from the cache instead of rebuilt.
 on:

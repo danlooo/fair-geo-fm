@@ -5,7 +5,7 @@
 [![docs dev](https://img.shields.io/badge/docs-dev-blue)](https://danlooo.github.io/fair-geo-fm/main/)
 
 [![build](https://github.com/danlooo/fair-geo-fm/actions/workflows/build.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/build.yml)
-[![publish](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish.yml)
+[![publish-staging](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish-staging.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish-staging.yml)
 [![publish-release](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish-release.yml/badge.svg)](https://github.com/danlooo/fair-geo-fm/actions/workflows/publish-release.yml)
 
 FAIR geospatial foundation models, ready to use in openEO.

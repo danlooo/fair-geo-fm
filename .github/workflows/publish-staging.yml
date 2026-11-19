@@ -1,4 +1,4 @@
-name: publish
+name: publish-staging
 
 # Second stage of the build -> publish pipeline for the staging site. Nothing is
 # published unless a `build` run for the commit has completed successfully, so a
