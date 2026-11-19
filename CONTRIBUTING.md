@@ -338,7 +338,7 @@ release.
 
 ### Build and publish
 
-Three workflows carry a commit from validation to publication.
+Four workflows carry a commit from validation to publication.
 
 - `build` runs on every push, pull request and `workflow_dispatch`. It renders
   each `models/*/process_graph.json.j2` with its `udf.py` and `config.json` and
@@ -357,6 +357,11 @@ Three workflows carry a commit from validation to publication.
   completed `build` run, refuses to publish unless that run was a successful
   push build for the commit, and takes the runtime archives from the build's
   artifact.
+- `test` runs the documented openEO example of every model against CDSE
+  (`scripts/test-models.py`). `publish-release` calls it for the released tag
+  before its Zenodo job, so a model whose example does not run blocks the
+  upload. It can also be started by hand with `workflow_dispatch`; see
+  [openEO credentials](#openeo-credentials-for-the-test-workflow).
 - `publish-release` uploads a release to Zenodo (below). It is triggered by a
   published GitHub release.
 
@@ -415,6 +420,39 @@ uploaded under the path the GitHub integration would have used, so the record
 is self-contained. The workflow talks to the Zenodo REST API
 (<https://developers.zenodo.org/>) through `scripts/publish-release.py`.
 
+### openEO credentials for the test workflow
+
+The `test` workflow runs each model's documented example on the Copernicus
+Data Space Ecosystem (CDSE) before `publish-release` may upload it. It uses the
+OIDC client credentials flow, the only non-interactive option on CDSE (HTTP
+Basic is not offered, and a refresh token would tie releases to a person).
+
+1. Create an OAuth client in the Sentinel Hub dashboard under
+   <https://shapps.dataspace.copernicus.eu/dashboard/#/account/settings>. Its
+   client id and secret also work for openEO. For a project-owned identity,
+   request a service account through the
+   [CDSE help center](https://helpcenter.dataspace.copernicus.eu/hc/en-gb/requests/new)
+   instead; its jobs and processing credits are separate from a personal
+   account.
+2. Add the repository secrets **`OPENEO_AUTH_CLIENT_ID`** and
+   **`OPENEO_AUTH_CLIENT_SECRET`** (Settings → Secrets and variables → Actions).
+   Keep them repository-level: the `test` job does not use the protected
+   `release` environment.
+3. Optionally set the repository variable **`OPENEO_AUTH_PROVIDER_ID`**; CDSE
+   is the only provider, so it can stay unset.
+
+To reproduce a CI run locally:
+
+```sh
+OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \
+    uv run scripts/test-models.py --model tessera_v1 --keep-jobs
+```
+
+The script submits each graph inline, because a draft Zenodo record is private
+and its files cannot be fetched by the CDSE back-end. `--base-url` therefore
+only selects the public runtime archive (`/main` on Pages by default); the
+build workflow already checks that the released tag's archive imports.
+
 ### Zenodo credentials
 
 Add the repository secret **`ZENODO_ACCESS_TOKEN`** (Settings → Secrets and
@@ -441,7 +479,9 @@ gh workflow run "publish-release" -f tag=v0.2 -F dry_run=false
 
 - Creating the release normally triggers the workflow automatically. The
   `workflow_dispatch` form is for retries and rehearsals.
-- The job waits for approval by the protected `release` environment.
+- Before the upload, `test` runs every model's documented example for the tag.
+  If one fails, the Zenodo job is skipped and no draft is created.
+- The Zenodo job waits for approval by the protected `release` environment.
 - `dry_run` defaults to `true` for `workflow_dispatch`. It reserves a DOI,
   renders and uploads every file, writes the planned URLs to the run summary,
   and deletes the draft. `ZENODO_API_URL` can point at the sandbox.

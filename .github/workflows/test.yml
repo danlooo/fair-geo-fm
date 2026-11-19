@@ -13,7 +13,9 @@ name: test
 #
 # Authentication uses OIDC client credentials (the only non-interactive option
 # on CDSE). The OPENEO_AUTH_CLIENT_ID and OPENEO_AUTH_CLIENT_SECRET repository
-# secrets belong to a CDSE service account or Sentinel Hub OAuth client.
+# secrets belong to a CDSE service account or Sentinel Hub OAuth client;
+# create one at https://shapps.dataspace.copernicus.eu/dashboard/#/account/settings.
+# See "openEO credentials for the test workflow" in CONTRIBUTING.md.
 on:
   workflow_call:
     inputs:
@@ -96,6 +98,7 @@ jobs:
         env:
           OPENEO_AUTH_CLIENT_ID: ${{ secrets.OPENEO_AUTH_CLIENT_ID }}
           OPENEO_AUTH_CLIENT_SECRET: ${{ secrets.OPENEO_AUTH_CLIENT_SECRET }}
+          OPENEO_AUTH_PROVIDER_ID: ${{ vars.OPENEO_AUTH_PROVIDER_ID }}
           OPENEO_BACKEND: https://openeo.dataspace.copernicus.eu
         run: >-
           uv run scripts/test-models.py
