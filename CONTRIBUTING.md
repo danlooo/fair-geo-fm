@@ -204,7 +204,10 @@ the `emb:` extension if one takes them over.
 
 The conventional asset keys are `model` (weights), `process_graph`, `udf`,
 `runtime`, `documentation` and, on a release, `source_code`; a Collection
-`item_assets` template documents them.
+`item_assets` template documents them. Each Item also links its HTML page with
+`rel: alternate`, built from the `version` being published
+(`.../fair-geo-fm/<version>/models/<model>/`), so a release published on Zenodo
+still points at the matching archived page rather than the staging one.
 
 The catalog is generated, never committed:
 
