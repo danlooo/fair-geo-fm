@@ -381,9 +381,14 @@ Four workflows carry a commit from validation to publication.
   push build for the commit, and takes the runtime archives from the build's
   artifact.
 - `test` runs the documented openEO example of every model against CDSE
-  (`scripts/test-models.py`). `publish-release` calls it for the released tag
-  before its Zenodo job, so a model whose example does not run blocks the
-  upload. It can also be started by hand with `workflow_dispatch`; see
+  (`scripts/test-models.py`). A second job runs the usage examples that
+  `models/model.md.j2` documents for the Web editor, Python and R clients,
+  extracted from the rendered model page, so a broken copy-paste example is
+  caught too; it covers AlphaEarth as the representative model. With
+  `--client`, the same script runs those examples locally.
+  `publish-release` calls it for the released tag before its Zenodo job, so a
+  model whose example does not run blocks the upload. It can also be started
+  by hand with `workflow_dispatch`; see
   [openEO credentials](#openeo-credentials-for-the-test-workflow).
 - `publish-release` uploads a release to Zenodo (below). It is triggered by a
   published GitHub release.
@@ -475,6 +480,18 @@ The script submits each graph inline, because a draft Zenodo record is private
 and its files cannot be fetched by the CDSE back-end. `--base-url` therefore
 only selects the public runtime archive (`/main` on Pages by default); the
 build workflow already checks that the released tag's archive imports.
+
+`--client web|python|r` instead runs the usage examples the model page
+documents, read from the page rendered by `models/model.md.j2`. These examples
+resolve the graph through its published URL, so they need a public target:
+the workflow uses the staging site (`/main`), where the released tag's files
+must already be deployed. The only source-level adaptation is authentication:
+the Python example's `authenticate_oidc()` picks up the client-credentials
+flow from `OPENEO_AUTH_METHOD`, and the R example's interactive `login()` is
+replaced with `login(config = list(grant_type = "client_credentials", ...))`.
+Everything else runs as written. The R client needs `Rscript` and the
+`openeo` and `jsonlite` packages; the workflow installs them with
+`r-lib/actions/setup-r`.
 
 ### Zenodo credentials
 

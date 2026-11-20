@@ -1,6 +1,7 @@
 name: test
 
-# Smoke-test the documented openEO example of every model on CDSE.
+# Smoke-test the documented openEO example of every model on CDSE, plus the
+# Web editor, Python and R usage examples a model page documents.
 #
 # This is the release gate: publish-release.yml calls this workflow before its
 # Zenodo job, so a release whose example does not run is never uploaded. It can
@@ -103,5 +104,58 @@ jobs:
         run: >-
           uv run scripts/test-models.py
           --model "${{ matrix.model }}"
+          --version "${{ inputs.ref || github.ref_name }}"
+          --timeout-minutes 150
+
+  # Run the usage examples a model page documents for every client. The
+  # snippets are extracted from the page rendered by models/model.md.j2, so
+  # this fails when a documented Web editor, Python or R example breaks.
+  #
+  # AlphaEarth is the representative model: it is built only from openEO
+  # processes (no UDF or runtime archive) and every model page is generated
+  # from the same template. Add models to --model if a model-specific example
+  # needs coverage too.
+  #
+  # The examples resolve the process graph over the network, so they run
+  # against the public staging site (the script default) even for a release:
+  # a draft Zenodo record is private and cannot be fetched by CDSE.
+  clients:
+    name: docs example (${{ matrix.client }})
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [web, python, r]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Set up R
+        if: matrix.client == 'r'
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install R packages
+        if: matrix.client == 'r'
+        run: |
+          Rscript -e 'install.packages(c("openeo", "jsonlite"))'
+          Rscript -e 'stopifnot(requireNamespace("openeo", quietly = TRUE), requireNamespace("jsonlite", quietly = TRUE))'
+
+      - name: Run the documented ${{ matrix.client }} example
+        env:
+          OPENEO_AUTH_CLIENT_ID: ${{ secrets.OPENEO_AUTH_CLIENT_ID }}
+          OPENEO_AUTH_CLIENT_SECRET: ${{ secrets.OPENEO_AUTH_CLIENT_SECRET }}
+          OPENEO_AUTH_PROVIDER_ID: ${{ vars.OPENEO_AUTH_PROVIDER_ID }}
+          OPENEO_BACKEND: https://openeo.dataspace.copernicus.eu
+        run: >-
+          uv run scripts/test-models.py
+          --model alphaearth
+          --client "${{ matrix.client }}"
           --version "${{ inputs.ref || github.ref_name }}"
           --timeout-minutes 150

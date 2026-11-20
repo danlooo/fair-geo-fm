@@ -64,6 +64,12 @@ uv run scripts/create-python-dependency-archive.py \
 OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \
     uv run scripts/test-models.py --model <model> --keep-jobs
 
+# Run the Web editor, Python and R examples documented on a model page
+# (needs credentials; R also needs Rscript with the openeo and jsonlite packages)
+OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \
+    uv run scripts/test-models.py --model alphaearth \
+    --client web --client python --client r
+
 # Preview / build the documentation site
 npm ci
 npm run dev      # prepares versioned pages, then vitepress dev
