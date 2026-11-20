@@ -229,13 +229,9 @@
   vertical-align: middle;
 }
 
-/* VitePress sets `svg { display: block }` globally; keep icons inline in the
-   flex row instead of forcing a line break. */
-.vp-doc .ui-button svg {
-  display: inline-block;
+/* Keep the Font Awesome icon inline in the flex row instead of letting it
+   shrink or wrap. */
+.vp-doc .ui-button .fas {
   flex: none;
-  height: 1em;
-  width: auto;
   vertical-align: middle;
-  fill: currentColor;
 }

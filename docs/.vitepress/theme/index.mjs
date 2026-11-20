@@ -5,6 +5,7 @@ import { installVersionFallback } from "@viteplus/versions/fallback";
 import { enhanceAppWithTabs } from "vitepress-plugin-tabs/client";
 import "@fontsource-variable/open-sans";
 import "@fontsource-variable/open-sans/wght-italic.css";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 import "./custom.css";
 import StacCatalogLink from "./StacCatalogLink.vue";
 import StacNavLink from "./StacNavLink.vue";
