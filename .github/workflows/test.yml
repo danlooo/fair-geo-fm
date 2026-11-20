@@ -141,11 +141,18 @@ jobs:
         with:
           use-public-rspm: true
 
+      # The Linux binaries of `sf` and `units` (pulled in by `openeo`) link
+      # against the system PROJ, GEOS, GDAL and UDUNITS libraries. Without them
+      # the packages install fine but their namespaces fail to load at run
+      # time, so install the libraries first and load both packages to check.
       - name: Install R packages
         if: matrix.client == 'r'
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgdal-dev libgeos-dev libproj-dev libudunits2-dev
           Rscript -e 'install.packages(c("openeo", "jsonlite"))'
-          Rscript -e 'stopifnot(requireNamespace("openeo", quietly = TRUE), requireNamespace("jsonlite", quietly = TRUE))'
+          Rscript -e 'library(openeo); library(jsonlite)'
 
       - name: Run the documented ${{ matrix.client }} example
         env:
