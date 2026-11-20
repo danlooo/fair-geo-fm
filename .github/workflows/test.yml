@@ -86,6 +86,10 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
+      # Every job shares one CDSE service account, so cap how many models run
+      # at the same time: launching one job per model at once gets the account
+      # rate-limited (429).
+      max-parallel: 4
       matrix:
         model: ${{ fromJSON(needs.discover.outputs.models) }}
     steps:
@@ -119,13 +123,19 @@ jobs:
   # The examples resolve the process graph over the network, so they run
   # against the public staging site (the script default) even for a release:
   # a draft Zenodo record is private and cannot be fetched by CDSE.
+  #
+  # These snippets cannot use the retry policy scripts/test-models.py applies
+  # to its own requests, so they are the most sensitive to rate limiting: they
+  # run only after every model example finished, and one client at a time (a
+  # second wave once every model is done, not alongside them).
   clients:
     name: docs example (${{ matrix.client }})
-    needs: discover
+    needs: examples
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         client: [web, python, r]
     steps:
