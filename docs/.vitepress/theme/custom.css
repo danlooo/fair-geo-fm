@@ -219,7 +219,7 @@
   align-items: center;
   gap: 0.25em;
   padding: 0.1em 0.45em;
-  border: 1px solid var(--vp-c-divider);
+  border: 2px solid var(--vp-c-divider);
   border-radius: 6px;
   background-color: var(--vp-c-bg-soft);
   color: var(--vp-c-text-1);
