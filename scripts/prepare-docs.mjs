@@ -186,9 +186,9 @@ function stacConfig(dir) {
 // Badge tags derived from the model properties, so the catalogue card and the
 // model page's badge row cannot drift from the properties table. Mirrors
 // model_tags in scripts/process_graphs.py; a tags key in config.json is
-// ignored. `includeMultimodal` is false for the model page, which shows
-// modality as a properties row instead of a badge.
-function autoTags(config, { includeMultimodal = true } = {}) {
+// ignored. Both the cards and the model pages use this same list, so a model
+// shows the same badges in the catalogue and on its page.
+function autoTags(config) {
   const tags = [];
   const add = (value) => {
     if (typeof value !== "string") return;
@@ -207,7 +207,7 @@ function autoTags(config, { includeMultimodal = true } = {}) {
   }
   add(config.spatial_resolution);
   add(config.temporal_resolution);
-  if (includeMultimodal && config.multimodal === true) add("multimodal");
+  if (config.multimodal === true) add("multimodal");
   return tags;
 }
 
@@ -841,7 +841,7 @@ function renderModelTemplate(text, version, model, source, config, stac) {
       dimensions_label: "",
       multimodal: false,
       ...config,
-      tags: autoTags(config, { includeMultimodal: false }),
+      tags: autoTags(config),
     },
     required_parameters: requiredParameters,
   };

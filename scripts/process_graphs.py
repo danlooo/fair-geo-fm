@@ -127,9 +127,10 @@ def model_config(process_dir: Path) -> dict:
 def model_tags(config: dict, *, include_multimodal: bool = True) -> list[str]:
     """Badge tags derived from the model properties.
 
-    The tags summarize the properties table on the catalogue card, so deriving
-    them from the same fields keeps the two in sync. A ``tags`` key in
-    ``config.json`` is ignored; ``validate_model_config`` rejects it.
+    The tags summarize the properties table on the catalogue card and are
+    repeated unchanged on the model page, so a model shows the same badges in
+    the catalogue and on its page. A ``tags`` key in ``config.json`` is
+    ignored; ``validate_model_config`` rejects it.
     Mirrors ``autoTags`` in ``scripts/prepare-docs.mjs``.
 
     ``include_multimodal`` is false for the STAC Item, which publishes the
@@ -775,10 +776,9 @@ def render_readme(
         "multimodal": False,
         **model_config(process_dir),
     }
-    # The badges are derived from the properties, never hand-maintained. The
-    # page shows modality as a properties row instead, so only the catalogue
-    # cards carry the multimodal badge.
-    config["tags"] = model_tags(config, include_multimodal=False)
+    # The badges are derived from the properties, never hand-maintained, and
+    # are the same list the catalogue card shows.
+    config["tags"] = model_tags(config)
     text = environment.from_string(
         template_path.read_text(encoding="utf-8")
     ).render(
