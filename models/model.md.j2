@@ -137,10 +137,10 @@ The underlying openEO workflow that computes the embeddings.
 
 ## Input parameters
 
-| Name                                     | Required               | Default                                                                               | Description             |
-| ---------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------- | ----------------------- | --------------------------- |
-| {% for parameter in config.parameters %} | `{{ parameter.name }}` | {% if parameter.required %}yes{% endif %}{% if not parameter.required %}no{% endif %} | {{ parameter.default }} | {{ parameter.description }} |
-
+| Name | Required | Default | Description |
+| ---- | -------- | ------- | ----------- | 
+{% for parameter in config.parameters %} 
+  | `{{ parameter.name }}` | {% if parameter.required %}yes{% endif %}{% if not parameter.required %}no{% endif %} | {{ parameter.default }} | {{ parameter.description }} |
 {% endfor %}
 
 ## Publication
