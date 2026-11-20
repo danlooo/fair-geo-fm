@@ -232,13 +232,13 @@ def wait_for_job(job, timeout_seconds: float, poll_interval: float) -> None:
         raise RuntimeError(f"job {job.job_id} finished with status {status!r}")
 
 
-def band_count(dataset) -> tuple[int, str]:
-    """Number of embedding bands in a CDSE NetCDF result.
+def embedding_count(dataset) -> tuple[int, str]:
+    """Number of embeddings in a CDSE NetCDF result.
 
-    The raster writer may expose bands as a ``bands``/``band`` dimension, as a
-    coordinate, or (as the CDSE NetCDF writer does for these graphs) as one
-    data variable per band with only ``t``/``y``/``x`` dimensions. Accept all
-    three representations.
+    The raster writer may expose the embedding axis as a ``bands``/``band``
+    dimension, as a coordinate, or (as the CDSE NetCDF writer does for these
+    graphs) as one data variable per embedding with only ``t``/``y``/``x``
+    dimensions. Accept all three representations.
     """
     for name in ("bands", "band"):
         if name in dataset.sizes:
@@ -253,9 +253,9 @@ def band_count(dataset) -> tuple[int, str]:
         and variable.dtype.kind in "fiu"
     ]
     if spatial:
-        return len(spatial), "one data variable per band"
+        return len(spatial), "one data variable per embedding"
     raise RuntimeError(
-        f"cannot determine the band count; dims={dict(dataset.sizes)}, "
+        f"cannot determine the embedding count; dims={dict(dataset.sizes)}, "
         f"data variables={list(dataset.data_vars)[:10]}"
     )
 
@@ -312,17 +312,17 @@ def verify_dataset(result: Path, config: dict) -> None:
     expected = set(config.get("dimensions") or [])
     with xr.open_dataset(result) as dataset:
         sizes = dict(dataset.sizes)
-        bands, source = band_count(dataset)
+        embeddings, source = embedding_count(dataset)
         print(f"  result: {result} dims={sizes}")
         print(
-            f"  bands: {bands} ({source}); "
+            f"  embeddings: {embeddings} ({source}); "
             f"data variables: {len(dataset.data_vars)} "
             f"{list(dataset.data_vars)[:5]}"
         )
 
-        if expected and bands not in expected:
+        if expected and embeddings not in expected:
             raise RuntimeError(
-                f"{bands} embedding bands ({source}), expected one of "
+                f"{embeddings} embeddings ({source}), expected one of "
                 f"{sorted(expected)}; dims={sizes}, "
                 f"data variables={list(dataset.data_vars)[:10]}"
             )
