@@ -212,3 +212,30 @@
   gap: 8px;
   margin: 0;
 }
+
+/* Illustrative button: shows what a control looks like without being clickable. */
+.vp-doc .ui-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.1em 0.45em;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  background-color: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-size: inherit;
+  line-height: 1.4;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* VitePress sets `svg { display: block }` globally; keep icons inline in the
+   flex row instead of forcing a line break. */
+.vp-doc .ui-button svg {
+  display: inline-block;
+  flex: none;
+  height: 1em;
+  width: auto;
+  vertical-align: middle;
+  fill: currentColor;
+}
