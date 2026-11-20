@@ -213,8 +213,8 @@
   margin: 0;
 }
 
-/* Illustrative button: shows what a control looks like without being clickable. */
-.vp-doc .ui-button {
+/* Illustrative dummy button: shows what a control looks like without being clickable. */
+.vp-doc .dummy-button {
   display: inline-flex;
   align-items: center;
   gap: 0.25em;
@@ -231,7 +231,7 @@
 
 /* Keep the Font Awesome icon inline in the flex row instead of letting it
    shrink or wrap. */
-.vp-doc .ui-button .fas {
+.vp-doc .dummy-button .fas {
   flex: none;
   vertical-align: middle;
 }
