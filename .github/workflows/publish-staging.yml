@@ -201,7 +201,18 @@ jobs:
             echo "::warning::build run $run_id has no model-weights artifact (expired?); publishing the site without model archives"
             exit 0
           fi
-          cp -a "$RUNNER_TEMP/model-weights/." .
+          # upload-artifact stores matched files relative to their least common
+          # ancestor. Both patterns live under weights/, so the artifact root is
+          # flat (terramind_v1_tiny.zip, .json); normalize either layout to
+          # weights/ so prepare-docs serves the archive at the URL the graph
+          # advertises.
+          mkdir -p weights
+          if [ -d "$RUNNER_TEMP/model-weights/weights" ]; then
+            cp -a "$RUNNER_TEMP/model-weights/weights/." weights/
+          else
+            find "$RUNNER_TEMP/model-weights" -maxdepth 1 -type f \
+              -exec cp {} weights/ \;
+          fi
           find weights -type f -printf '%p (%s bytes)\n'
 
       - name: Build all versions
