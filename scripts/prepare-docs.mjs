@@ -1180,6 +1180,7 @@ console.log(`prepare-docs: archived ${archived} ref(s)`);
 writeStagingProcessGraphs();
 await writeVersionProcessGraphs();
 writeRuntimeAssets();
+writeWeightAssets();
 writeStagingStac();
 writeVueComponents();
 writeFontAwesome();
