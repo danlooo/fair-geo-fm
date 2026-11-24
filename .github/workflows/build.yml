@@ -166,10 +166,14 @@ jobs:
             runtime="$(basename "$(dirname "$zip")")"
             version="$(sed -E 's/^py([0-9])([0-9]+).*/\1.\2/' <<<"$runtime")"
             uv python install "$version"
-            python="$(uv python find "$version")"
             # The UDF sandbox provides numpy; the archive must not ship it, but
-            # some packages (onnxruntime) import it at module load.
-            uv pip install --python "$python" numpy
+            # some packages (onnxruntime) import it at module load. Install it
+            # into a venv: the uv-managed interpreter itself is externally
+            # managed and refuses `uv pip install`.
+            venv="$(mktemp -d)"
+            uv venv --python "$version" "$venv" >/dev/null
+            python="$venv/bin/python"
+            uv pip install --python "$python" numpy >/dev/null
 
             workdir="$(mktemp -d)"
             unzip -q "$zip" -d "$workdir"
@@ -193,7 +197,7 @@ jobs:
           print(f"imported {len(modules)} packages: {', '.join(modules)}")
           PY
 
-            rm -rf "$workdir"
+            rm -rf "$workdir" "$venv"
           done
 
       - name: Record checksums
