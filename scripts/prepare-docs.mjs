@@ -10,6 +10,7 @@
 //   docs/public/<ref>/        non-markdown process files served next to pages
 //   docs/public/main/runtimes/  built runtime archives for the default branch,
 //                             overwritten on every deployment
+//   docs/public/main/weights/  exported model archives (e.g. TerraMind ONNX)
 //   docs/public/main/models/  rendered process graphs for the default branch
 //   docs/public/logo.svg, false-color-fm.svg, alphaearth-false-color.png,
 //   openeo-graph.png, favicon.svg, favicon.ico, apple-touch-icon.png
@@ -353,6 +354,34 @@ function writeRuntimeAssets() {
   }
   console.log(
     `prepare-docs: wrote ${assets.size} runtime archive(s) under docs/public/main`,
+  );
+}
+
+// Model archives published under weights/ (e.g. the TerraMind ONNX encoder).
+// They are exported by the build workflow and downloaded into the checkout, so
+// they are git-ignored like the runtime archives and never appear in a ref
+// worktree. Serve them at the fixed /main/ path next to the runtimes.
+function weightAssets() {
+  const assets = new Map();
+  const weights = join(repoRoot, "weights");
+  if (!existsSync(weights)) return assets;
+  for (const entry of readdirSync(weights, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".zip")) continue;
+    assets.set(join("weights", entry.name), join(weights, entry.name));
+  }
+  return assets;
+}
+
+function writeWeightAssets() {
+  const assets = weightAssets();
+  if (assets.size === 0) return;
+  for (const [to, from] of assets) {
+    const target = join(publicDir, "main", to);
+    mkdirSync(dirname(target), { recursive: true });
+    cpSync(from, target);
+  }
+  console.log(
+    `prepare-docs: wrote ${assets.size} model archive(s) under docs/public/main`,
   );
 }
 
@@ -1102,6 +1131,7 @@ if (!withArchives) {
   writeStagingProcessGraphs();
   await writeVersionProcessGraphs();
   writeRuntimeAssets();
+  writeWeightAssets();
   writeStagingStac();
   writeVueComponents();
   writeFontAwesome();

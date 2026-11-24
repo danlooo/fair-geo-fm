@@ -21,6 +21,7 @@ name: publish-staging
 #
 #   https://danlooo.github.io/fair-geo-fm/main/models/<model>/process_graph.json
 #   https://danlooo.github.io/fair-geo-fm/main/runtimes/<runtime>.zip
+#   https://danlooo.github.io/fair-geo-fm/main/weights/<archive>.zip
 #
 # Released, citable versions are uploaded to Zenodo by publish-release.yml after
 # a maintainer creates a GitHub release. `workflow_dispatch` republishes the
@@ -179,6 +180,29 @@ jobs:
           fi
           cp -a "$RUNNER_TEMP/archives/." .
           find runtimes -name dependencies.zip -printf '%p (%s bytes)\n'
+
+      - name: Download model archives
+        # Exported ONNX encoders are published next to the runtime archives at
+        # /main/weights/<archive>.zip, replacing them on every deployment.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          main_sha="$(git rev-parse HEAD)"
+          run_id="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?head_sha=$main_sha&status=success&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')"
+          if [ -z "$run_id" ]; then
+            echo "::warning::no successful build run for $main_sha; publishing the site without model archives"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/model-weights"
+          if ! gh run download "$run_id" --name model-weights --dir "$RUNNER_TEMP/model-weights"; then
+            echo "::warning::build run $run_id has no model-weights artifact (expired?); publishing the site without model archives"
+            exit 0
+          fi
+          cp -a "$RUNNER_TEMP/model-weights/." .
+          find weights -type f -printf '%p (%s bytes)\n'
 
       - name: Build all versions
         # prepare-docs copies the canonical pages into docs/src, checks out each

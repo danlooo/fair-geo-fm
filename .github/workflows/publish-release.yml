@@ -10,6 +10,7 @@ name: publish-release
 #   https://zenodo.org/records/<record-id>/files/models/<model>/udf.py
 #   https://zenodo.org/records/<record-id>/files/models/<model>/README.md
 #   https://zenodo.org/records/<record-id>/files/runtimes/<runtime>.zip
+#   https://zenodo.org/records/<record-id>/files/weights/terramind_v1_tiny.zip
 #   https://zenodo.org/records/<record-id>/files/stac/catalog.json
 #   https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-<version>.zip
 #
@@ -91,7 +92,7 @@ jobs:
     name: upload release to Zenodo
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     # Protect the record space with required reviewers, like the old publish
     # environment: releases are never automatic.
     environment: release
@@ -106,7 +107,10 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-          cache-dependency-glob: "runtimes/*/requirements.txt"
+          cache-dependency-glob: |
+            runtimes/*/requirements.txt
+            runtimes/*/platform.txt
+            runtimes/*/no-deps.txt
 
       - name: Build runtime archives
         # Published archives are built from the released tag, not taken from a
@@ -124,6 +128,28 @@ jobs:
               --requirements "$req" \
               --output-file "$(dirname "$req")/dependencies.zip"
           done
+
+      - name: Export model archives
+        # Like the runtime archives, the ONNX encoder is rebuilt from the
+        # released tag with pinned torch, TerraTorch and weights revision, so
+        # the published record does not depend on a branch build artifact.
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libgomp1 libgl1 libglib2.0-0
+          uv venv --python 3.11 .venv-terramind
+          uv pip install --python .venv-terramind/bin/python \
+            --default-index https://download.pytorch.org/whl/cpu \
+            "torch==2.7.1+cpu" "torchvision==0.22.1+cpu"
+          uv pip install --python .venv-terramind/bin/python \
+            "terratorch==1.2.1" "onnx==1.17.0"
+          .venv-terramind/bin/python scripts/export-terramind-onnx.py \
+            --model terramind_v1_tiny \
+            --hf-revision 2b5ac0a3ed7dd7e922ccfd595b56607f342df343 \
+            --torch-version 2.7.1 \
+            --terratorch-version 1.2.1 \
+            --out weights
+          cat weights/terramind_v1_tiny.json
 
       - name: Upload to Zenodo
         env:

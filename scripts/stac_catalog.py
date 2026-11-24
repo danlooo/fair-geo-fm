@@ -38,7 +38,15 @@ from typing import Any, Callable
 # such as Zenodo releases browsed by STAC Browser (see ``publish-release.py``).
 LinkHref = Callable[[str], str]
 
-from process_graphs import model_config, model_tags, render, validate_model_config
+from process_graphs import (
+    model_config,
+    model_tags,
+    render,
+    validate_model_config,
+    weights_archive_name,
+    weights_archive_path,
+    weights_archive_url,
+)
 
 STAC_VERSION = "1.0.0"
 MLM_SCHEMA = "https://stac-extensions.github.io/mlm/v1.6.0/schema.json"
@@ -224,22 +232,38 @@ def _item(
     # weights are optional; only describe a model asset when there is one.
     weights = stac.get("weights") or {}
     weights_href = weights.get("href") or find_weights_url(graph)
+    archive = weights_archive_name(process_dir)
+    # A model archive published under weights/ (e.g. an ONNX encoder) is
+    # resolved from the render target, like the runtime URL, because its URL
+    # differs between staging and a Zenodo release.
+    if not weights_href and archive:
+        # The graph URL carries the extraction alias after '#'; the STAC asset
+        # points at the archive itself.
+        weights_href = weights_archive_url(
+            base_url, archive, weights_archive_path(process_dir)
+        ).split("#", 1)[0]
     # The graph's runtime URL carries #feature_deps, which tells openEO where
     # to extract the archive. The STAC asset points at the archive itself.
     runtime_href = archive_url.split("#", 1)[0]
     weights_asset: dict[str, Any] | None = None
     if weights_href:
+        from_archive = bool(archive and not find_weights_url(graph))
         weights_asset = {
             "href": weights_href,
             "type": weights.get(
-                "type", "application/octet-stream; framework=pytorch"
+                "type",
+                "application/zip"
+                if from_archive
+                else "application/octet-stream; framework=pytorch",
             ),
             "title": weights.get("title", f"{config['name']} weights"),
             "description": weights.get(
                 "description", "Checkpoint used for inference by the process graph."
             ),
             "roles": MODEL_ROLES,
-            "mlm:artifact_type": weights.get("mlm:artifact_type", "torch.save"),
+            "mlm:artifact_type": weights.get(
+                "mlm:artifact_type", "onnx" if from_archive else "torch.save"
+            ),
         }
 
     properties: dict[str, Any] = {

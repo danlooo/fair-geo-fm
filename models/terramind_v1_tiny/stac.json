@@ -1,0 +1,115 @@
+{
+  "id": "terramind_v1_tiny",
+  "title": "TerraMind 1.0 Tiny",
+  "license": "Apache-2.0",
+  "keywords": [
+    "embeddings",
+    "TerraMind",
+    "Sentinel-1",
+    "Sentinel-2",
+    "Copernicus DEM",
+    "openEO",
+    "ONNX"
+  ],
+  "datetime": "2026-11-24T00:00:00Z",
+  "bbox": [-180.0, -90.0, 180.0, 90.0],
+  "properties": {
+    "mlm:architecture": "Vision Transformer",
+    "mlm:tasks": ["representation-learning"],
+    "mlm:framework": "ONNX Runtime",
+    "mlm:framework_version": "1.20.1",
+    "mlm:pretrained": true,
+    "mlm:pretrained_source": "Multimodal self-supervised pretraining on 500B tokens from the TerraMesh dataset across nine geospatial modalities",
+    "mlm:input": [
+      {
+        "name": "sentinel-2-l1c",
+        "description": "Thirteen Sentinel-2 L1C bands in TerraMind order: coastal aerosol (B01), blue (B02), green (B03), red (B04), red edge 1-3 (B05-B07), broad NIR (B08), narrow NIR (B8A), water vapour (B09), cirrus (B10), SWIR 1 (B11) and SWIR 2 (B12), reduced to one temporal median composite.",
+        "bands": [
+          "B01",
+          "B02",
+          "B03",
+          "B04",
+          "B05",
+          "B06",
+          "B07",
+          "B08",
+          "B8A",
+          "B09",
+          "B10",
+          "B11",
+          "B12"
+        ],
+        "variables": [],
+        "input": {
+          "shape": [-1, 13, 224, 224],
+          "dim_order": ["batch", "bands", "height", "width"],
+          "data_type": "float32"
+        },
+        "value_scaling": null,
+        "resize_type": null,
+        "pre_processing_function": null
+      },
+      {
+        "name": "sentinel-1-grd",
+        "description": "Sentinel-1 GRD VV and VH backscatter, calibrated with sar_backscatter to linear gamma0-ellipsoid power, reduced to one temporal median composite and converted to decibels.",
+        "bands": ["VV", "VH"],
+        "variables": [],
+        "input": {
+          "shape": [-1, 2, 224, 224],
+          "dim_order": ["batch", "bands", "height", "width"],
+          "data_type": "float32"
+        },
+        "value_scaling": null,
+        "resize_type": null,
+        "pre_processing_function": null
+      },
+      {
+        "name": "copernicus-dem",
+        "description": "Copernicus DEM elevation in metres, resampled to the Sentinel-2 grid.",
+        "bands": ["DEM"],
+        "variables": [],
+        "input": {
+          "shape": [-1, 1, 224, 224],
+          "dim_order": ["batch", "bands", "height", "width"],
+          "data_type": "float32"
+        },
+        "value_scaling": null,
+        "resize_type": null,
+        "pre_processing_function": null
+      }
+    ],
+    "mlm:output": [
+      {
+        "name": "embedding",
+        "description": "192-dimensional TerraMind patch embedding, replicated from the 14x14 token grid to the input pixel grid.",
+        "tasks": ["representation-learning"],
+        "bands": [],
+        "variables": [],
+        "result": {
+          "shape": [-1, 192],
+          "dim_order": ["batch", "embedding"],
+          "data_type": "float32"
+        },
+        "post_processing_function": null
+      }
+    ]
+  },
+  "processing": {
+    "lineage": "Sentinel-2 L1C, Sentinel-1 GRD and Copernicus DEM are reduced to one temporal composite and passed to the frozen TerraMind 1.0 Tiny encoder, exported to ONNX with TerraTorch 1.2.1 and run through ONNX Runtime by the openEO user-defined process terramind_v1_tiny_embeddings.",
+    "software": {
+      "TerraTorch": "1.2.1",
+      "ONNX Runtime": "1.20.1"
+    }
+  },
+  "publications": [
+    {
+      "citation": "Jakubik, J. et al. (2025) 'TerraMind: Large-Scale Generative Multimodality for Earth Observation', ICCV 2025, arXiv:2504.11171",
+      "doi": "10.48550/arXiv.2504.11171"
+    }
+  ],
+  "weights": {
+    "title": "TerraMind 1.0 Tiny ONNX encoder",
+    "description": "ONNX export of the frozen TerraMind 1.0 Tiny backbone with S2 L1C, S1 GRD and DEM inputs.",
+    "mlm:artifact_type": "onnx"
+  }
+}

@@ -23,7 +23,8 @@ the published catalog. Publishes to two targets with the same layout:
 | Path | What it is |
 | --- | --- |
 | [models/](models/) | One directory per major model version (`tessera_v2/`, `alphaearth/`, ...). See below. |
-| [runtimes/](runtimes/) | One directory per interpreter/stack (`py311-torch231/`) containing only `requirements.txt`. |
+| [runtimes/](runtimes/) | One directory per interpreter/stack (`py311-torch231/`) containing `requirements.txt` plus optional `platform.txt` / `no-deps.txt` markers. |
+| `weights/` | Exported model archives (e.g. the TerraMind ONNX encoder), built by CI and published with the release. Git-ignored. |
 | [scripts/](scripts/) | Build, validate and publish tooling. PEP 723 inline dependencies; run with `uv run`. |
 | [docs/](docs/) | VitePress site. `docs/.vitepress/` (config, theme) is hand-maintained; `docs/src/`, `docs/public/`, `docs/archive/` are generated. |
 | [stac/](stac/) | Generated STAC catalog. Git-ignored, never committed. |
@@ -36,7 +37,9 @@ A model directory with a `process_graph.json.j2` contains:
 - `udf.py` — optional UDF source, inlined into the graph at build time.
 - `config.json` — single source of truth for name, description, runtime, type,
   architecture, input sources, extents, dimensions and parameters. The build
-  validates it and both templates render from it.
+  validates it and both templates render from it. A model whose checkpoint is
+  published by this repository also sets `weights_archive` (zip name under
+  `weights/`) and optionally `weights_archive_path` (extraction alias).
 - `stac.json` — the MLM/processing/scientific fields that cannot be derived.
 - `process_graph.json` — **generated**, git-ignored. Never edit by hand.
 
@@ -59,6 +62,11 @@ uv run scripts/build-stac.py --check
 uv run scripts/create-python-dependency-archive.py \
     --requirements runtimes/<runtime>/requirements.txt \
     --output-file runtimes/<runtime>/dependencies.zip
+
+# Export a model archive (git-ignored output; build.yml pins the versions)
+uv run --with "torch==2.7.1" --with "terratorch==1.2.1" --with "onnx==1.17.0" \
+    scripts/export-terramind-onnx.py --model terramind_v1_tiny \
+    --hf-revision <commit> --out weights
 
 # Run a model's documented example on CDSE (needs credentials, see below)
 OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \
@@ -90,6 +98,7 @@ without them, validate with the `--check` commands above.
 | `models/model.md.j2`, `models/index.md.j2` | `models/*/index.md` (rendered) |
 | `docs/.vitepress/**` | `docs/src/`, `docs/public/`, `docs/archive/`, `docs/.vitepress/{current-version,stac-bases,zenodo-records}.json` |
 | `runtimes/*/requirements.txt` | `checksums.sha256` |
+| `scripts/export-terramind-onnx.py` | `weights/*.zip`, `weights/*.json` |
 
 All the right-hand files are git-ignored build outputs. If one is wrong, fix
 its source and regenerate rather than patching the output.

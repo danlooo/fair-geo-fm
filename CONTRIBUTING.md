@@ -77,6 +77,12 @@ by external standards keep their published spelling even when that differs
     and each `default_value` published as the parameter default. Every
     declared parameter must be referenced from the process nodes with
     `from_parameter`; the build rejects unused ones.
+    A model whose checkpoint is exported to an archive published by this
+    repository rather than downloaded from an external host sets
+    `weights_archive` (the zip name under `weights/`) and, optionally,
+    `weights_archive_path` (the extract directory alias, default `weights`).
+    The template receives the per-target URL as `{{ weights_url }}`; see
+    [Model archives](#model-archives).
   - `stac.json` — the model's STAC Item metadata, read by
     `scripts/build-stac.py`: the MLM fields that cannot be derived from
     `config.json` or the process graph. See [STAC metadata](#stac-metadata).
@@ -265,9 +271,15 @@ belongs in a separate embedding catalog and links back to the model Item with
   `default_job_options.udf-dependency-archives`. The build rejects a graph that
   declares archives without naming a runtime.
 - One directory per interpreter/stack combination, named after both, containing
-  only `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
+  `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
   is encoded in the name (`py311` -> 3.11) and the file may pin an index via
   `--extra-index-url`.
+- Two optional markers tune the archive builder:
+  `platform.txt` overrides the wheel platform (default
+  `x86_64-manylinux2014`; `py311-onnx` uses `x86_64-manylinux_2_28` because
+  onnxruntime has no manylinux2014 wheel), and `no-deps.txt` installs only the
+  pinned packages without resolving dependencies (used so onnxruntime does not
+  pull numpy into the archive; list its other transitive packages explicitly).
 - `uv run scripts/create-python-dependency-archive.py --requirements
   runtimes/py311-torch231/requirements.txt --output-file
   runtimes/py311-torch231/dependencies.zip` writes that file. It is git-ignored;
@@ -291,6 +303,29 @@ belongs in a separate embedding catalog and links back to the model Item with
   downloads exhaust the monthly budget, and Pages does not content-address the
   archive. Do not serve archives from GitHub raw or LFS either: raw is capped at
   100 MiB and LFS is bandwidth-metered.
+
+## Model archives
+
+- Most models download their checkpoint from Hugging Face at runtime (see the
+  `weights_url` parameter). A model whose checkpoint cannot be fetched from an
+  upstream archive — TerraMind's ONNX encoder is exported from TerraTorch
+  weights — is published by this repository instead.
+- `weights/<name>.zip` holds the exported model. It is git-ignored and built by
+  the `model-weights` job in `build.yml` with
+  `scripts/export-terramind-onnx.py`, which pins torch, TerraTorch and the
+  Hugging Face revision. The job fails rather than publish a graph whose
+  modality token or static output width is missing.
+- `config.json` declares the archive with `weights_archive` (the zip base name)
+  and optionally `weights_archive_path` (the directory the archive extracts to
+  in the UDF sandbox, default `weights`). The process graph template references
+  `{{ weights_url }}` in `udf-dependency-archives`.
+- Staging serves the archive at
+  `https://danlooo.github.io/fair-geo-fm/main/weights/<name>.zip`; a release
+  uploads it to the Zenodo record as `weights/<name>.zip`. The URL fragment
+  (`#<weights_archive_path>`) is the extraction directory, exactly like
+  `#feature_deps` for runtime archives.
+- `scripts/publish-release.py` refuses to release a model whose declared
+  archive is missing from `weights/`.
 
 ## Documentation site
 
@@ -375,7 +410,10 @@ Four workflows carry a commit from validation to publication.
   `dependencies.zip`, smoke-tests the imports on the pinned Python version,
   writes `checksums.sha256`, and uploads all of it as the `dependency-archives`
   artifact (30 days). Unchanged archives are restored from a cache keyed on the
-  requirements files instead of rebuilt.
+  requirements files instead of rebuilt. A `model-weights` job exports the
+  archives named by `weights_archive` (currently the TerraMind ONNX encoder),
+  caches them, and uploads them as the `model-weights` artifact; `publish-release`
+  rebuilds the same archives from the released tag before uploading.
 - `publish-staging` deploys the documentation site to GitHub Pages. It is triggered by a
   completed `build` run, refuses to publish unless that run was a successful
   push build for the commit, and takes the runtime archives from the build's
@@ -425,6 +463,7 @@ under custom paths —
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/weights/terramind_v1_tiny.zip
     https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 

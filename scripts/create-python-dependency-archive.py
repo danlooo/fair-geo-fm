@@ -17,7 +17,10 @@ Usage:
 
 The target Python version comes from the requirements file's directory name
 (``py311`` -> ``3.11``) and wheels are cross-installed for the openEO UDF
-sandbox, so no local interpreter of that version is needed.
+sandbox, so no local interpreter of that version is needed. An optional
+``platform.txt`` next to the requirements overrides the wheel platform, and an
+optional ``no-deps.txt`` installs only the pinned packages (list transitive
+dependencies explicitly; used when a wheel depends on a sandbox package).
 ``requirements.txt`` may carry pip index directives (e.g. ``--extra-index-url``
 for the CPU torch wheels); they are honoured by ``uv pip install -r``.
 
@@ -49,6 +52,15 @@ import zipfile
 from pathlib import Path
 
 REQUIREMENTS_NAME = "requirements.txt"
+# Optional per-runtime override of the target platform, one line such as
+# ``x86_64-manylinux_2_28``. Some wheels (onnxruntime) are not published for
+# the conservative manylinux2014 default.
+PLATFORM_NAME = "platform.txt"
+# Optional per-runtime marker: install only the packages pinned in
+# requirements.txt, without resolving their dependencies. Needed when a wheel
+# depends on a sandbox package (onnxruntime depends on numpy): list the other
+# transitive packages explicitly instead of shadowing the sandbox's numpy.
+NO_DEPS_NAME = "no-deps.txt"
 
 # The openEO UDF sandbox this archive targets.
 UV_PLATFORM = "x86_64-manylinux2014"
@@ -70,18 +82,38 @@ def target_python_version(requirements: Path) -> str:
     return f"{match.group(1)}.{match.group(2)}"
 
 
-def install(staging: Path, requirements: Path, python_version: str) -> None:
-    subprocess.run(
-        [
-            "uv", "pip", "install",
-            "--target", str(staging),
-            "--python-version", python_version,
-            "--python-platform", UV_PLATFORM,
-            "--only-binary", ":all:",
-            "-r", str(requirements),
-        ],
-        check=True,
-    )
+def target_platform(requirements: Path) -> str:
+    """The wheel platform for this runtime, or the sandbox default.
+
+    A ``platform.txt`` next to ``requirements.txt`` overrides it, which is
+    needed when a pinned wheel has no manylinux2014 publication.
+    """
+    override = requirements.parent / PLATFORM_NAME
+    if override.is_file():
+        value = override.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+    return UV_PLATFORM
+
+
+def install(
+    staging: Path,
+    requirements: Path,
+    python_version: str,
+    platform: str,
+    no_deps: bool,
+) -> None:
+    arguments = [
+        "uv", "pip", "install",
+        "--target", str(staging),
+        "--python-version", python_version,
+        "--python-platform", platform,
+        "--only-binary", ":all:",
+        "-r", str(requirements),
+    ]
+    if no_deps:
+        arguments.append("--no-deps")
+    subprocess.run(arguments, check=True)
 
 
 def prune(staging: Path) -> None:
@@ -177,8 +209,13 @@ def main() -> None:
 
     staging = Path(tempfile.mkdtemp(prefix=f"{requirements.parent.name}-"))
     try:
-        print(f"installing {requirements} for Python {python_version} / {UV_PLATFORM}")
-        install(staging, requirements, python_version)
+        platform = target_platform(requirements)
+        no_deps = (requirements.parent / NO_DEPS_NAME).is_file()
+        print(
+            f"installing {requirements} for Python {python_version} / {platform}"
+            + (" (no dependencies)" if no_deps else "")
+        )
+        install(staging, requirements, python_version, platform, no_deps)
 
         prune(staging)
         versions = dist_versions(staging)

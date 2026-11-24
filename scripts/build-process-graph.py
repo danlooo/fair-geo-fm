@@ -58,6 +58,7 @@ from process_graphs import (
     validate_model_config,
     validate_parameter_usage,
     validate_runtime_reference,
+    validate_weights_reference,
 )
 
 
@@ -68,6 +69,7 @@ def build(process_dir: Path, base_url: str, check: bool, output: Path | None) ->
     problems = (
         validate_model_config(process_dir)
         + validate_runtime_reference(process_dir, graph, archive_url)
+        + validate_weights_reference(process_dir, graph)
         + validate_parameter_usage(graph)
     )
     if problems:

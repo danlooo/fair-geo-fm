@@ -11,6 +11,7 @@ Zenodo records can hold many files, which is what the published layout needs:
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
     https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/weights/terramind_v1_tiny.zip
     https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 
@@ -74,6 +75,10 @@ from process_graphs import (
     validate_model_config,
     validate_parameter_usage,
     validate_runtime_reference,
+    validate_weights_reference,
+    weights_archive_name,
+    weights_archive_path,
+    weights_archive_url,
 )
 from stac_catalog import build_catalog, write_catalog
 
@@ -353,9 +358,20 @@ def stage_files(
             process_dir, base_url, version=version, zenodo_url=record_url
         )
         rendered[process_dir.name] = (text, graph, graph_url, archive_url)
+        weights_archive = weights_archive_name(process_dir)
+        expected_weights_url = (
+            weights_archive_url(
+                base_url, weights_archive, weights_archive_path(process_dir)
+            )
+            if weights_archive
+            else None
+        )
         problems = (
             validate_model_config(process_dir)
             + validate_runtime_reference(process_dir, graph, archive_url)
+            + validate_weights_reference(
+                process_dir, graph, expected_weights_url
+            )
             + validate_parameter_usage(graph)
         )
         if problems:
@@ -400,6 +416,24 @@ def stage_files(
                 f"scripts/create-python-dependency-archive.py before releasing"
             )
         staged.append((f"runtimes/{runtime_dir.name}.zip", archive))
+
+    # Model archives (e.g. the TerraMind ONNX encoder) are published like the
+    # runtime archives. Only archives a model declares are uploaded; the build
+    # workflow exports them into weights/.
+    weights_dir = REPO_ROOT / "weights"
+    staged_weights: set[str] = set()
+    for process_dir in sorted(path for path in models.iterdir() if path.is_dir()):
+        name = weights_archive_name(process_dir)
+        if not name or name in staged_weights:
+            continue
+        archive = weights_dir / f"{name}.zip"
+        if not archive.is_file():
+            raise SystemExit(
+                f"{archive} not found; build it with "
+                f"scripts/export-terramind-onnx.py before releasing"
+            )
+        staged_weights.add(name)
+        staged.append((f"weights/{name}.zip", archive))
 
     source_key, source_path = stage_source_archive(version, staging)
     staged.append((source_key, source_path))

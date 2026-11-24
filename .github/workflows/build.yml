@@ -73,6 +73,53 @@ jobs:
         # than in the release workflow.
         run: uv run scripts/build-stac.py --check
 
+  model-weights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Restore exported model archives
+        id: cache
+        uses: actions/cache@v6
+        with:
+          path: weights
+          key: model-weights-${{ hashFiles('scripts/export-terramind-onnx.py', 'models/terramind_v1_tiny/config.json') }}-2b5ac0a3
+
+      - name: Export the TerraMind encoder
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libgomp1 libgl1 libglib2.0-0
+          uv venv --python 3.11 .venv-terramind
+          # CPU wheels keep the export environment small; install them from the
+          # PyTorch index first so TerraTorch does not pull the CUDA build.
+          uv pip install --python .venv-terramind/bin/python \
+            --default-index https://download.pytorch.org/whl/cpu \
+            "torch==2.7.1+cpu" "torchvision==0.22.1+cpu"
+          uv pip install --python .venv-terramind/bin/python \
+            "terratorch==1.2.1" "onnx==1.17.0"
+          .venv-terramind/bin/python scripts/export-terramind-onnx.py \
+            --model terramind_v1_tiny \
+            --hf-revision 2b5ac0a3ed7dd7e922ccfd595b56607f342df343 \
+            --torch-version 2.7.1 \
+            --terratorch-version 1.2.1 \
+            --out weights
+          cat weights/terramind_v1_tiny.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: model-weights
+          path: |
+            weights/*.zip
+            weights/*.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
   dependency-archives:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -82,14 +129,17 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
-          cache-dependency-glob: "runtimes/*/requirements.txt"
+          cache-dependency-glob: |
+            runtimes/*/requirements.txt
+            runtimes/*/platform.txt
+            runtimes/*/no-deps.txt
 
       - name: Restore unchanged archives
         id: cache
         uses: actions/cache@v6
         with:
           path: runtimes/*/dependencies.zip
-          key: dependency-archives-${{ hashFiles('runtimes/*/requirements.txt', 'scripts/create-python-dependency-archive.py') }}
+          key: dependency-archives-${{ hashFiles('runtimes/*/requirements.txt', 'runtimes/*/platform.txt', 'runtimes/*/no-deps.txt', 'scripts/create-python-dependency-archive.py') }}
 
       - name: Build archives
         if: steps.cache.outputs.cache-hit != 'true'
@@ -117,6 +167,9 @@ jobs:
             version="$(sed -E 's/^py([0-9])([0-9]+).*/\1.\2/' <<<"$runtime")"
             uv python install "$version"
             python="$(uv python find "$version")"
+            # The UDF sandbox provides numpy; the archive must not ship it, but
+            # some packages (onnxruntime) import it at module load.
+            uv pip install --python "$python" numpy
 
             workdir="$(mktemp -d)"
             unzip -q "$zip" -d "$workdir"

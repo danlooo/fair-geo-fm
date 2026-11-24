@@ -1,0 +1,192 @@
+{
+    "name": "TerraMind 1.0 Tiny",
+    "description": "On-demand 192-dimensional patch embeddings from the frozen TerraMind 1.0 Tiny encoder, computed from Copernicus Sentinel-2 L1C, Sentinel-1 GRD and Copernicus DEM at 10 m. The encoder is exported to ONNX once and runs through onnxruntime, so the openEO sandbox needs no PyTorch or TerraTorch.",
+    "warning": "TerraMind is single-timestep: the process reduces each input collection to one temporal median composite before inference. The encoder sees 224x224 pixel tiles and produces a 14x14 grid of 16x16-pixel patch tokens, which are replicated back to the 10 m input grid; native spatial support is therefore about 160 m. TerraMind was pretrained on 224x224 S2 L1C input in raw digital numbers with its own mean/std. Sentinel-1 GRD is converted from linear power to decibels before inference, and Copernicus DEM values are used in metres. Embeddings depend on the selected composite, so a different temporal window yields different values.",
+    "runtime": "py311-onnx",
+    "type": "weights",
+    "architecture": "Vision Transformer",
+    "input_sources": [
+        "Sentinel-2 L1C",
+        "Sentinel-1",
+        "Copernicus DEM"
+    ],
+    "multimodal": true,
+    "spatial_extent": [
+        -180.0,
+        -90.0,
+        180.0,
+        90.0
+    ],
+    "temporal_extent": [
+        "2015-06-23",
+        "2026-12-31"
+    ],
+    "spatial_resolution": "10 m",
+    "temporal_resolution": "single composite",
+    "dimensions": [
+        192
+    ],
+    "weights_archive": "terramind_v1_tiny",
+    "weights_archive_path": "terramind_onnx",
+    "parameters": [
+        {
+            "name": "spatial_extent",
+            "required": true,
+            "default": "—",
+            "description": "Area to compute embeddings for (WGS84 bounding box).",
+            "schema": {
+                "type": "object",
+                "subtype": "bounding-box"
+            },
+            "example": {
+                "west": 11.55,
+                "south": 50.88,
+                "east": 11.65,
+                "north": 50.96
+            }
+        },
+        {
+            "name": "temporal_extent",
+            "required": true,
+            "default": "—",
+            "description": "Period to reduce to one composite before inference, e.g. one calendar year.",
+            "schema": {
+                "type": "array",
+                "subtype": "temporal-interval"
+            },
+            "example": [
+                "2024-01-01",
+                "2025-01-01"
+            ]
+        },
+        {
+            "name": "s2_collection_id",
+            "required": false,
+            "default": "`SENTINEL2_L1C`",
+            "default_value": "SENTINEL2_L1C",
+            "description": "Sentinel-2 L1C collection id.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
+        },
+        {
+            "name": "s2_bands",
+            "required": false,
+            "default": "`B01`, `B02`, `B03`, `B04`, `B05`, `B06`, `B07`, `B08`, `B8A`, `B09`, `B10`, `B11`, `B12`",
+            "default_value": [
+                "B01",
+                "B02",
+                "B03",
+                "B04",
+                "B05",
+                "B06",
+                "B07",
+                "B08",
+                "B8A",
+                "B09",
+                "B10",
+                "B11",
+                "B12"
+            ],
+            "description": "Sentinel-2 L1C bands in TerraMind order: coastal aerosol, blue, green, red, three red-edge bands, broad NIR, narrow NIR, water vapour, cirrus, SWIR 1 and SWIR 2.",
+            "schema": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "subtype": "band-name"
+                }
+            }
+        },
+        {
+            "name": "s1_collection_id",
+            "required": false,
+            "default": "`SENTINEL1_GRD`",
+            "default_value": "SENTINEL1_GRD",
+            "description": "Sentinel-1 GRD collection id.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
+        },
+        {
+            "name": "s1_bands",
+            "required": false,
+            "default": "`VV`, `VH`",
+            "default_value": [
+                "VV",
+                "VH"
+            ],
+            "description": "Sentinel-1 bands in TerraMind order.",
+            "schema": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "subtype": "band-name"
+                }
+            }
+        },
+        {
+            "name": "dem_collection_id",
+            "required": false,
+            "default": "`COPERNICUS_30`",
+            "default_value": "COPERNICUS_30",
+            "description": "Copernicus DEM collection id.",
+            "schema": {
+                "type": "string",
+                "subtype": "collection-id"
+            }
+        },
+        {
+            "name": "dem_band",
+            "required": false,
+            "default": "`DEM`",
+            "default_value": "DEM",
+            "description": "Digital elevation model band name, in metres.",
+            "schema": {
+                "type": "string",
+                "subtype": "band-name"
+            }
+        },
+        {
+            "name": "max_cloud_cover",
+            "required": false,
+            "default": "`50`",
+            "default_value": 50,
+            "description": "Maximum scene-level cloud cover (percent) for Sentinel-2 scenes used in the temporal composite.",
+            "schema": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+            }
+        }
+    ],
+    "publication": {
+        "title": "TerraMind: Large-Scale Generative Multimodality for Earth Observation",
+        "url": "https://arxiv.org/abs/2504.11171",
+        "citation": "Jakubik, J. et al. (2025). _ICCV_. Accessed: 24 November 2026.",
+        "abstract": "We present TerraMind, the first any-to-any generative, multimodal foundation model for Earth observation (EO). Unlike other multimodal models, TerraMind is pretrained on dual-scale representations combining both token-level and pixel-level data across modalities. On a token level, TerraMind encodes high-level contextual information to learn cross-modal relationships, while on a pixel level, TerraMind leverages fine-grained representations to capture critical spatial nuances. We pretrained TerraMind on nine geospatial modalities of a global, large-scale dataset. In this paper, we demonstrate that (i) TerraMind's dual-scale early fusion approach unlocks a range of zero-shot and few-shot applications for Earth observation, (ii) TerraMind introduces \"Thinking-in-Modalities\" (TiM) -- the capability of generating additional artificial data during finetuning and inference to improve the model output -- and (iii) TerraMind achieves beyond state-of-the-art performance in community-standard benchmarks for EO like PANGAEA. The pretraining dataset, the model weights, and our code are open-sourced under a permissive license."
+    },
+    "links": [
+        {
+            "title": "TerraMind 1.0 Tiny model card and weights",
+            "url": "https://huggingface.co/ibm-esa-geospatial/TerraMind-1.0-tiny"
+        },
+        {
+            "title": "IBM TerraMind code and examples",
+            "url": "https://github.com/IBM/terramind"
+        },
+        {
+            "title": "TerraTorch TerraMind guide",
+            "url": "https://terrastackai.github.io/terratorch/stable/guide/terramind/"
+        },
+        {
+            "title": "Embed2Scale embedding workflows tutorial",
+            "url": "https://github.com/embed2scale/AI-for-Good-Tutorial-2026"
+        },
+        {
+            "title": "Original notebook as an openEO community example",
+            "url": "https://github.com/Open-EO/openeo-community-examples/blob/main/python/60_geospatial-embeddings/terramind/terramind-embedding.ipynb"
+        }
+    ]
+}

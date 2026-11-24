@@ -9,6 +9,10 @@ stac/
 
 # Built UDF dependency archives are served from object storage / Pages, not git.
 runtimes/*/dependencies.zip
+# Exported model archives (e.g. TerraMind ONNX) are published with the release.
+weights/
+# Local environment for scripts/export-terramind-onnx.py.
+.venv-terramind/
 checksums.sha256
 
 # Downloaded GitHub Actions artifacts, not sources.

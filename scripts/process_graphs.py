@@ -14,6 +14,9 @@ needs neither ``udf.py`` nor a runtime. The template receives
   the published graph is independent of the separate config file
 - ``runtime_url`` -- the dependency-archive URL, with ``#feature_deps``;
   empty when ``config.json`` declares no runtime
+- ``weights_url`` -- the model-archive URL under ``weights/`` with the
+  extraction alias from ``weights_archive_path``; empty when ``config.json``
+  declares no ``weights_archive``
 - ``process_graph_url`` -- where the rendered graph is published
 - ``version`` -- the release the graph belongs to, or ``main`` for a branch
   render, so the graph identifies itself
@@ -92,6 +95,12 @@ MODEL_TYPES = {"frozen embeddings", "weights"}
 
 RUNTIME_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/runtimes/{{ runtime }}.zip#feature_deps"
+)
+# Model weights that are too large for the repository but are published with
+# each release, such as an exported ONNX encoder. The archive extracts to the
+# alias in `weights_archive_path` inside the UDF working directory.
+WEIGHTS_URL_TEMPLATE = jinja2.Template(
+    "{{ base_url }}/weights/{{ archive }}.zip#{{ path }}"
 )
 PROCESS_GRAPH_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/models/{{ model }}/process_graph.json"
@@ -291,6 +300,32 @@ def runtime_name(process_dir: Path) -> str:
     return runtime.strip() if isinstance(runtime, str) else ""
 
 
+def weights_archive_name(process_dir: Path) -> str:
+    """The model archive published under ``weights/``, or ``""`` when absent.
+
+    A weights archive is optional: models that download a checkpoint at runtime
+    (TESSERA, Prithvi) and models that load precomputed embeddings do not use
+    one. TerraMind's ONNX encoder is too large for git but is published next to
+    the runtime archives, so its model directory names it here.
+    """
+    archive = model_config(process_dir).get("weights_archive")
+    return archive.strip() if isinstance(archive, str) else ""
+
+
+def weights_archive_path(process_dir: Path) -> str:
+    """Extraction directory alias for ``weights_archive`` (URL fragment)."""
+    path = model_config(process_dir).get("weights_archive_path")
+    return path.strip() if isinstance(path, str) else "weights"
+
+
+def weights_archive_url(
+    base_url: str, archive: str, path: str = "weights"
+) -> str:
+    return WEIGHTS_URL_TEMPLATE.render(
+        base_url=base_url.rstrip("/"), archive=archive, path=path
+    )
+
+
 def validate_model_config(process_dir: Path) -> list[str]:
     """Validate the model metadata in ``config.json``.
 
@@ -328,6 +363,35 @@ def validate_model_config(process_dir: Path) -> list[str]:
             f"{config_file}: 'tags' is generated from the model properties; "
             "remove it"
         )
+    if "weights_archive" in config:
+        archive = config["weights_archive"]
+        if not isinstance(archive, str) or not archive.strip():
+            problems.append(
+                f"{config_file}: 'weights_archive' must be a non-empty string "
+                "when set"
+            )
+        elif (
+            archive != archive.strip()
+            or "/" in archive
+            or "\\" in archive
+            or any(character.isspace() for character in archive)
+        ):
+            problems.append(
+                f"{config_file}: 'weights_archive' must be a single archive "
+                f"file name without whitespace or slashes, got {archive!r}"
+            )
+    if "weights_archive_path" in config:
+        path = config["weights_archive_path"]
+        if not isinstance(path, str) or not path.strip():
+            problems.append(
+                f"{config_file}: 'weights_archive_path' must be a non-empty "
+                "string when set"
+            )
+        elif "weights_archive" not in config:
+            problems.append(
+                f"{config_file}: 'weights_archive_path' requires "
+                "'weights_archive'"
+            )
 
     # The properties table on the model page renders these four fields, so a
     # missing or mistyped one would either break the page or misstate coverage.
@@ -580,6 +644,41 @@ def validate_runtime_reference(
     return problems
 
 
+def validate_weights_reference(
+    process_dir: Path, graph: dict, expected_archive_url: str | None = None
+) -> list[str]:
+    """Validate the optional ``weights_archive`` reference in the graph.
+
+    The archive itself is a build artifact, so a missing ``weights/*.zip`` does
+    not fail a render; publishing checks it separately. Here we only ensure the
+    URL the template emits matches the model's declared archive and alias.
+    """
+    archive = weights_archive_name(process_dir)
+    archives = (graph.get("default_job_options") or {}).get(
+        "udf-dependency-archives"
+    ) or []
+    if not archive:
+        return []
+
+    alias = weights_archive_path(process_dir)
+    suffix = f"/weights/{archive}.zip#{alias}"
+    problems = []
+    if expected_archive_url is not None:
+        if expected_archive_url not in archives:
+            problems.append(
+                "default_job_options['udf-dependency-archives'] must use "
+                f"'{{{{ weights_url }}}}', expected {expected_archive_url!r}, "
+                f"found: {archives}"
+            )
+    elif not any(str(item).endswith(suffix) for item in archives):
+        problems.append(
+            f"{process_dir / 'config.json'} declares weights archive "
+            f"{archive!r}, but no URL in default_job_options"
+            f"['udf-dependency-archives'] ends with {suffix!r}: {archives}"
+        )
+    return problems
+
+
 def render(
     process_dir: Path,
     base_url: str,
@@ -617,6 +716,11 @@ def render(
     runtime = runtime.strip() if isinstance(runtime, str) else ""
 
     archive_url = runtime_url(base_url, runtime) if runtime else ""
+    weights = weights_archive_name(process_dir)
+    weights_path = weights_archive_path(process_dir)
+    weights_url = (
+        weights_archive_url(base_url, weights, weights_path) if weights else ""
+    )
     graph_url = process_graph_url(base_url, model)
     version = version or "main"
     zenodo_url = zenodo_url or ""
@@ -636,6 +740,7 @@ def render(
             documented_parameters(config), ensure_ascii=False
         ),
         runtime_url=archive_url,
+        weights_url=weights_url,
         process_graph_url=graph_url,
         version=version,
         zenodo_url=zenodo_url,

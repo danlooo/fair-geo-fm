@@ -1,0 +1,1 @@
+Install only the pinned packages; numpy comes from the UDF sandbox.
