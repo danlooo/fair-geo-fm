@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      models: ${{ steps.models.outputs.models }}
+      jobs: ${{ steps.models.outputs.jobs }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -74,11 +74,35 @@ jobs:
           )
           if not models:
               raise SystemExit("no model directories with a process graph template found")
-          print(f"models={json.dumps(models)}")
+
+          # One matrix entry per model example and per documented client
+          # example. Both groups share a single matrix so that max-parallel
+          # below caps how many of them run at once together.
+          jobs = [{"name": model, "model": model, "client": ""} for model in models]
+          jobs += [
+              {"name": f"docs example ({client})", "model": "alphaearth", "client": client}
+              for client in ("web", "python", "r")
+          ]
+          print(f"jobs={json.dumps(jobs)}")
           PY
 
+  # One job per model example and per documented client example. Both groups
+  # share a single matrix (built by discover) so that max-parallel caps how
+  # many jobs of either kind run at once in total: they run in parallel with
+  # each other, but never more than four at a time.
+  #
+  # A model page documents Web editor, Python and R examples extracted from the
+  # page rendered by models/model.md.j2, so these jobs fail when a documented
+  # snippet breaks. AlphaEarth is the representative model: it is built only
+  # from openEO processes (no UDF or runtime archive) and every model page is
+  # generated from the same template. Add models to the matrix if a
+  # model-specific example needs coverage too.
+  #
+  # The snippet examples resolve the process graph over the network, so they
+  # run against the public staging site (the script default) even for a
+  # release: a draft Zenodo record is private and cannot be fetched by CDSE.
   examples:
-    name: ${{ matrix.model }}
+    name: ${{ matrix.name }}
     needs: discover
     runs-on: ubuntu-latest
     # One model per job so a slow model does not use up another model's time
@@ -86,58 +110,14 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      # Every job shares one CDSE service account, so cap how many models run
-      # at the same time: launching one job per model at once gets the account
-      # rate-limited (429).
+      # Every job shares one CDSE service account, so cap how many jobs run at
+      # the same time: launching all models at once gets the account
+      # rate-limited (429). The snippet examples are the most sensitive to
+      # this because they cannot use the retry policy test-models.py applies
+      # to its own requests.
       max-parallel: 4
       matrix:
-        model: ${{ fromJSON(needs.discover.outputs.models) }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-
-      - uses: astral-sh/setup-uv@v10.3.3
-
-      - name: Run the documented example
-        env:
-          OPENEO_AUTH_CLIENT_ID: ${{ secrets.OPENEO_AUTH_CLIENT_ID }}
-          OPENEO_AUTH_CLIENT_SECRET: ${{ secrets.OPENEO_AUTH_CLIENT_SECRET }}
-          OPENEO_AUTH_PROVIDER_ID: ${{ vars.OPENEO_AUTH_PROVIDER_ID }}
-          OPENEO_BACKEND: https://openeo.dataspace.copernicus.eu
-        run: >-
-          uv run scripts/test-models.py
-          --model "${{ matrix.model }}"
-          --version "${{ inputs.ref || github.ref_name }}"
-          --timeout-minutes 150
-
-  # Run the usage examples a model page documents for every client. The
-  # snippets are extracted from the page rendered by models/model.md.j2, so
-  # this fails when a documented Web editor, Python or R example breaks.
-  #
-  # AlphaEarth is the representative model: it is built only from openEO
-  # processes (no UDF or runtime archive) and every model page is generated
-  # from the same template. Add models to --model if a model-specific example
-  # needs coverage too.
-  #
-  # The examples resolve the process graph over the network, so they run
-  # against the public staging site (the script default) even for a release:
-  # a draft Zenodo record is private and cannot be fetched by CDSE.
-  #
-  # These snippets cannot use the retry policy scripts/test-models.py applies
-  # to its own requests, so they are the most sensitive to rate limiting: they
-  # run only after every model example finished, and one client at a time (a
-  # second wave once every model is done, not alongside them).
-  clients:
-    name: docs example (${{ matrix.client }})
-    needs: examples
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        client: [web, python, r]
+        include: ${{ fromJSON(needs.discover.outputs.jobs) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -164,7 +144,8 @@ jobs:
           Rscript -e 'install.packages(c("openeo", "jsonlite"))'
           Rscript -e 'library(openeo); library(jsonlite)'
 
-      - name: Run the documented ${{ matrix.client }} example
+      - name: Run the documented example
+        if: matrix.client == ''
         env:
           OPENEO_AUTH_CLIENT_ID: ${{ secrets.OPENEO_AUTH_CLIENT_ID }}
           OPENEO_AUTH_CLIENT_SECRET: ${{ secrets.OPENEO_AUTH_CLIENT_SECRET }}
@@ -172,7 +153,20 @@ jobs:
           OPENEO_BACKEND: https://openeo.dataspace.copernicus.eu
         run: >-
           uv run scripts/test-models.py
-          --model alphaearth
+          --model "${{ matrix.model }}"
+          --version "${{ inputs.ref || github.ref_name }}"
+          --timeout-minutes 150
+
+      - name: Run the documented ${{ matrix.client }} example
+        if: matrix.client != ''
+        env:
+          OPENEO_AUTH_CLIENT_ID: ${{ secrets.OPENEO_AUTH_CLIENT_ID }}
+          OPENEO_AUTH_CLIENT_SECRET: ${{ secrets.OPENEO_AUTH_CLIENT_SECRET }}
+          OPENEO_AUTH_PROVIDER_ID: ${{ vars.OPENEO_AUTH_PROVIDER_ID }}
+          OPENEO_BACKEND: https://openeo.dataspace.copernicus.eu
+        run: >-
+          uv run scripts/test-models.py
+          --model "${{ matrix.model }}"
           --client "${{ matrix.client }}"
           --version "${{ inputs.ref || github.ref_name }}"
           --timeout-minutes 150
