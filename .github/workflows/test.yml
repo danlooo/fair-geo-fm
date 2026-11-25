@@ -90,7 +90,7 @@ jobs:
       # Every job shares one CDSE service account, so cap how many models run
       # at the same time: launching one job per model at once gets the account
       # rate-limited (429).
-      max-parallel: 3
+      max-parallel: 2
       matrix:
         model: ${{ fromJSON(needs.discover.outputs.models) }}
     steps:
@@ -148,7 +148,7 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 2
       matrix:
         client: [web, python, r]
     steps:
