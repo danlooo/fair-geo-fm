@@ -226,9 +226,9 @@ jobs:
           from pathlib import Path
 
           columns = [
-              "cdse_job_id", "label", "kind", "job_time", "cdse_time",
-              "used_credits", "used_cpu", "used_cpu_unit",
-              "used_ram", "used_ram_unit",
+              "cdse_job_id", "github_actions_job_id", "job_name",
+              "subjob_name", "job_time", "cdse_time", "used_credits",
+              "used_cpu", "used_cpu_unit", "used_ram", "used_ram_unit",
           ]
           rows = {}
           for path in sorted(Path("statistics").rglob("*.csv")):

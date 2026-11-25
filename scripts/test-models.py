@@ -114,12 +114,18 @@ SPATIAL_DIMENSIONS = ("x", "y", "lon", "lat")
 # Client names and the Markdown code-fence language of their documented example.
 CLIENTS = {"web": "json", "python": "python", "r": "r"}
 # Columns of the per-job statistics CSV written with ``--stats-file``.
-# ``job_time`` and ``cdse_time`` are in seconds; ``used_cpu`` and ``used_ram``
-# keep the unit the back-end reports next to the value.
+# Every column holds one fact: ``job_name`` is the test group (``model`` or
+# ``client``) and ``subjob_name`` the model directory or client within it, so
+# the pair ``model``/``alphaearth`` and ``client``/``web`` replace the
+# composite labels the table used to carry. ``github_actions_job_id`` is the
+# Actions job id (``GITHUB_JOB``) that ran the test. ``job_time`` and
+# ``cdse_time`` are in seconds; ``used_cpu`` and ``used_ram`` keep the unit the
+# back-end reports next to the value.
 STATS_COLUMNS = [
     "cdse_job_id",
-    "label",
-    "kind",
+    "github_actions_job_id",
+    "job_name",
+    "subjob_name",
     "job_time",
     "cdse_time",
     "used_credits",
@@ -264,14 +270,20 @@ def _parse_timestamp(value: str | None) -> datetime | None:
         return None
 
 
-def job_statistics(job, label: str, kind: str, wall_time: float | None = None) -> dict:
+def job_statistics(
+    job, job_name: str, subjob_name: str, wall_time: float | None = None
+) -> dict:
     """One CSV row with the time and resources a CDSE job used.
 
-    ``job_time`` is the wall time from submission to the last status update,
-    so it includes queueing. ``cdse_time`` is the back-end's ``usage.duration``,
-    which excludes queueing and starting. Both are seconds. ``used_credits``
-    is the job's ``costs`` in the back-end's billing currency (credits on
-    CDSE). The CPU and memory values keep the unit CDSE reports.
+    ``job_name`` is the test group (``model`` or ``client``) and
+    ``subjob_name`` the model directory or client that ran, so each cell holds
+    one fact. ``github_actions_job_id`` is the Actions job id from
+    ``GITHUB_JOB`` (empty outside Actions). ``job_time`` is the wall time from
+    submission to the last status update, so it includes queueing.
+    ``cdse_time`` is the back-end's ``usage.duration``, which excludes queueing
+    and starting. Both are seconds. ``used_credits`` is the job's ``costs`` in
+    the back-end's billing currency (credits on CDSE). The CPU and memory
+    values keep the unit CDSE reports.
     """
     try:
         data = job.describe()
@@ -293,8 +305,9 @@ def job_statistics(job, label: str, kind: str, wall_time: float | None = None) -
 
     return {
         "cdse_job_id": job.job_id,
-        "label": label,
-        "kind": kind,
+        "github_actions_job_id": os.environ.get("GITHUB_JOB", ""),
+        "job_name": job_name,
+        "subjob_name": subjob_name,
         "job_time": round(job_time, 1) if job_time is not None else "",
         "cdse_time": duration.get("value", ""),
         "used_credits": data.get("costs") if data.get("costs") is not None else "",
@@ -337,20 +350,21 @@ def list_untitled_job_ids(connection) -> set[str]:
 
 
 def append_new_job_statistics(
-    connection, before: set[str], stats_file: Path | None
+    connection, before: set[str], stats_file: Path | None, client: str
 ) -> None:
     """Collect statistics for jobs a snippet created while it ran.
 
     The documented Python and R examples do not expose the id of the job they
     create, so compare the account's untitled jobs before and after the
-    snippet. The Python and R snippets run at the same time and can each see
-    the other's job; both write the same generic label, and the final merge
-    deduplicates by job id. A job deleted by its owner in between is skipped.
+    snippet. The client under test names the row (``client``/``python`` or
+    ``client``/``r``); the client matrix runs one snippet at a time, so a job
+    seen by one snippet is the one that snippet created. A job deleted by its
+    owner in between is skipped. The final merge still deduplicates by job id.
     """
     rows = []
     for job_id in sorted(list_untitled_job_ids(connection) - before):
         try:
-            rows.append(job_statistics(connection.job(job_id), "snippet", "client"))
+            rows.append(job_statistics(connection.job(job_id), "client", client))
         except Exception as error:  # noqa: BLE001
             print(f"  could not read statistics for job {job_id}: {error}")
     append_statistics(stats_file, rows)
@@ -532,8 +546,8 @@ def test_model(
             [
                 job_statistics(
                     job,
-                    process_dir.name,
                     "model",
+                    process_dir.name,
                     wall_time=time.monotonic() - submitted,
                 )
             ],
@@ -658,7 +672,7 @@ def run_snippet(
             f"{timeout_seconds / 60:.0f} minutes"
         ) from None
     finally:
-        append_new_job_statistics(connection, before, stats_file)
+        append_new_job_statistics(connection, before, stats_file, client)
     if completed.stdout:
         print(completed.stdout)
     if completed.returncode != 0:
@@ -740,8 +754,8 @@ def test_client(
             [
                 job_statistics(
                     job,
-                    f"{process_dir.name}/{client}",
-                    f"client:{client}",
+                    "client",
+                    client,
                     wall_time=time.monotonic() - submitted,
                 )
             ],

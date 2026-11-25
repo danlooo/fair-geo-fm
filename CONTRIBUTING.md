@@ -435,11 +435,14 @@ Four workflows carry a commit from validation to publication.
   extracted from the rendered model page, so a broken copy-paste example is
   caught too; it covers AlphaEarth as the representative model. With
   `--client`, the same script runs those examples locally. Every test job
-  collects the CDSE job's time, credits, CPU and memory (`--stats-file`), and a
-  final job merges them into the `job-statistics` artifact (`cdse_job_id`,
+  collects the CDSE job's identity and time, credits, CPU and memory
+  (`--stats-file`), and a final job merges them into the `job-statistics`
+  artifact (`cdse_job_id`, `github_actions_job_id`, `job_name`, `subjob_name`,
   `job_time`, `cdse_time`, `used_credits`, `used_cpu`, `used_ram` and their
-  units). The workflow does not delete that artifact; retention follows the
-  repository setting.
+  units). `job_name` is the test group (`model` or `client`) and `subjob_name`
+  the model directory or client within it, so each column holds one fact. The
+  workflow does not delete that artifact; retention follows the repository
+  setting.
   `publish-release` calls it for the released tag before its Zenodo job, so a
   model whose example does not run blocks the upload. It can also be started
   by hand with `workflow_dispatch`; see
