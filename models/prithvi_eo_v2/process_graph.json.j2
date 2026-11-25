@@ -15,7 +15,8 @@
     "python-memory": "8g",
     "soft-errors": 0.1,
     "udf-dependency-archives": [
-      "{{ runtime_url }}"
+      "{{ runtime_url }}",
+      "{{ weights_url }}"
     ]
   },
   "process_graph": {
@@ -142,14 +143,11 @@
               "process_id": "run_udf",
               "arguments": {
                 "context": {
-                  "projection": {
-                    "from_parameter": "projection"
-                  },
                   "scl_band": {
                     "from_parameter": "scl_band"
                   },
-                  "weights_url": {
-                    "from_parameter": "weights_url"
+                  "spatial_extent": {
+                    "from_parameter": "spatial_extent"
                   }
                 },
                 "data": {

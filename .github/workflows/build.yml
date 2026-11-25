@@ -86,29 +86,40 @@ jobs:
         uses: actions/cache@v6
         with:
           path: weights
-          key: model-weights-${{ hashFiles('scripts/export-terramind-onnx.py', 'models/terramind_v1_tiny/config.json') }}-2b5ac0a3
+          key: model-weights-${{ hashFiles('scripts/export-*.py', 'scripts/vendor/*.py', 'models/*/config.json') }}-2b5ac0a3-2c84e383-bd08c90b
 
-      - name: Export the TerraMind encoder
+      - name: Export the model encoders
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libgomp1 libgl1 libglib2.0-0
-          uv venv --python 3.11 .venv-terramind
+          uv venv --python 3.11 .venv-export
           # CPU wheels keep the export environment small; install them from the
           # PyTorch index first so TerraTorch does not pull the CUDA build.
-          uv pip install --python .venv-terramind/bin/python \
+          uv pip install --python .venv-export/bin/python \
             --default-index https://download.pytorch.org/whl/cpu \
             "torch==2.7.1+cpu" "torchvision==0.22.1+cpu"
-          uv pip install --python .venv-terramind/bin/python \
-            "terratorch==1.2.1" "onnx==1.17.0"
-          .venv-terramind/bin/python scripts/export-terramind-onnx.py \
+          # onnxscript is required by the Dynamo exporter used for TESSERA's
+          # dynamic time dimensions; onnxruntime runs the parity checks.
+          uv pip install --python .venv-export/bin/python \
+            "terratorch==1.2.1" "onnx==1.17.0" "onnxruntime==1.20.1" \
+            "einops==0.8.2" "huggingface_hub==0.34.4" "onnxscript==0.7.2"
+          .venv-export/bin/python scripts/export-terramind-onnx.py \
             --model terramind_v1_tiny \
             --hf-revision 2b5ac0a3ed7dd7e922ccfd595b56607f342df343 \
             --torch-version 2.7.1 \
             --terratorch-version 1.2.1 \
             --out weights
-          cat weights/terramind_v1_tiny.json
+          .venv-export/bin/python scripts/export-prithvi-onnx.py \
+            --hf-revision 2c84e383194986040f883cc43d7869002c425e1b \
+            --out weights
+          .venv-export/bin/python scripts/export-tessera-onnx.py \
+            --hf-revision bd08c90bf56ca6a1e7609a395cd47115fa12f1d8 \
+            --out weights
+          cat weights/terramind_v1_tiny.json \
+              weights/prithvi_eo_v2.json \
+              weights/tessera_v2.json
 
       - uses: actions/upload-artifact@v7
         with:

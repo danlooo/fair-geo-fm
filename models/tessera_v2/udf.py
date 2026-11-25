@@ -1,31 +1,18 @@
-"""openEO UDF: TESSERA v2 "student" pixel embeddings from Sentinel-1/2.
+"""openEO UDF: TESSERA v2 "student" pixel embeddings via ONNX Runtime.
 
-This vendors (with minor adaptations noted inline) the model definition and
-inference helpers from `tessera_infer_v2/student/{model.py,infer.py}` in
-https://github.com/ucam-eo/tessera, so the UDF only needs torch + numpy - no
-custom reimplementation of the forward pass. See that repo for the original,
-authoritative source and license.
+The TESSERA v2 pixel student is exported to ONNX once, offline, with
+``scripts/export-tessera-onnx.py``. The process graph ships that archive
+through ``udf-dependency-archives`` with the ``#tessera_onnx`` alias, so the
+UDF only needs ``onnxruntime`` from the ``py311-onnx`` runtime archive. No
+PyTorch is available (or needed) in the sandbox.
 
-Torch is not part of the default openEO UDF sandbox, so it must be supplied
-via the "udf-dependency-archives" job option, e.g.:
-
-    job_options = {
-        "udf-dependency-archives": [
-            "https://s3.waw3-1.cloudferro.com/project_dependencies/torch_deps_python311.zip#feature_deps",
-        ],
-    }
-
-The checkpoint itself (a `student_*.pt` file) is downloaded by the UDF at
-runtime. The optional ``embedding_length`` context entry selects a Matryoshka
-prefix of the embedding (one of the checkpoint's trained cuts, 16/32/64/128);
-it defaults to the full width. The optional ``weights_url`` context entry
-selects a different checkpoint; when omitted it defaults to
-``DEFAULT_WEIGHTS_URL`` (the released student_nano checkpoint), so a call can
-run with no context at all:
-
-    openeo.UDF.from_file("udf_tessera_embedding.py",
-                          context={"embedding_length": 64,
-                                   "weights_url": "https://.../student_nano.pt"})
+The model definition and the binning/standardization helpers are vendored from
+`tessera_infer_v2/student/{model.py,infer.py}` in
+https://github.com/ucam-eo/tessera. The exported graph takes each pixel's
+already standardized S2 and S1 sequences and returns the 128-dimensional
+Matryoshka embedding; only the transformer forward pass runs in ONNX. The
+optional ``embedding_length`` context entry selects a Matryoshka prefix (one of
+the checkpoint's trained cuts, 16/32/64/128); it defaults to the full width.
 
 Expects the merged input cube to contain (at least) these bands, produced by
 merge_cubes() of three separately-loaded collections (see TesseraEmbedding.ipynb):
@@ -35,43 +22,30 @@ merge_cubes() of three separately-loaded collections (see TesseraEmbedding.ipynb
 Because merge_cubes() unions the "t" dimension, a given band's source can be
 all-NaN on dates that belong to another source. This UDF first prunes those
 source-mismatch dates per source, then applies SCL-based cloud masking on S2
-(SCL classes 7/8/9) so cloud NaNs don't interfere with source-date pruning.
+(SCL classes 0-3, 8, 9) so cloud NaNs don't interfere with source-date pruning.
+
+Keep the openEO annotations as runtime objects: do not add
+``from __future__ import annotations``. The UDF runner locates its entry point
+by comparing the evaluated annotations with ``openeo.udf.XarrayDataCube``.
 """
 import functools
-import io
-import math
-import os
 import sys
-import time
-import urllib.request
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional
 
-# Torch is supplied via the "udf-dependency-archives" job option, which
-# extracts the archive to ./feature_deps. Guard so this file stays importable
-# in other contexts (tests, local runs) where that directory doesn't exist.
-_DEPS_DIR = os.environ.get("TESSERA_TORCH_DEPS_DIR", "feature_deps")
-if os.path.isdir(_DEPS_DIR):
-    sys.path.insert(0, _DEPS_DIR)
+# onnxruntime comes from the model's runtime archive, extracted to feature_deps.
+if Path("feature_deps").is_dir():
+    sys.path.insert(0, "feature_deps")
 
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
+import onnxruntime as ort
 import xarray as xr
 from openeo.metadata import CubeMetadata
 from openeo.udf import XarrayDataCube
 
-# Keep per-worker CPU usage predictable inside the openEO sandbox.
-torch.set_num_threads(2)
-try:
-    torch.set_num_interop_threads(2)
-except RuntimeError:
-    # set_num_interop_threads must be called before any parallel work; if the
-    # module is re-imported in the same process it will raise. Safe to ignore.
-    pass
-
 # =============================================================================
-# Vendored from tessera_infer_v2/student/model.py
+# Model constants (vendored from tessera_infer_v2/student/model.py)
 # =============================================================================
 S2_BAND_MEAN = np.array(
     [1633.0042, 1341.1090, 1539.5536, 3054.8269, 3117.4658,
@@ -96,168 +70,35 @@ S2_SCL_BAND = "SCL"
 S2_CLOUD_SCL_CLASSES = np.array([0, 1, 2, 3, 8, 9], dtype=np.int16)
 S1_BAND_ORDER = ["VV", "VH"]
 
-class TemporalPositionalEncoder(nn.Module):
-    """Sinusoidal positional encoding using the (raw integer) DOY value."""
+EMBED_DIM = 128
+MATRYOSHKA_DIMS = (16, 32, 64, 128)
 
-    def __init__(self, d_model: int) -> None:
-        super().__init__()
-        self.d_model = d_model
-
-    def forward(self, doy: torch.Tensor) -> torch.Tensor:
-        position = doy.unsqueeze(-1).float()
-        div_term = torch.exp(
-            torch.arange(0, self.d_model, 2, dtype=torch.float, device=doy.device)
-            * -(math.log(10000.0) / self.d_model)
-        )
-        pe = torch.zeros(doy.shape[0], doy.shape[1], self.d_model, device=doy.device)
-        pe[:, :, 0::2] = torch.sin(position * div_term)
-        pe[:, :, 1::2] = torch.cos(position * div_term)
-        return pe
-
-
-class AttentionPooling(nn.Module):
-    """Plain single-head softmax attention pool over T."""
-
-    def __init__(self, input_dim: int) -> None:
-        super().__init__()
-        self.query = nn.Linear(input_dim, 1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, T, D = x.shape
-        if T == 0:
-            return torch.zeros(B, D, device=x.device, dtype=x.dtype)
-        if T == 1:
-            return x.squeeze(1)
-        w = torch.softmax(self.query(x), dim=1)
-        return (w * x).sum(dim=1)
-
-
-class TransformerEncoder(nn.Module):
-    """Per-pixel band embedding + DOY positional + Transformer + attention pooling."""
-
-    def __init__(self, band_num: int, latent_dim: int, nhead: int = 4,
-                 num_encoder_layers: int = 3, dim_feedforward: int = 1024,
-                 dropout: float = 0.1) -> None:
-        super().__init__()
-        input_dim = band_num
-        self.embedding = nn.Sequential(
-            nn.Linear(input_dim, latent_dim * 4),
-            nn.ReLU(),
-            nn.Linear(latent_dim * 4, latent_dim * 4),
-        )
-        self.temporal_encoder = TemporalPositionalEncoder(d_model=latent_dim * 4)
-
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=latent_dim * 4, nhead=nhead,
-            dim_feedforward=dim_feedforward, dropout=dropout,
-            activation="relu", batch_first=True,
-        )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_encoder_layers)
-        self.attn_pool = AttentionPooling(latent_dim * 4)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, T, band_num + 1) - last channel is the (raw integer) DOY value
-        bands = x[:, :, :-1]
-        doy = x[:, :, -1]
-        bands_embedded = self.embedding(bands)
-        temporal_encoding = self.temporal_encoder(doy)
-        x = bands_embedded + temporal_encoding
-        x = self.transformer_encoder(x)
-        return self.attn_pool(x)
-
-
-class PixelStudent(nn.Module):
-    """2-backbone pixel encoder. emb_dim = 128 (Matryoshka-ordered).
-
-    Inputs (per pixel):
-        s2_x : (B, T_s2, 11)   10 bands + 1 DOY (raw integer 1..365)
-        s1_x : (B, T_s1,  3)    2 bands + 1 DOY (raw integer; s1a + s1d MERGED)
-
-    encode() returns (B, 128). The first K dims are usable on their own for
-    K in {16, 32, 64, 128}.
-    """
-
-    def __init__(
-        self,
-        repr_dim: int = 128,
-        latent_dim: int = 64,
-        num_layers: int = 4,
-        nhead: int = 4,
-        dim_feedforward: int = 1024,
-        dropout: float = 0.0,
-        max_seq_len: int = 256,
-        matryoshka_dims: Tuple[int, ...] = (16, 32, 64, 128),
-    ) -> None:
-        super().__init__()
-        self.repr_dim = int(repr_dim)
-        self.matryoshka_dims = tuple(int(d) for d in matryoshka_dims)
-        for d in self.matryoshka_dims:
-            if d > repr_dim:
-                raise ValueError(f"matryoshka cut {d} > repr_dim {repr_dim}")
-
-        def make_enc(band_num: int) -> TransformerEncoder:
-            return TransformerEncoder(
-                band_num=band_num, latent_dim=latent_dim,
-                nhead=nhead, num_encoder_layers=num_layers,
-                dim_feedforward=dim_feedforward, dropout=dropout,
-            )
-
-        self.s2_backbone = make_enc(10)
-        self.s1_backbone = make_enc(2)
-
-        backbone_out = latent_dim * 4
-        fused_in = 2 * backbone_out
-        self.dim_reducer = nn.Sequential(
-            nn.Linear(fused_in, fused_in * 2),
-            nn.LayerNorm(fused_in * 2),
-            nn.ReLU(inplace=False),
-            nn.Dropout(0.2),
-            nn.Linear(fused_in * 2, repr_dim),
-            # Final non-affine LayerNorm: normalizes the 128-d output to
-            # per-pixel mean 0 / std 1. No learnable params.
-            nn.LayerNorm(repr_dim, elementwise_affine=False),
-        )
-
-    def encode(self, s2_x: torch.Tensor, s1_x: torch.Tensor) -> torch.Tensor:
-        s2 = self.s2_backbone(s2_x)
-        s1 = self.s1_backbone(s1_x)
-        fused = torch.cat([s2, s1], dim=-1)
-        return self.dim_reducer(fused)
-
-    def forward(self, s2_x: torch.Tensor, s1_x: torch.Tensor) -> torch.Tensor:
-        return self.encode(s2_x, s1_x)
-
-
-def load_model(ckpt_source, device: torch.device = torch.device("cpu")):
-    """Load a pretrained pixel student (encoder) from a .pt file path or file-like object.
-
-    Uses ``weights_only=True`` so a malicious checkpoint cannot execute arbitrary
-    code via pickle. The TESSERA payload is ``{"args": {...}, "model": state_dict}``
-    which contains only safe types.
-    """
-    payload = torch.load(ckpt_source, map_location=device, weights_only=True)
-    cfg = payload.get("args", {}) or {}
-    matryoshka_dims = tuple(
-        int(d) for d in str(cfg.get("matryoshka_dims", "16,32,64,128")).split(",")
-    )
-    model = PixelStudent(
-        repr_dim=int(cfg.get("repr_dim", 128)),
-        latent_dim=int(cfg.get("latent_dim", 64)),
-        num_layers=int(cfg.get("num_layers", 4)),
-        nhead=int(cfg.get("nhead", 4)),
-        dim_feedforward=int(cfg.get("dim_feedforward", 1024)),
-        dropout=0.0,
-        matryoshka_dims=matryoshka_dims,
-    ).to(device)
-    model.load_state_dict(payload["model"])
-    model.eval()
-    return model
-
+DEFAULT_ONNX_DIR = "tessera_onnx"
+DEFAULT_ONNX_FILENAME = "tessera_v2_encoder.onnx"
 
 # =============================================================================
-# Vendored from tessera_infer_v2/student/infer.py
+# Binning helpers (vendored from tessera_infer_v2/student/infer.py)
 # =============================================================================
 BIN_EDGES = np.array(list(range(8, 257, 8)), dtype=np.int64)  # [8, 16, 24, ..., 256]
+
+
+@functools.lru_cache(maxsize=1)
+def _load_session(onnx_path: str) -> ort.InferenceSession:
+    """Return a cached InferenceSession for the exported encoder."""
+    if not Path(onnx_path).is_file():
+        raise FileNotFoundError(
+            f"ONNX encoder not found at {onnx_path}. Make sure the model's "
+            "weights archive is listed in 'udf-dependency-archives' with the "
+            "'#tessera_onnx' alias, so it extracts to ./tessera_onnx."
+        )
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 2
+    options.inter_op_num_threads = 2
+    return ort.InferenceSession(
+        onnx_path,
+        sess_options=options,
+        providers=["CPUExecutionProvider"],
+    )
 
 
 def _vec_get_bin_size(n_obs: np.ndarray) -> np.ndarray:
@@ -301,9 +142,8 @@ def _build_source_indices(valid_per_pix: np.ndarray, B: int) -> np.ndarray:
     return src
 
 
-@torch.no_grad()
 def encode_pixels(
-    model,
+    session: ort.InferenceSession,
     s2_bands: np.ndarray,
     s2_doys: np.ndarray,
     s1_asc_bands: Optional[np.ndarray] = None,
@@ -312,9 +152,7 @@ def encode_pixels(
     s1_desc_doys: Optional[np.ndarray] = None,
     s2_masks: Optional[np.ndarray] = None,
     batch_pixels: int = 1024,
-    device: torch.device = torch.device("cpu"),
     standardize: bool = True,
-    context: Optional[dict] = None,
 ) -> np.ndarray:
     """Encode B independent pixels' time series into 128-d embeddings.
 
@@ -329,7 +167,7 @@ def encode_pixels(
     Returns: (B, 128) float32.
     """
     B = s2_bands.shape[0]
-    out = np.empty((B, model.repr_dim), dtype=np.float32)
+    out = np.empty((B, EMBED_DIM), dtype=np.float32)
     if B == 0:
         return out
 
@@ -426,16 +264,13 @@ def encode_pixels(
                 s1_in[:, :, :2] = gathered
                 s1_in[:, :, 2] = np.take_along_axis(s1_d_merged[chunk], src, axis=1).astype(np.float32)
 
-            s2_t = torch.from_numpy(s2_in).to(device, non_blocking=True)
-            s1_t = torch.from_numpy(s1_in).to(device, non_blocking=True)
-            emb = model.encode(s2_t, s1_t)
-            out[chunk] = emb.float().cpu().numpy()
+            emb = session.run(None, {"s2_x": s2_in, "s1_x": s1_in})[0]
+            out[chunk] = np.asarray(emb, dtype=np.float32)
     return out
 
 
-@torch.no_grad()
 def encode_tile(
-    model,
+    session: ort.InferenceSession,
     s2_bands: np.ndarray,
     s2_doys: np.ndarray,
     s2_masks: Optional[np.ndarray] = None,
@@ -444,9 +279,7 @@ def encode_tile(
     s1_desc_bands: Optional[np.ndarray] = None,
     s1_desc_doys: Optional[np.ndarray] = None,
     batch_pixels: int = 1024,
-    device: torch.device = torch.device("cpu"),
     standardize: bool = True,
-    context: Optional[dict] = None,
 ) -> np.ndarray:
     """Encode one tile into an (H, W, 128) embedding map.
 
@@ -461,7 +294,7 @@ def encode_tile(
     Returns: (H, W, 128) float32.
     """
     T_s2, H, W, _ = s2_bands.shape
-    out = np.empty((H, W, model.repr_dim), dtype=np.float32)
+    out = np.empty((H, W, EMBED_DIM), dtype=np.float32)
 
     # Spatial tiling: process rows in chunks so we never materialize the full
     # (H*W, T, C) flat array (which is a copy because of transpose+reshape).
@@ -497,70 +330,39 @@ def encode_tile(
             s1d_doys_flat = None
 
         emb = encode_pixels(
-            model, s2_flat, s2_doys,
+            session, s2_flat, s2_doys,
             s1_asc_bands=s1a_flat, s1_asc_doys=s1a_doys_flat,
             s1_desc_bands=s1d_flat, s1_desc_doys=s1d_doys_flat,
             s2_masks=s2_masks_flat,
-            batch_pixels=batch_pixels, device=device, standardize=standardize,
-            context=context,
+            batch_pixels=batch_pixels, standardize=standardize,
         )
-        out[y0:y1] = emb.reshape(h, W, model.repr_dim)
+        out[y0:y1] = emb.reshape(h, W, EMBED_DIM)
     return out
 
 
 # =============================================================================
 # openEO entry points.
 # =============================================================================
-DEFAULT_WEIGHTS_URL = (
-    "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt"
-)
+def _output_width(context: dict) -> int:
+    """The requested Matryoshka width, validated against the checkpoint cuts.
 
-
-@functools.lru_cache(maxsize=1)
-def _load_model_from_url(url: str):
-    req = urllib.request.Request(url, headers={"User-Agent": "tessera-udf/1"})
-    last_err = None
-    for attempt in range(3):
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                data = resp.read()
-            break
-        except Exception as e:  # noqa: BLE001 - retry on any network error
-            last_err = e
-            if attempt < 2:
-                time.sleep(2 ** attempt)
-    else:
-        raise RuntimeError(f"Failed to download weights from {url}: {last_err}")
-    return load_model(io.BytesIO(data), device=torch.device("cpu"))
-
-
-def _get_model(context: dict):
-    # weights_url is optional: omit it to use the released student_nano
-    # checkpoint, or set it to load a different student_*.pt checkpoint.
-    url = (context or {}).get("weights_url") or DEFAULT_WEIGHTS_URL
-    return _load_model_from_url(url)
-
-
-def _output_width(model, context: dict) -> int:
-    """The requested Matryoshka width, validated against the checkpoint.
-
-    ``embedding_length`` is optional; omitting it returns the full embedding. Only
-    the cuts the model was trained with are meaningful, so an arbitrary prefix
-    is rejected.
+    ``embedding_length`` is optional; omitting it returns the full embedding.
+    Only the cuts the model was trained with are meaningful, so an arbitrary
+    prefix is rejected.
     """
     value = (context or {}).get("embedding_length")
     if value is None or value == "":
-        return model.repr_dim
+        return EMBED_DIM
     try:
         width = int(value)
     except (TypeError, ValueError):
         raise ValueError(
             f"context['embedding_length'] must be an integer, got {value!r}"
         ) from None
-    if width not in model.matryoshka_dims:
+    if width not in MATRYOSHKA_DIMS:
         raise ValueError(
             f"context['embedding_length']={width} is not a trained Matryoshka cut; "
-            f"choose one of {list(model.matryoshka_dims)}"
+            f"choose one of {list(MATRYOSHKA_DIMS)}"
         )
     return width
 
@@ -570,8 +372,8 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     # be invoked via apply_dimension(dimension="t", target_dimension="bands")
     # (see TesseraEmbedding.ipynb). The metadata rename below assumes t is
     # already gone by the time the callback runs.
-    model = _get_model(context)
-    band_names = [f"tessera_{i}" for i in range(_output_width(model, context))]
+    width = _output_width(context)
+    band_names = [f"tessera_{i}" for i in range(width)]
     return metadata.rename_labels(dimension="bands", target=band_names)
 
 
@@ -587,7 +389,11 @@ def _tessera_doy_values(t_coord_values: np.ndarray) -> np.ndarray:
 
 
 def apply_datacube(cube: XarrayDataCube, context: dict) -> XarrayDataCube:
-    model = _get_model(context)
+    context = context or {}
+    onnx_dir = context.get("onnx_dir", DEFAULT_ONNX_DIR)
+    onnx_filename = context.get("onnx_filename", DEFAULT_ONNX_FILENAME)
+    onnx_path = (Path(onnx_dir) / onnx_filename).as_posix()
+    session = _load_session(onnx_path)
     da = cube.get_array()  # dims: t, bands, y, x
 
     available = set(da.coords["bands"].values.tolist())
@@ -636,14 +442,12 @@ def apply_datacube(cube: XarrayDataCube, context: dict) -> XarrayDataCube:
     s1d_bands = np.nan_to_num(s1d_bands)
 
     embedding = encode_tile(
-        model, s2_bands, s2_doys, s2_masks=s2_masks,
+        session, s2_bands, s2_doys, s2_masks=s2_masks,
         s1_asc_bands=s1a_bands, s1_asc_doys=s1a_doys,
         s1_desc_bands=s1d_bands, s1_desc_doys=s1d_doys,
-        device=torch.device("cpu"),
-        context=context,
     )  # (H, W, repr_dim)
 
-    width = _output_width(model, context)
+    width = _output_width(context)
     embedding = embedding[:, :, :width]
 
     result = xr.DataArray(

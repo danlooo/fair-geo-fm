@@ -130,26 +130,35 @@ jobs:
           done
 
       - name: Export model archives
-        # Like the runtime archives, the ONNX encoder is rebuilt from the
-        # released tag with pinned torch, TerraTorch and weights revision, so
-        # the published record does not depend on a branch build artifact.
+        # Like the runtime archives, the ONNX encoders are rebuilt from the
+        # released tag with pinned torch and weights revisions, so the
+        # published record does not depend on a branch build artifact.
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends libgomp1 libgl1 libglib2.0-0
-          uv venv --python 3.11 .venv-terramind
-          uv pip install --python .venv-terramind/bin/python \
+          uv venv --python 3.11 .venv-export
+          uv pip install --python .venv-export/bin/python \
             --default-index https://download.pytorch.org/whl/cpu \
             "torch==2.7.1+cpu" "torchvision==0.22.1+cpu"
-          uv pip install --python .venv-terramind/bin/python \
-            "terratorch==1.2.1" "onnx==1.17.0"
-          .venv-terramind/bin/python scripts/export-terramind-onnx.py \
+          uv pip install --python .venv-export/bin/python \
+            "terratorch==1.2.1" "onnx==1.17.0" "onnxruntime==1.20.1" \
+            "einops==0.8.2" "huggingface_hub==0.34.4" "onnxscript==0.7.2"
+          .venv-export/bin/python scripts/export-terramind-onnx.py \
             --model terramind_v1_tiny \
             --hf-revision 2b5ac0a3ed7dd7e922ccfd595b56607f342df343 \
             --torch-version 2.7.1 \
             --terratorch-version 1.2.1 \
             --out weights
-          cat weights/terramind_v1_tiny.json
+          .venv-export/bin/python scripts/export-prithvi-onnx.py \
+            --hf-revision 2c84e383194986040f883cc43d7869002c425e1b \
+            --out weights
+          .venv-export/bin/python scripts/export-tessera-onnx.py \
+            --hf-revision bd08c90bf56ca6a1e7609a395cd47115fa12f1d8 \
+            --out weights
+          cat weights/terramind_v1_tiny.json \
+              weights/prithvi_eo_v2.json \
+              weights/tessera_v2.json
 
       - name: Upload to Zenodo
         env:

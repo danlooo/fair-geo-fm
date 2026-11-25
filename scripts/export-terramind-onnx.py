@@ -3,11 +3,11 @@
 
 Run once, offline, with pinned TerraTorch and torch versions:
 
-    uv venv .venv-terramind
-    uv pip install --python .venv-terramind/bin/python \\
+    uv venv .venv-export
+    uv pip install --python .venv-export/bin/python \\
         --extra-index-url https://download.pytorch.org/whl/cpu \\
         "torch==2.7.1+cpu" "terratorch==1.2.1"
-    .venv-terramind/bin/python scripts/export-terramind-onnx.py \\
+    .venv-export/bin/python scripts/export-terramind-onnx.py \\
         --model terramind_v1_tiny \\
         --hf-revision 2b5ac0a3ed7dd7e922ccfd595b56607f342df343 \\
         --out weights

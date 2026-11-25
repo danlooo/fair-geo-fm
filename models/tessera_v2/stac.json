@@ -7,21 +7,21 @@
     "Sentinel-1",
     "Sentinel-2",
     "openEO",
-    "PyTorch"
+    "ONNX"
   ],
   "datetime": "2026-11-12T00:00:00Z",
   "bbox": [-180.0, -90.0, 180.0, 90.0],
   "properties": {
     "mlm:architecture": "Transformer",
     "mlm:tasks": ["representation-learning"],
-    "mlm:framework": "PyTorch",
-    "mlm:framework_version": "2.3.1",
+    "mlm:framework": "ONNX Runtime",
+    "mlm:framework_version": "1.20.1",
     "mlm:pretrained": true,
     "mlm:pretrained_source": "Barlow Twins pretraining on Sentinel-1 and Sentinel-2 time series",
     "mlm:input": [
       {
-        "name": "sentinel-1-and-2-time-series",
-        "description": "Per-pixel time series of ten Sentinel-2 reflectance bands plus SCL and Sentinel-1 VV/VH backscatter, split by orbit.",
+        "name": "sentinel-2-time-series",
+        "description": "Per-pixel time series of ten Sentinel-2 reflectance bands in TESSERA order, cloud-masked with SCL, standardized per band, padded to the observation-count bin and extended with a day-of-year channel.",
         "bands": [
           "B04",
           "B02",
@@ -32,16 +32,25 @@
           "B06",
           "B07",
           "B11",
-          "B12",
-          "SCL",
-          "VV_ASC",
-          "VH_ASC",
-          "VV_DESC",
-          "VH_DESC"
+          "B12"
         ],
         "variables": [],
         "input": {
-          "shape": [-1, -1, 15],
+          "shape": [-1, -1, 11],
+          "dim_order": ["batch", "time", "bands"],
+          "data_type": "float32"
+        },
+        "value_scaling": null,
+        "resize_type": null,
+        "pre_processing_function": null
+      },
+      {
+        "name": "sentinel-1-time-series",
+        "description": "Per-pixel Sentinel-1 VV and VH backscatter from ascending and descending orbits, standardized per source, merged, padded to the observation-count bin and extended with a day-of-year channel.",
+        "bands": ["VV", "VH"],
+        "variables": [],
+        "input": {
+          "shape": [-1, -1, 3],
           "dim_order": ["batch", "time", "bands"],
           "data_type": "float32"
         },
@@ -67,9 +76,10 @@
     ]
   },
   "processing": {
-    "lineage": "Pixel embeddings inferred by the TESSERA v2 student model from Sentinel-1 GRD and Sentinel-2 L2A time series using the openEO user-defined process tessera_v2_embeddings.",
+    "lineage": "Pixel embeddings inferred by the TESSERA v2 student model from Sentinel-1 GRD and Sentinel-2 L2A time series using the openEO user-defined process tessera_v2_embeddings. The student encoder is exported to ONNX with PyTorch 2.7.1 and run through ONNX Runtime.",
     "software": {
-      "PyTorch": "2.3.1"
+      "PyTorch": "2.7.1",
+      "ONNX Runtime": "1.20.1"
     }
   },
   "publications": [
@@ -79,8 +89,8 @@
     }
   ],
   "weights": {
-    "href": "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt",
-    "title": "TESSERA v2 student_nano checkpoint",
-    "mlm:artifact_type": "torch.save"
+    "title": "TESSERA v2 student_nano ONNX encoder",
+    "description": "ONNX export of the frozen TESSERA v2 student_nano pixel encoder with Sentinel-2 and Sentinel-1 time-series inputs.",
+    "mlm:artifact_type": "onnx"
   }
 }

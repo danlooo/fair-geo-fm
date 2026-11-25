@@ -287,9 +287,9 @@ belongs in a separate embedding catalog and links back to the model Item with
   `default_job_options.udf-dependency-archives`. The build rejects a graph that
   declares archives without naming a runtime.
 - One directory per interpreter/stack combination, named after both, containing
-  `requirements.txt`: `runtimes/py311-torch231/`. The target Python version
-  is encoded in the name (`py311` -> 3.11) and the file may pin an index via
-  `--extra-index-url`.
+  `requirements.txt`: `runtimes/py311-onnx/` (Python 3.11 + ONNX Runtime). The
+  target Python version is encoded in the name (`py311` -> 3.11) and the file
+  may also pin an index via `--extra-index-url`.
 - Two optional markers tune the archive builder:
   `platform.txt` overrides the wheel platform (default
   `x86_64-manylinux2014`; `py311-onnx` uses `x86_64-manylinux_2_28` because
@@ -297,8 +297,8 @@ belongs in a separate embedding catalog and links back to the model Item with
   pinned packages without resolving dependencies (used so onnxruntime does not
   pull numpy into the archive; list its other transitive packages explicitly).
 - `uv run scripts/create-python-dependency-archive.py --requirements
-  runtimes/py311-torch231/requirements.txt --output-file
-  runtimes/py311-torch231/dependencies.zip` writes that file. It is git-ignored;
+  runtimes/py311-onnx/requirements.txt --output-file
+  runtimes/py311-onnx/dependencies.zip` writes that file. It is git-ignored;
   CI rebuilds it from the pinned `requirements.txt` for each publication.
 - The template sets `runtime` in `run_udf` to the UDF language (`Python`) and
   references the archive from the process's `default_job_options` via
@@ -309,28 +309,32 @@ belongs in a separate embedding catalog and links back to the model Item with
   which tells openEO to extract the archive into the UDF's `feature_deps/`
   directory instead of replacing the sandbox's own dependencies.
 - The URL comes from the template's <code v-pre>{{ runtime_url }}</code>, not from a literal:
-  - staging: <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-torch231.zip>
-  - release: `https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip`
+  - staging: <https://danlooo.github.io/fair-geo-fm/main/runtimes/py311-onnx.zip>
+  - release: `https://zenodo.org/records/<record-id>/files/runtimes/py311-onnx.zip`
 - The staging archive is built from the default branch and **overwritten on
   every deployment**, so the URL always yields the current `main` archive rather
   than a snapshot. The Zenodo copy is immutable and carries the release DOI.
 - Prefer object storage for production. A Pages site is capped at 1 GB and
-  roughly 100 GB/month of bandwidth, so a handful of `py311-torch231` (~160 MB)
-  downloads exhaust the monthly budget, and Pages does not content-address the
+  roughly 100 GB/month of bandwidth, so repeatedly downloading large runtime
+  archives exhausts the monthly budget, and Pages does not content-address the
   archive. Do not serve archives from GitHub raw or LFS either: raw is capped at
   100 MiB and LFS is bandwidth-metered.
 
 ## Model archives
 
-- Most models download their checkpoint from Hugging Face at runtime (see the
-  `weights_url` parameter). A model whose checkpoint cannot be fetched from an
-  upstream archive — TerraMind's ONNX encoder is exported from TerraTorch
-  weights — is published by this repository instead.
+- TESSERA v1 downloads its checkpoint from Hugging Face at runtime (see its
+  `weights_url` parameter). TerraMind, Prithvi-EO-2.0 and TESSERA v2 ship an
+  encoder exported to ONNX and published by this repository instead.
 - `weights/<name>.zip` holds the exported model. It is git-ignored and built by
   the `model-weights` job in `build.yml` with
-  `scripts/export-terramind-onnx.py`, which pins torch, TerraTorch and the
-  Hugging Face revision. The job fails rather than publish a graph whose
-  modality token or static output width is missing.
+  `scripts/export-terramind-onnx.py`, `scripts/export-prithvi-onnx.py` and
+  `scripts/export-tessera-onnx.py`. Each pins torch and the Hugging Face
+  revision and checks the static output shape plus ONNX Runtime parity; the
+  Prithvi and TESSERA model math lives in `scripts/vendor/`, TerraMind's in
+  TerraTorch. The job fails rather than publish a graph whose static output
+  width is missing. The TESSERA export uses the Dynamo exporter (opset 18) so
+  both time dimensions stay dynamic; Prithvi and TerraMind use the legacy
+  tracer (opset 17).
 - `config.json` declares the archive with `weights_archive` (the zip base name)
   and optionally `weights_archive_path` (the directory the archive extracts to
   in the UDF sandbox, default `weights`). The process graph template references
@@ -486,8 +490,10 @@ under custom paths —
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
-    https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/runtimes/py311-onnx.zip
     https://zenodo.org/records/<record-id>/files/weights/terramind_v1_tiny.zip
+    https://zenodo.org/records/<record-id>/files/weights/prithvi_eo_v2.zip
+    https://zenodo.org/records/<record-id>/files/weights/tessera_v2.zip
     https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
 

@@ -10,7 +10,7 @@ Zenodo records can hold many files, which is what the published layout needs:
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/process_graph.json
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/udf.py
     https://zenodo.org/records/<record-id>/files/models/tessera_v2/README.md
-    https://zenodo.org/records/<record-id>/files/runtimes/py311-torch231.zip
+    https://zenodo.org/records/<record-id>/files/runtimes/py311-onnx.zip
     https://zenodo.org/records/<record-id>/files/weights/terramind_v1_tiny.zip
     https://zenodo.org/records/<record-id>/files/stac/catalog.json
     https://zenodo.org/records/<record-id>/files/danlooo/fair-geo-fm-v0.2.zip
@@ -429,8 +429,8 @@ def stage_files(
         archive = weights_dir / f"{name}.zip"
         if not archive.is_file():
             raise SystemExit(
-                f"{archive} not found; build it with "
-                f"scripts/export-terramind-onnx.py before releasing"
+                f"{archive} not found; build it with the model's "
+                f"scripts/export-*-onnx.py before releasing"
             )
         staged_weights.add(name)
         staged.append((f"weights/{name}.zip", archive))

@@ -6,7 +6,7 @@
         "embeddings",
         "Sentinel-2",
         "openEO",
-        "PyTorch",
+        "ONNX",
         "Prithvi"
     ],
     "datetime": "2024-12-03T00:00:00Z",
@@ -14,8 +14,8 @@
     "properties": {
         "mlm:architecture": "Vision Transformer",
         "mlm:tasks": ["representation-learning"],
-        "mlm:framework": "PyTorch",
-        "mlm:framework_version": "2.3.1",
+        "mlm:framework": "ONNX Runtime",
+        "mlm:framework_version": "1.20.1",
         "mlm:pretrained": true,
         "mlm:pretrained_source": "Masked-autoencoder pretraining on 4.2 million NASA HLS 4-timestep, 30 m time series",
         "mlm:input": [
@@ -25,8 +25,8 @@
                 "bands": ["B02", "B03", "B04", "B8A", "B11", "B12"],
                 "variables": [],
                 "input": {
-                    "shape": [-1, 6, 4, -1, -1],
-                    "dim_order": ["batch", "bands", "time", "height", "width"],
+                    "shape": [-1, 4, 6, 224, 224],
+                    "dim_order": ["batch", "time", "bands", "height", "width"],
                     "data_type": "float32"
                 },
                 "value_scaling": null,
@@ -51,9 +51,10 @@
         ]
     },
     "processing": {
-        "lineage": "Per-pixel embeddings inferred by the frozen Prithvi-EO-2.0 100M-TL encoder from CDSE Sentinel-2 L2A time series resampled to 30 m. Sentinel-2 L2A substitutes for the HLS input used in pretraining, with scene-level cloud filtering and SCL masking; embeddings can therefore differ from HLS-based inference.",
+        "lineage": "Per-pixel embeddings inferred by the frozen Prithvi-EO-2.0 100M-TL encoder from CDSE Sentinel-2 L2A time series resampled to 30 m. Sentinel-2 L2A substitutes for the HLS input used in pretraining, with scene-level cloud filtering and SCL masking; embeddings can therefore differ from HLS-based inference. The encoder is exported to ONNX with PyTorch 2.7.1 and run through ONNX Runtime by the openEO user-defined process prithvi_eo_v2_embeddings.",
         "software": {
-            "PyTorch": "2.3.1"
+            "PyTorch": "2.7.1",
+            "ONNX Runtime": "1.20.1"
         }
     },
     "publications": [
@@ -63,8 +64,8 @@
         }
     ],
     "weights": {
-        "href": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL/resolve/2c84e383194986040f883cc43d7869002c425e1b/Prithvi_EO_V2_100M_TL.pt",
-        "title": "Prithvi-EO-2.0 100M-TL checkpoint",
-        "mlm:artifact_type": "torch.save"
+        "title": "Prithvi-EO-2.0 100M-TL ONNX encoder",
+        "description": "ONNX export of the frozen Prithvi-EO-2.0 100M-TL encoder with four-frame, six-band Sentinel-2 input.",
+        "mlm:artifact_type": "onnx"
     }
 }

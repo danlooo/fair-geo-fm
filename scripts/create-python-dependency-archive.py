@@ -12,8 +12,8 @@ with a single ``requirements.txt``. This script turns that file into
 
 Usage:
     uv run scripts/create-python-dependency-archive.py \\
-        --requirements runtimes/py311-torch231/requirements.txt \\
-        --output-file runtimes/py311-torch231/dependencies.zip
+        --requirements runtimes/py311-onnx/requirements.txt \\
+        --output-file runtimes/py311-onnx/dependencies.zip
 
 The target Python version comes from the requirements file's directory name
 (``py311`` -> ``3.11``) and wheels are cross-installed for the openEO UDF
@@ -77,7 +77,7 @@ def target_python_version(requirements: Path) -> str:
     if not match:
         raise SystemExit(
             f"cannot derive a Python version from {str(requirements.parent)!r}; "
-            "keep the file in a directory named like py311-torch231"
+            "keep the file in a directory named like py311-onnx"
         )
     return f"{match.group(1)}.{match.group(2)}"
 

@@ -11,7 +11,8 @@
     "python-memory": "6g",
     "soft-errors": 0.1,
     "udf-dependency-archives": [
-      "{{ runtime_url }}"
+      "{{ runtime_url }}",
+      "{{ weights_url }}"
     ]
   },
   "process_graph": {
@@ -356,9 +357,6 @@
                 "context": {
                   "embedding_length": {
                     "from_parameter": "embedding_length"
-                  },
-                  "weights_url": {
-                    "from_parameter": "weights_url"
                   }
                 },
                 "data": {

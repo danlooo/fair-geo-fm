@@ -11,8 +11,8 @@ stac/
 runtimes/*/dependencies.zip
 # Exported model archives (e.g. TerraMind ONNX) are published with the release.
 weights/
-# Local environment for scripts/export-terramind-onnx.py.
-.venv-terramind/
+# Local environment for scripts/export-*-onnx.py.
+.venv-export/
 checksums.sha256
 
 # Downloaded GitHub Actions artifacts, not sources.

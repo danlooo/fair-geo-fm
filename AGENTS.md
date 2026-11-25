@@ -23,7 +23,7 @@ the published catalog. Publishes to two targets with the same layout:
 | Path | What it is |
 | --- | --- |
 | [models/](models/) | One directory per major model version (`tessera_v2/`, `alphaearth/`, ...). See below. |
-| [runtimes/](runtimes/) | One directory per interpreter/stack (`py311-torch231/`) containing `requirements.txt` plus optional `platform.txt` / `no-deps.txt` markers. |
+| [runtimes/](runtimes/) | One directory per interpreter/stack (`py311-onnx/`) containing `requirements.txt` plus optional `platform.txt` / `no-deps.txt` markers. |
 | `weights/` | Exported model archives (e.g. the TerraMind ONNX encoder), built by CI and published with the release. Git-ignored. |
 | [scripts/](scripts/) | Build, validate and publish tooling. PEP 723 inline dependencies; run with `uv run`. |
 | [docs/](docs/) | VitePress site. `docs/.vitepress/` (config, theme) is hand-maintained; `docs/src/`, `docs/public/`, `docs/archive/` are generated. |
@@ -67,6 +67,12 @@ uv run scripts/create-python-dependency-archive.py \
 uv run --with "torch==2.7.1" --with "terratorch==1.2.1" --with "onnx==1.17.0" \
     scripts/export-terramind-onnx.py --model terramind_v1_tiny \
     --hf-revision <commit> --out weights
+uv run --with "torch==2.7.1" --with "onnx==1.17.0" --with "onnxruntime==1.20.1" \
+    --with "einops==0.8.2" --with "huggingface_hub" --with "numpy" \
+    scripts/export-prithvi-onnx.py --hf-revision <commit> --out weights
+uv run --with "torch==2.7.1" --with "onnx==1.17.0" --with "onnxruntime==1.20.1" \
+    --with "onnxscript" --with "huggingface_hub" --with "numpy" \
+    scripts/export-tessera-onnx.py --hf-revision <commit> --out weights
 
 # Run a model's documented example on CDSE (needs credentials, see below)
 OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \
@@ -98,7 +104,7 @@ without them, validate with the `--check` commands above.
 | `models/model.md.j2`, `models/index.md.j2` | `models/*/index.md` (rendered) |
 | `docs/.vitepress/**` | `docs/src/`, `docs/public/`, `docs/archive/`, `docs/.vitepress/{current-version,stac-bases,zenodo-records}.json` |
 | `runtimes/*/requirements.txt` | `checksums.sha256` |
-| `scripts/export-terramind-onnx.py` | `weights/*.zip`, `weights/*.json` |
+| `scripts/export-*-onnx.py`, `scripts/vendor/*.py` | `weights/*.zip`, `weights/*.json` |
 
 All the right-hand files are git-ignored build outputs. If one is wrong, fix
 its source and regenerate rather than patching the output.

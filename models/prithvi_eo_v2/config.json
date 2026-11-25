@@ -1,8 +1,8 @@
 {
     "name": "Prithvi-EO-2.0",
-    "description": "On-demand 768-dimensional embeddings from the frozen Prithvi-EO-2.0 100M-TL encoder, computed from CDSE Sentinel-2 L2A time series resampled to 30 m.",
-    "warning": "Prithvi-EO-2.0 was pretrained on NASA HLS at 30 m, which is not a CDSE collection. This process uses Sentinel-2 L2A as a proxy: B02, B03, B04, B8A, B11 and B12 map to Blue, Green, Red, Narrow NIR, SWIR 1 and SWIR 2, with scene-level cloud filtering and SCL masking. HLS harmonization and S2 L2A processing differ, so embeddings can differ from HLS-based inference. The default 30 m grid matches the pretraining resolution; target_resolution=10 uses the native CDSE grid but is off-distribution. Prithvi is a patch model: its 16x16-pixel token grid is upsampled to the output grid, so neighboring pixels share context and chunk edges see less context.",
-    "runtime": "py311-torch231",
+    "description": "On-demand 768-dimensional embeddings from the frozen Prithvi-EO-2.0 100M-TL encoder, computed from CDSE Sentinel-2 L2A time series resampled to 30 m. The encoder is exported to ONNX once and runs through onnxruntime, so the openEO sandbox needs no PyTorch.",
+    "warning": "Prithvi-EO-2.0 was pretrained on NASA HLS at 30 m, which is not a CDSE collection. This process uses Sentinel-2 L2A as a proxy: B02, B03, B04, B8A, B11 and B12 map to Blue, Green, Red, Narrow NIR, SWIR 1 and SWIR 2, with scene-level cloud filtering and SCL masking. HLS harmonization and S2 L2A processing differ, so embeddings can differ from HLS-based inference. The default 30 m grid matches the pretraining resolution; target_resolution=10 uses the native CDSE grid but is off-distribution. The time series is always binned into four frames, matching the four-timestep pretraining; the checkpoint's per-band mean/std are baked into the ONNX graph. Prithvi is a patch model: its 16x16-pixel token grid is upsampled to the output grid, so neighboring pixels share context and chunk edges see less context.",
+    "runtime": "py311-onnx",
     "type": "weights",
     "architecture": "Vision Transformer",
     "input_sources": [
@@ -24,6 +24,8 @@
     "dimensions": [
         768
     ],
+    "weights_archive": "prithvi_eo_v2",
+    "weights_archive_path": "prithvi_onnx",
     "parameters": [
         {
             "name": "spatial_extent",
@@ -45,7 +47,7 @@
             "name": "temporal_extent",
             "required": true,
             "default": "—",
-            "description": "Period to compute embeddings for. A window of a few months up to about one year matches Prithvi's 4-timestep, 1-6 month-gap pretraining.",
+            "description": "Period to compute embeddings for. The window is split into four equal date bins, matching Prithvi's 4-timestep pretraining; empty bins repeat the whole window.",
             "schema": {
                 "type": "array",
                 "subtype": "temporal-interval"
@@ -59,7 +61,7 @@
             "name": "projection",
             "required": true,
             "default": "—",
-            "description": "EPSG code of the UTM zone containing the area, e.g. `32632` for UTM 32N. Used as the output CRS and to resolve the tile center to latitude/longitude for Prithvi's location encoding.",
+            "description": "EPSG code of the UTM zone containing the area, e.g. `32632` for UTM 32N. Used as the output CRS; Prithvi's location encoding uses the center of `spatial_extent`.",
             "schema": {
                 "type": "integer",
                 "subtype": "epsg-code",
@@ -133,16 +135,6 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 100
-            }
-        },
-        {
-            "name": "weights_url",
-            "required": false,
-            "default": "`https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL/resolve/2c84e383194986040f883cc43d7869002c425e1b/Prithvi_EO_V2_100M_TL.pt`",
-            "default_value": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-100M-TL/resolve/2c84e383194986040f883cc43d7869002c425e1b/Prithvi_EO_V2_100M_TL.pt",
-            "description": "URL of the Prithvi-EO-2.0 100M-TL checkpoint to load. Defaults to the pinned released weights; point it at a CDSE-local mirror to avoid re-downloading from Hugging Face.",
-            "schema": {
-                "type": "string"
             }
         }
     ],

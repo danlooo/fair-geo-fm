@@ -359,7 +359,7 @@ function runtimeAssets() {
 // Serve the archives at a fixed /main/ path, independent of the documentation
 // version, replacing them on every deployment: released versions are archived
 // elsewhere (Zenodo), so Pages only ever carries the latest default-branch
-// build. e.g. /fair-geo-fm/main/runtimes/py311-torch231.zip.
+// build. e.g. /fair-geo-fm/main/runtimes/py311-onnx.zip.
 function writeRuntimeAssets() {
   const assets = runtimeAssets();
   if (assets.size === 0) return;

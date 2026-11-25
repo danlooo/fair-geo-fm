@@ -1,7 +1,7 @@
 {
     "name": "TESSERA v2",
-    "description": "On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins.",
-    "runtime": "py311-torch231",
+    "description": "On-demand pixel embeddings based on Sentinel-1 and Sentinel-2 using Barlow Twins. The student encoder is exported to ONNX once and runs through onnxruntime, so the openEO sandbox needs no PyTorch.",
+    "runtime": "py311-onnx",
     "type": "weights",
     "architecture": "Transformer",
     "input_sources": [
@@ -29,6 +29,8 @@
         128
     ],
     "dimensions_label": "Matryoshka",
+    "weights_archive": "tessera_v2",
+    "weights_archive_path": "tessera_onnx",
     "parameters": [
         {
             "name": "spatial_extent",
@@ -139,16 +141,6 @@
                     64,
                     128
                 ]
-            }
-        },
-        {
-            "name": "weights_url",
-            "required": false,
-            "default": "`https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt`",
-            "default_value": "https://huggingface.co/geotessera/TESSERA-V-2.0-2B-N/resolve/main/ckpt/student_nano.pt",
-            "description": "URL of the TESSERA v2 student checkpoint (`.pt`) to load. Defaults to the released `student_nano` weights.",
-            "schema": {
-                "type": "string"
             }
         }
     ],
