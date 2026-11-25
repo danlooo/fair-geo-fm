@@ -58,8 +58,9 @@ by external standards keep their published spelling even when that differs
     radiometric correction coefficient its graph asks for (one of `beta0`,
     `sigma0-ellipsoid`, `sigma0-terrain`, `gamma0-ellipsoid`,
     `gamma0-terrain`). The process graph template renders it as
-    `{{ config.sar_backscatter_coefficient }}` and the model page shows it as
-    a `SAR backscatter` row, so the graph and the documentation cannot
+    <code v-pre>{{ config.sar_backscatter_coefficient }}</code> and the model
+    page shows it as a `SAR backscatter` row, so the graph and the
+    documentation cannot
     disagree. Backends implement a subset of the coefficients: CDSE currently
     accepts only `sigma0-ellipsoid`, and it reroutes `gamma0*` to a STAC
     implementation that fails when the collection has no STAC URL.
@@ -90,7 +91,8 @@ by external standards keep their published spelling even when that differs
     repository rather than downloaded from an external host sets
     `weights_archive` (the zip name under `weights/`) and, optionally,
     `weights_archive_path` (the extract directory alias, default `weights`).
-    The template receives the per-target URL as `{{ weights_url }}`; see
+    The template receives the per-target URL as
+    <code v-pre>{{ weights_url }}</code>; see
     [Model archives](#model-archives).
   - `stac.json` — the model's STAC Item metadata, read by
     `scripts/build-stac.py`: the MLM fields that cannot be derived from
@@ -327,7 +329,7 @@ belongs in a separate embedding catalog and links back to the model Item with
 - `config.json` declares the archive with `weights_archive` (the zip base name)
   and optionally `weights_archive_path` (the directory the archive extracts to
   in the UDF sandbox, default `weights`). The process graph template references
-  `{{ weights_url }}` in `udf-dependency-archives`.
+  <code v-pre>{{ weights_url }}</code> in `udf-dependency-archives`.
 - Staging serves the archive at
   `https://danlooo.github.io/fair-geo-fm/main/weights/<name>.zip`; a release
   uploads it to the Zenodo record as `weights/<name>.zip`. The URL fragment
