@@ -23,6 +23,7 @@
     ],
     "spatial_resolution": "10 m",
     "temporal_resolution": "single composite",
+    "sar_backscatter_coefficient": "sigma0-ellipsoid",
     "dimensions": [
         192
     ],

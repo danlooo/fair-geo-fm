@@ -54,6 +54,15 @@ by external standards keep their published spelling even when that differs
     text or climate variables; it is shown as a `Multimodal` row in the model
     page's properties table and, when `true`, as a `multimodal` badge on both
     the overview card and the model page.
+    A model that loads Sentinel-1 sets `sar_backscatter_coefficient` to the
+    radiometric correction coefficient its graph asks for (one of `beta0`,
+    `sigma0-ellipsoid`, `sigma0-terrain`, `gamma0-ellipsoid`,
+    `gamma0-terrain`). The process graph template renders it as
+    `{{ config.sar_backscatter_coefficient }}` and the model page shows it as
+    a `SAR backscatter` row, so the graph and the documentation cannot
+    disagree. Backends implement a subset of the coefficients: CDSE currently
+    accepts only `sigma0-ellipsoid`, and it reroutes `gamma0*` to a STAC
+    implementation that fails when the collection has no STAC URL.
     Then the `parameters` table,
     `publication` (title, URL, citation and abstract) and `links` list of its
     page. The model page renders these as a properties table. Badge tags are

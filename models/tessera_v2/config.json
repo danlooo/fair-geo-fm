@@ -21,6 +21,7 @@
     ],
     "spatial_resolution": "10 m",
     "temporal_resolution": "annual",
+    "sar_backscatter_coefficient": "sigma0-ellipsoid",
     "dimensions": [
         16,
         32,

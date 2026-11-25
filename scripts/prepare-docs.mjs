@@ -862,13 +862,15 @@ function renderModelTemplate(text, version, model, source, config, stac) {
     });
   const values = {
     ...modelTemplateValues(version, model, itemId),
-    // ``warning``, ``dimensions_label`` and ``multimodal`` are optional in
-    // config.json, but the page template reads them unconditionally inside an
-    // if block; default them for models without one.
+    // ``warning``, ``dimensions_label``, ``multimodal`` and
+    // ``sar_backscatter_coefficient`` are optional in config.json, but the page
+    // template reads them unconditionally inside an if block; default them for
+    // models without one.
     config: {
       warning: "",
       dimensions_label: "",
       multimodal: false,
+      sar_backscatter_coefficient: "",
       ...config,
       tags: autoTags(config),
     },

@@ -93,6 +93,18 @@ SHARED_EXAMPLES: dict[str, object] = {
 # weights the process graph loads to compute embeddings on demand.
 MODEL_TYPES = {"frozen embeddings", "weights"}
 
+# Radiometric correction coefficients openEO's sar_backscatter proposal defines.
+# Backends implement a subset: CDSE, for example, currently only accepts
+# sigma0-ellipsoid. A model that loads Sentinel-1 names its coefficient in
+# config.json so the graph template and the model page cannot disagree.
+SAR_BACKSCATTER_COEFFICIENTS = {
+    "beta0",
+    "sigma0-ellipsoid",
+    "sigma0-terrain",
+    "gamma0-ellipsoid",
+    "gamma0-terrain",
+}
+
 RUNTIME_URL_TEMPLATE = jinja2.Template(
     "{{ base_url }}/runtimes/{{ runtime }}.zip#feature_deps"
 )
@@ -117,8 +129,9 @@ def model_config(process_dir: Path) -> dict:
     ``description``, ``runtime``, ``type``, ``architecture``, ``input_sources``,
     ``spatial_extent``/``temporal_extent``, ``spatial_resolution``/
     ``temporal_resolution``, ``dimensions`` (optionally with
-    ``dimensions_label``) and
-    the ``parameters``, ``publication`` and ``links`` sections of its
+    ``dimensions_label``), optionally
+    ``sar_backscatter_coefficient`` (models that read Sentinel-1) and the
+    ``parameters``, ``publication`` and ``links`` sections of its
     documentation page.
     """
     config_file = process_dir / "config.json"
@@ -391,6 +404,18 @@ def validate_model_config(process_dir: Path) -> list[str]:
             problems.append(
                 f"{config_file}: 'weights_archive_path' requires "
                 "'weights_archive'"
+            )
+    # A model that loads Sentinel-1 names the sar_backscatter coefficient in
+    # config.json; the graph template and the model page read it from there.
+    if "sar_backscatter_coefficient" in config:
+        coefficient = config["sar_backscatter_coefficient"]
+        if (
+            not isinstance(coefficient, str)
+            or coefficient not in SAR_BACKSCATTER_COEFFICIENTS
+        ):
+            problems.append(
+                f"{config_file}: 'sar_backscatter_coefficient' must be one of "
+                f"{sorted(SAR_BACKSCATTER_COEFFICIENTS)}, got {coefficient!r}"
             )
 
     # The properties table on the model page renders these four fields, so a
@@ -871,14 +896,20 @@ def render_readme(
         keep_trailing_newline=True,
         autoescape=False,
         undefined=jinja2.StrictUndefined,
+        # Match scripts/prepare-docs.mjs, which renders the same template and
+        # drops the lines that hold a block tag. Without this, a conditional
+        # table row would be preceded by an empty line and break the table.
+        trim_blocks=True,
     )
-    # ``warning`` and ``dimensions_label`` are optional in config.json, but the
-    # page template reads them under StrictUndefined; default them so models
-    # without one still render.
+    # ``warning``, ``dimensions_label``, ``multimodal`` and
+    # ``sar_backscatter_coefficient`` are optional in config.json, but the page
+    # template reads them under StrictUndefined; default them so models without
+    # one still render.
     config = {
         "warning": "",
         "dimensions_label": "",
         "multimodal": False,
+        "sar_backscatter_coefficient": "",
         **model_config(process_dir),
     }
     # The badges are derived from the properties, never hand-maintained, and

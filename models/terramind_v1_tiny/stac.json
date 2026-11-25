@@ -51,7 +51,7 @@
       },
       {
         "name": "sentinel-1-grd",
-        "description": "Sentinel-1 GRD VV and VH backscatter, calibrated with sar_backscatter to linear gamma0-ellipsoid power, reduced to one temporal median composite and converted to decibels.",
+        "description": "Sentinel-1 GRD VV and VH backscatter, calibrated with sar_backscatter to linear sigma0-ellipsoid power, reduced to one temporal median composite and converted to decibels.",
         "bands": ["VV", "VH"],
         "variables": [],
         "input": {

@@ -97,7 +97,12 @@
     "sarbackscatter1": {
       "process_id": "sar_backscatter",
       "arguments": {
-        "coefficient": "gamma0-ellipsoid",
+        {# The coefficient lives in config.json (single source of truth).
+           sigma0-ellipsoid, not gamma0: the TerraMind reference notebook
+           calibrates to sigma0-ellipsoid, and CDSE's current backend reroutes
+           gamma0 to its STAC implementation, which fails with KeyError('url')
+           because the SENTINEL1_GRD layer config has no STAC URL. #}
+        "coefficient": {{ config.sar_backscatter_coefficient | tojson }},
         "contributing_area": false,
         "data": {
           "from_node": "loadcollection2"
