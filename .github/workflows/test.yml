@@ -118,7 +118,7 @@ jobs:
       # keeps artifacts (GitHub always enforces its configured maximum).
       - name: Upload job statistics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: job-statistics-models-${{ matrix.model }}
           path: job-statistics.csv
@@ -193,7 +193,7 @@ jobs:
 
       - name: Upload job statistics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: job-statistics-clients-${{ matrix.client }}
           path: job-statistics.csv
@@ -211,7 +211,7 @@ jobs:
     steps:
       - name: Download per-job statistics
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           # Each artifact is extracted into its own subdirectory, so the
           # matrix jobs' identical `job-statistics.csv` names do not collide.
@@ -253,7 +253,7 @@ jobs:
           PY
 
       - name: Upload job statistics
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: job-statistics
           path: job-statistics.csv
