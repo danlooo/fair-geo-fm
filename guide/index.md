@@ -15,9 +15,11 @@ region around Jena, Germany in 2024, sampled onto a 10 m UTM grid:
 
 1. Go to the CDSE openEO Web Editor at https://openeo.dataspace.copernicus.eu
 1. Click on Log in at the bottom of the page if required.
-1. Click on the `</> Code` button
+1. Click on the <span class="dummy-button">&lt;/&gt; Code</span> tab
 1. Replace the content with this code
-1. Modify the workflow and run the job
+1. Click on the <span class="dummy-button"><i class="fas fa-project-diagram" aria-hidden="true"></i> Visual Model</span> tab
+1. Modify the workflow according to your needs
+1. Either click on <span class="dummy-button"><i class="fas fa-play" aria-hidden="true"></i>Run directly</span> or click on <span class="dummy-button"><i class="fas fa-play" aria-hidden="true"></i>Run with options</span> to consider [scaling](#scaling)
 
 ```json
 {
@@ -161,13 +163,13 @@ mean fewer executors, so raise it only as needed.
 
 Open the CDSE Web Editor at https://openeo.dataspace.copernicus.eu. The
 federated https://openeofed.dataspace.copernicus.eu editor only lists the
-budget under **Advanced Parameters**, because its aggregator backend does not
+budget under <span class="dummy-button">Advanced Parameters</span>, because its aggregator backend does not
 advertise the Spark job options.
 
 1. Load the model's process graph as in [Get started](#get-started).
-1. In the **Jobs** panel click **Create Batch Job** (or **Run with options**
+1. In the **Jobs** panel click <span class="dummy-button">Create Batch Job</span> (or <span class="dummy-button"><i class="fas fa-play" aria-hidden="true"></i>Run with options</span>
    for a synchronous result).
-1. In the dialog that opens, expand **Advanced Parameters**.
+1. In the dialog that opens, expand <span class="dummy-button">Advanced Parameters</span>.
 1. Set `driver-memory`, `executor-memory`, `executor-memoryOverhead` and
    `python-memory`, for example `8g`, `8g`, `4g` and `8g`.
 1. Create the job, or run it directly.
