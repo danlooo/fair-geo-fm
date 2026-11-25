@@ -24,6 +24,10 @@ export default {
       "doc-before": () => h(VersionBanner),
     }),
   enhanceApp({ app, router, siteData }) {
+    // throe error if a page has error
+    if (import.meta.env.SSR) {
+      app.config.throwUnhandledErrorInProduction = true;
+    }
     app.use(enhanceAppWithTabs);
     app.component("StacCatalogLink", StacCatalogLink);
     app.component("StacNavLink", StacNavLink);
