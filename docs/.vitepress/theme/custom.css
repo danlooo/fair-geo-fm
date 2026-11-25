@@ -157,6 +157,109 @@
   margin: 24px 0;
 }
 
+/**
+ * Catalogue filter: chip groups rendered by ModelFilter.vue from the data-*
+ * attributes prepare-docs.mjs puts on each card. Values within a group are OR,
+ * groups are AND.
+ */
+.model-filter {
+  margin: 24px 0 0;
+  padding: 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background-color: var(--vp-c-bg-soft);
+}
+
+.model-filter-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.model-filter-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.model-filter-group legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--vp-c-text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.model-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 6px 6px 0;
+  padding: 4px 10px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  background-color: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+
+.model-filter-chip:hover {
+  border-color: var(--vp-c-brand-1);
+}
+
+.model-filter-chip.is-active {
+  border-color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+.model-filter-chip-count {
+  color: var(--vp-c-text-3);
+  font-size: 0.75rem;
+}
+
+.model-filter-chip.is-active .model-filter-chip-count {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.model-filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-2);
+  font-size: 0.85rem;
+}
+
+.model-filter-reset {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--vp-c-brand-1);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.model-filter-reset:hover {
+  text-decoration: underline;
+}
+
+/* .vp-doc .model-card-link sets display: block, which would outrank the UA
+   [hidden] rule that ModelFilter.vue relies on to hide cards. */
+.vp-doc .model-card-link[hidden] {
+  display: none;
+}
+
 .model-card {
   position: relative;
   display: flex;

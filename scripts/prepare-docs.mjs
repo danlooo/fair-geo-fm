@@ -249,12 +249,30 @@ function modelCards(root) {
     const tags = autoTags(config).map(escapeHtml);
     const description =
       typeof config.description === "string" ? config.description.trim() : "";
+    // Same maximum as the derived "-dim" badge, so the filter and the badge
+    // agree. A model with several heads (e.g. Matryoshka) is found by its
+    // largest output size; the label in config.json explains the range.
+    const dimensions = Array.isArray(config.dimensions)
+      ? config.dimensions.filter(Number.isInteger)
+      : [];
+    const text = (value) =>
+      typeof value === "string" ? escapeHtml(value.trim()) : "";
 
     models.push({
       slug: entry.name,
       name: escapeHtml(name),
       description: escapeHtml(description),
       tags,
+      // Structured properties become data attributes on the card for the
+      // catalogue filter (docs/.vitepress/theme/ModelFilter.vue). They are
+      // escaped like the display values above because the template writes
+      // them into markup too.
+      type: text(config.type),
+      architecture: text(config.architecture),
+      spatial_resolution: text(config.spatial_resolution),
+      temporal_resolution: text(config.temporal_resolution),
+      embedding_size: dimensions.length ? String(Math.max(...dimensions)) : "",
+      multimodal: config.multimodal === true ? "true" : "false",
     });
   }
 

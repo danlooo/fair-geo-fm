@@ -13,6 +13,7 @@ import VersionBanner from "./VersionBanner.vue";
 import ZenodoLink from "./ZenodoLink.vue";
 import ZenodoNavLink from "./ZenodoNavLink.vue";
 import ProcessGraph from "./ProcessGraph.vue";
+import ModelFilter from "./ModelFilter.vue";
 
 // Also installs the components for the `::: tabs` blocks enabled in config.mjs,
 // so a page can show e.g. the web-editor and Python variants of one example.
@@ -35,6 +36,7 @@ export default {
     app.component("ZenodoNavLink", ZenodoNavLink);
     app.component("VersionSwitcher", VersionSwitcher);
     app.component("ProcessGraph", ProcessGraph);
+    app.component("ModelFilter", ModelFilter);
     installVersionFallback(router, siteData);
   },
 };

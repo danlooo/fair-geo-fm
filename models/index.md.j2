@@ -2,9 +2,15 @@
 
 All models are also published as a STAC catalog: [catalog]({{ stac_catalog_url }}) · [model collection]({{ stac_collection_url }}).
 
+## Filter
+
+<ModelFilter />
+
+## Results
+
 <div class="model-grid">
     {% for model in models %}
-        <a class="model-card-link" href="./{{ model.slug }}/">
+        <a class="model-card-link" href="./{{ model.slug }}/" data-model="{{ model.slug }}" data-type="{{ model.type }}" data-architecture="{{ model.architecture }}" data-spatial-resolution="{{ model.spatial_resolution }}" data-temporal-resolution="{{ model.temporal_resolution }}" data-dimensions="{{ model.embedding_size }}" data-multimodal="{{ model.multimodal }}">
         <div class="model-card">
         <h3 class="model-card-title">{{ model.name }}</h3>
         {% if model.description %}

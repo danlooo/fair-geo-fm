@@ -104,7 +104,12 @@ by external standards keep their published spelling even when that differs
   `scripts/prepare-docs.mjs` exposes a `models` list at docs-build time, one
   entry per model directory with a `config.json`, with `slug`, `name` and
   `description` taken from that file and `tags` derived from its properties.
-  It also exposes
+  The same entry also carries the filterable properties `type`, `architecture`,
+  `spatial_resolution`, `temporal_resolution`, `embedding_size` (the largest
+  value of `dimensions`) and `multimodal`; they become `data-*` attributes on
+  the card and are read by `docs/.vitepress/theme/ModelFilter.vue`, so the
+  catalogue can be narrowed by e.g. 10 m resolution without a second source of
+  truth. It also exposes
   <code v-pre>{{ stac_catalog_url }}</code> and
   <code v-pre>{{ stac_collection_url }}</code> for the version's generated STAC
   tree, both opened in the external STAC browser. The page renders one card per
