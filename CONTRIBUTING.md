@@ -434,7 +434,12 @@ Four workflows carry a commit from validation to publication.
   `models/model.md.j2` documents for the Web editor, Python and R clients,
   extracted from the rendered model page, so a broken copy-paste example is
   caught too; it covers AlphaEarth as the representative model. With
-  `--client`, the same script runs those examples locally.
+  `--client`, the same script runs those examples locally. Every test job
+  collects the CDSE job's time, credits, CPU and memory (`--stats-file`), and a
+  final job merges them into the `job-statistics` artifact (`cdse_job_id`,
+  `job_time`, `cdse_time`, `used_credits`, `used_cpu`, `used_ram` and their
+  units). The workflow does not delete that artifact; retention follows the
+  repository setting.
   `publish-release` calls it for the released tag before its Zenodo job, so a
   model whose example does not run blocks the upload. It can also be started
   by hand with `workflow_dispatch`; see

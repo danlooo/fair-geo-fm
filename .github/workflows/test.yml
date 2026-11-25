@@ -111,6 +111,18 @@ jobs:
           --model "${{ matrix.model }}"
           --version "${{ inputs.ref || github.ref_name }}"
           --timeout-minutes 150
+          --stats-file job-statistics.csv
+
+      # Keep one CSV per matrix job and merge them in the statistics job. No
+      # retention-days here: the artifact lives as long as the repository
+      # keeps artifacts (GitHub always enforces its configured maximum).
+      - name: Upload job statistics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: job-statistics-models-${{ matrix.model }}
+          path: job-statistics.csv
+          if-no-files-found: ignore
 
   # One job per documented client example. A model page documents Web editor,
   # Python and R examples extracted from the page rendered by
@@ -177,3 +189,71 @@ jobs:
           --client "${{ matrix.client }}"
           --version "${{ inputs.ref || github.ref_name }}"
           --timeout-minutes 150
+          --stats-file job-statistics.csv
+
+      - name: Upload job statistics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: job-statistics-clients-${{ matrix.client }}
+          path: job-statistics.csv
+          if-no-files-found: ignore
+
+  # Merge the per-matrix statistics into one CSV. Runs even when a test job
+  # failed so partial results are kept; the artifact is not deleted by the
+  # workflow (retention follows the repository setting).
+  statistics:
+    name: job statistics
+    needs: [examples, clients]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download per-job statistics
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          # Each artifact is extracted into its own subdirectory, so the
+          # matrix jobs' identical `job-statistics.csv` names do not collide.
+          pattern: job-statistics-*
+          path: statistics
+
+      - name: Merge job statistics
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import csv
+          from pathlib import Path
+
+          columns = [
+              "cdse_job_id", "label", "kind", "job_time", "cdse_time",
+              "used_credits", "used_cpu", "used_cpu_unit",
+              "used_ram", "used_ram_unit",
+          ]
+          rows = {}
+          for path in sorted(Path("statistics").rglob("*.csv")):
+              with path.open(newline="") as handle:
+                  for row in csv.DictReader(handle):
+                      job_id = row.get("cdse_job_id")
+                      if not job_id:
+                          continue
+                      # The same job can be seen by a snippet's job-list diff
+                      # and by its owner; keep the first non-empty value.
+                      merged = rows.setdefault(job_id, {column: "" for column in columns})
+                      for column in columns:
+                          if not merged[column] and row.get(column):
+                              merged[column] = row[column]
+
+          out = Path("job-statistics.csv")
+          with out.open("w", newline="") as handle:
+              writer = csv.DictWriter(handle, fieldnames=columns)
+              writer.writeheader()
+              writer.writerows(rows[job_id] for job_id in sorted(rows))
+          print(f"wrote {out} with {len(rows)} job(s)")
+          PY
+
+      - name: Upload job statistics
+        uses: actions/upload-artifact@v4
+        with:
+          name: job-statistics
+          path: job-statistics.csv

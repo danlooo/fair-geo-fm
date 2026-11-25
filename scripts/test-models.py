@@ -69,6 +69,11 @@ successful inline jobs are deleted unless ``--keep-jobs`` is given. Jobs
 created by the Python and R snippets are left on CDSE, because the snippets do
 not expose their job ids.
 
+``--stats-file`` appends one row per CDSE job with its id, wall time, processing
+time, credits, CPU and memory usage. The inline model and Web editor jobs are
+described before they are deleted; the Python and R jobs are found by
+comparing the account's job list around the snippet run.
+
 Usage:
     OPENEO_AUTH_CLIENT_ID=... OPENEO_AUTH_CLIENT_SECRET=... \\
         uv run scripts/test-models.py
@@ -83,6 +88,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import csv
 import json
 import os
 import re
@@ -92,6 +98,7 @@ import sys
 import tempfile
 import time
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -106,6 +113,21 @@ TERMINAL_STATUSES = {"finished", "error", "canceled"}
 SPATIAL_DIMENSIONS = ("x", "y", "lon", "lat")
 # Client names and the Markdown code-fence language of their documented example.
 CLIENTS = {"web": "json", "python": "python", "r": "r"}
+# Columns of the per-job statistics CSV written with ``--stats-file``.
+# ``job_time`` and ``cdse_time`` are in seconds; ``used_cpu`` and ``used_ram``
+# keep the unit the back-end reports next to the value.
+STATS_COLUMNS = [
+    "cdse_job_id",
+    "label",
+    "kind",
+    "job_time",
+    "cdse_time",
+    "used_credits",
+    "used_cpu",
+    "used_cpu_unit",
+    "used_ram",
+    "used_ram_unit",
+]
 
 # The matrix runs all models in parallel against the same service account, so
 # the backend answers some calls with ``429 Too Many Requests``. The client's
@@ -230,6 +252,108 @@ def wait_for_job(job, timeout_seconds: float, poll_interval: float) -> None:
         for entry in entries:
             print(f"  log: {entry}")
         raise RuntimeError(f"job {job.job_id} finished with status {status!r}")
+
+
+def _parse_timestamp(value: str | None) -> datetime | None:
+    """Parse an RFC 3339 timestamp from the openEO API."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def job_statistics(job, label: str, kind: str, wall_time: float | None = None) -> dict:
+    """One CSV row with the time and resources a CDSE job used.
+
+    ``job_time`` is the wall time from submission to the last status update,
+    so it includes queueing. ``cdse_time`` is the back-end's ``usage.duration``,
+    which excludes queueing and starting. Both are seconds. ``used_credits``
+    is the job's ``costs`` in the back-end's billing currency (credits on
+    CDSE). The CPU and memory values keep the unit CDSE reports.
+    """
+    try:
+        data = job.describe()
+    except Exception as error:  # noqa: BLE001 - statistics must not fail the test
+        print(f"  could not describe job {job.job_id} for statistics: {error}")
+        data = {}
+
+    created = _parse_timestamp(data.get("created"))
+    updated = _parse_timestamp(data.get("updated"))
+    if created and updated:
+        job_time = (updated - created).total_seconds()
+    else:
+        job_time = wall_time
+
+    usage = data.get("usage") or {}
+    cpu = usage.get("cpu") or {}
+    memory = usage.get("memory") or {}
+    duration = usage.get("duration") or {}
+
+    return {
+        "cdse_job_id": job.job_id,
+        "label": label,
+        "kind": kind,
+        "job_time": round(job_time, 1) if job_time is not None else "",
+        "cdse_time": duration.get("value", ""),
+        "used_credits": data.get("costs") if data.get("costs") is not None else "",
+        "used_cpu": cpu.get("value", ""),
+        "used_cpu_unit": cpu.get("unit", ""),
+        "used_ram": memory.get("value", ""),
+        "used_ram_unit": memory.get("unit", ""),
+    }
+
+
+def append_statistics(stats_file: Path | None, rows: list[dict]) -> None:
+    """Append rows to the statistics CSV, writing the header once."""
+    if stats_file is None or not rows:
+        return
+    stats_file.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not stats_file.exists() or stats_file.stat().st_size == 0
+    with stats_file.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=STATS_COLUMNS)
+        if write_header:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
+def list_untitled_job_ids(connection) -> set[str]:
+    """Ids of untitled jobs for the service account, newest 100 jobs.
+
+    The snippets create their job without a title, while the model and Web
+    editor tests title theirs (`ci_test_*`, `ci_client_web_*`). Filtering on
+    that keeps a concurrent model job out of a snippet's before/after diff.
+    """
+    try:
+        return {
+            job["id"]
+            for job in connection.list_jobs(limit=100)
+            if not job.get("title")
+        }
+    except Exception as error:  # noqa: BLE001 - statistics must not fail the test
+        print(f"  could not list jobs for statistics: {error}")
+        return set()
+
+
+def append_new_job_statistics(
+    connection, before: set[str], stats_file: Path | None
+) -> None:
+    """Collect statistics for jobs a snippet created while it ran.
+
+    The documented Python and R examples do not expose the id of the job they
+    create, so compare the account's untitled jobs before and after the
+    snippet. The Python and R snippets run at the same time and can each see
+    the other's job; both write the same generic label, and the final merge
+    deduplicates by job id. A job deleted by its owner in between is skipped.
+    """
+    rows = []
+    for job_id in sorted(list_untitled_job_ids(connection) - before):
+        try:
+            rows.append(job_statistics(connection.job(job_id), "snippet", "client"))
+        except Exception as error:  # noqa: BLE001
+            print(f"  could not read statistics for job {job_id}: {error}")
+    append_statistics(stats_file, rows)
 
 
 def embedding_count(dataset) -> tuple[int, str]:
@@ -367,6 +491,7 @@ def test_model(
     download_dir: Path,
     keep_jobs: bool,
     download_attempts: int = 4,
+    stats_file: Path | None = None,
 ) -> Path:
     """Render, submit and verify one model's documented example."""
     config = json.loads((process_dir / "config.json").read_text(encoding="utf-8"))
@@ -390,6 +515,7 @@ def test_model(
         job_options=graph.get("default_job_options") or None,
     )
     print(f"  created job {job.job_id}")
+    submitted = time.monotonic()
 
     succeeded = False
     try:
@@ -400,6 +526,18 @@ def test_model(
         succeeded = True
         return result
     finally:
+        # Collect before deleting: a deleted job no longer reports its usage.
+        append_statistics(
+            stats_file,
+            [
+                job_statistics(
+                    job,
+                    process_dir.name,
+                    "model",
+                    wall_time=time.monotonic() - submitted,
+                )
+            ],
+        )
         # Keep failed jobs so their logs and results can be inspected with the
         # service-account credentials after the CI run.
         if keep_jobs or not succeeded:
@@ -472,6 +610,8 @@ def run_snippet(
     client: str,
     code: str,
     *,
+    connection,
+    stats_file: Path | None,
     download_dir: Path,
     timeout_seconds: float,
 ) -> Path:
@@ -499,6 +639,9 @@ def run_snippet(
     script = download_dir / f"example{suffix}"
     script.write_text(code, encoding="utf-8")
     print(f"  running {script}")
+    # The snippet does not expose the job it creates, so watch the account's
+    # untitled jobs around the run to find (and later describe) that job.
+    before = list_untitled_job_ids(connection)
     try:
         completed = subprocess.run(
             [*interpreter, str(script)],
@@ -514,6 +657,8 @@ def run_snippet(
             f"the {client} example did not finish within "
             f"{timeout_seconds / 60:.0f} minutes"
         ) from None
+    finally:
+        append_new_job_statistics(connection, before, stats_file)
     if completed.stdout:
         print(completed.stdout)
     if completed.returncode != 0:
@@ -550,6 +695,7 @@ def test_client(
     download_dir: Path,
     keep_jobs: bool,
     download_attempts: int = 4,
+    stats_file: Path | None = None,
 ) -> Path:
     """Run one client's documented example and verify its result."""
     config = json.loads((process_dir / "config.json").read_text(encoding="utf-8"))
@@ -559,6 +705,8 @@ def test_client(
         result = run_snippet(
             client,
             code,
+            connection=connection,
+            stats_file=stats_file,
             download_dir=download_dir,
             timeout_seconds=timeout_seconds,
         )
@@ -577,6 +725,7 @@ def test_client(
         ),
     )
     print(f"  created job {job.job_id}")
+    submitted = time.monotonic()
     succeeded = False
     try:
         wait_for_job(job, timeout_seconds, poll_interval)
@@ -586,6 +735,17 @@ def test_client(
         succeeded = True
         return result
     finally:
+        append_statistics(
+            stats_file,
+            [
+                job_statistics(
+                    job,
+                    f"{process_dir.name}/{client}",
+                    f"client:{client}",
+                    wall_time=time.monotonic() - submitted,
+                )
+            ],
+        )
         if keep_jobs or not succeeded:
             reason = "requested" if keep_jobs else "failure"
             print(f"  keeping job {job.job_id} ({reason})")
@@ -665,6 +825,14 @@ def main() -> None:
         action="store_true",
         help="do not delete the CDSE jobs after the test",
     )
+    parser.add_argument(
+        "--stats-file",
+        type=Path,
+        help=(
+            "append one CSV row per CDSE job with its time, credits, CPU and "
+            "memory usage; the file is created if it does not exist"
+        ),
+    )
     args = parser.parse_args()
 
     models = discover_models(REPO_ROOT, args.models)
@@ -712,6 +880,7 @@ def main() -> None:
                         ),
                         keep_jobs=args.keep_jobs,
                         download_attempts=args.download_retries,
+                        stats_file=args.stats_file,
                     ),
                 )
         else:
@@ -727,6 +896,7 @@ def main() -> None:
                     download_dir=download_root / process_dir.name,
                     keep_jobs=args.keep_jobs,
                     download_attempts=args.download_retries,
+                    stats_file=args.stats_file,
                 ),
             )
 
